@@ -1,0 +1,20 @@
+{
+  "name": "Ritmo — Foco, Hábitos & Finanças",
+  "short_name": "Ritmo",
+  "description": "Ciclos de foco, hábitos, rotina, quadros, finanças pessoais e muito mais, no seu ritmo.",
+  "start_url": "/app?pwa=1",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d1117",
+  "theme_color": "#059669",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["productivity", "finance", "lifestyle"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
