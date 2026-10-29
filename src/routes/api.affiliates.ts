@@ -1,5 +1,6 @@
+import { verifyActiveToken } from '../lib/session.js';
 import { createFileRoute } from '@tanstack/react-router';
-import { extractTokenFromRequest, verifyToken } from '../lib/auth.js';
+import { extractTokenFromRequest } from '../lib/auth.js';
 import {
   findUserById,
   getAffiliateData,
@@ -15,7 +16,7 @@ export const Route = createFileRoute('/api/affiliates')({
       GET: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyToken(token);
+        const payload = await verifyActiveToken(token);
         if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
         const user = await findUserById(payload.userId);
@@ -38,7 +39,7 @@ export const Route = createFileRoute('/api/affiliates')({
           if (action === 'request_withdrawal') {
             const token = extractTokenFromRequest(request);
             if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-            const payload = await verifyToken(token);
+            const payload = await verifyActiveToken(token);
             if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
             const { amountCents, pixKey, pixKeyType } = body;
@@ -68,7 +69,7 @@ export const Route = createFileRoute('/api/affiliates')({
           if (action === 'update_pix') {
             const token = extractTokenFromRequest(request);
             if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-            const payload = await verifyToken(token);
+            const payload = await verifyActiveToken(token);
             if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
             const { pixKey, pixKeyType } = body;

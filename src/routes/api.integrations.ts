@@ -1,5 +1,6 @@
+import { verifyActiveToken } from '../lib/session.js';
 import { createFileRoute } from '@tanstack/react-router';
-import { extractTokenFromRequest, verifyToken } from '../lib/auth.js';
+import { extractTokenFromRequest } from '../lib/auth.js';
 import {
   createFinanceTransaction,
   findUserByPhone,
@@ -33,7 +34,7 @@ export const Route = createFileRoute('/api/integrations')({
         // 2. User integrations config
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyToken(token);
+        const payload = await verifyActiveToken(token);
         if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
         const config = await getIntegrationsConfig(payload.userId);
@@ -48,7 +49,7 @@ export const Route = createFileRoute('/api/integrations')({
         if (action === 'simulate_whatsapp') {
           const token = extractTokenFromRequest(request);
           if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-          const payload = await verifyToken(token);
+          const payload = await verifyActiveToken(token);
           if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
           const body = await request.json();
@@ -105,7 +106,7 @@ export const Route = createFileRoute('/api/integrations')({
         if (action === 'sync_sheets') {
           const token = extractTokenFromRequest(request);
           if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-          const payload = await verifyToken(token);
+          const payload = await verifyActiveToken(token);
           if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
           const config = await getIntegrationsConfig(payload.userId);
@@ -130,7 +131,7 @@ export const Route = createFileRoute('/api/integrations')({
         if (action === 'update_config') {
           const token = extractTokenFromRequest(request);
           if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-          const payload = await verifyToken(token);
+          const payload = await verifyActiveToken(token);
           if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
           const body = await request.json();

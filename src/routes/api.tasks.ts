@@ -1,5 +1,6 @@
+import { verifyActiveToken } from '../lib/session.js';
 import { createFileRoute } from '@tanstack/react-router';
-import { extractTokenFromRequest, verifyToken } from '../lib/auth.js';
+import { extractTokenFromRequest } from '../lib/auth.js';
 import { createTask, deleteTask, getTasks, updateTask } from '../lib/server-db.js';
 
 export const Route = createFileRoute('/api/tasks')({
@@ -8,7 +9,7 @@ export const Route = createFileRoute('/api/tasks')({
       GET: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyToken(token);
+        const payload = await verifyActiveToken(token);
         if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
         const url = new URL(request.url);
@@ -21,7 +22,7 @@ export const Route = createFileRoute('/api/tasks')({
       POST: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyToken(token);
+        const payload = await verifyActiveToken(token);
         if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
         const body = await request.json();
@@ -36,7 +37,7 @@ export const Route = createFileRoute('/api/tasks')({
       PUT: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyToken(token);
+        const payload = await verifyActiveToken(token);
         if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
         const body = await request.json();
@@ -52,7 +53,7 @@ export const Route = createFileRoute('/api/tasks')({
       DELETE: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyToken(token);
+        const payload = await verifyActiveToken(token);
         if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
         const url = new URL(request.url);

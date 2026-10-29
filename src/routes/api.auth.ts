@@ -13,17 +13,25 @@ import {
 import { createToken, extractTokenFromRequest, hashPassword, verifyPassword, verifyToken } from '../lib/auth.js';
 import { sendPasswordResetEmail } from '../lib/email.js';
 import { computeAccess } from '../lib/access.js';
+import { isMasterEmail } from '../lib/admin-permissions.js';
 
-// Promove a administrador quem tiver o e-mail listado em ADMIN_EMAILS (separados por vírgula).
-// Só vale para o primeiro acesso: depois de criar seu admin, remova a variável.
-async function promoteIfAdminEmail<T extends { id: number; email: string; role?: string | null }>(user: T): Promise<T> {
+// Promove a administrador: o e-mail MASTER (padrão batistuth@live.com, ou MASTER_ADMIN_EMAIL na Netlify)
+// e quem estiver em ADMIN_EMAILS (separados por vírgula). O master sempre tem todas as permissões.
+// IMPORTANTE: crie a conta do master assim que publicar, antes de divulgar o site.
+async function promoteIfAdminEmail<T extends { id: number; email: string; role?: string | null; subscriptionStatus?: string | null }>(user: T): Promise<T> {
   const list = (process.env.ADMIN_EMAILS || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  if (user.role !== 'admin' && list.includes(user.email.toLowerCase())) {
+  const master = isMasterEmail(user.email, process.env.MASTER_ADMIN_EMAIL);
+  if (user.role !== 'admin' && (master || list.includes(user.email.toLowerCase()))) {
     await updateUserRecord(user.id, { role: 'admin' });
     return { ...user, role: 'admin' };
+  }
+  // o master nunca fica desativado
+  if (master && user.subscriptionStatus === 'suspended') {
+    await updateUserRecord(user.id, { subscriptionStatus: 'active' });
+    return { ...user, subscriptionStatus: 'active' };
   }
   return user;
 }
@@ -46,9 +54,13 @@ export const Route = createFileRoute('/api/auth')({
         if (!payload) {
           return Response.json({ user: null }, { status: 401 });
         }
-        const user = await findUserById(payload.userId);
-        if (!user) {
+        const found = await findUserById(payload.userId);
+        if (!found) {
           return Response.json({ user: null }, { status: 404 });
+        }
+        const user = await promoteIfAdminEmail(found);
+        if (user.subscriptionStatus === 'suspended') {
+          return Response.json({ user: null, error: 'Esta conta está desativada. Fale com o suporte.' }, { status: 401 });
         }
         const { passwordHash, ...safeUser } = user;
         return Response.json({ user: { ...safeUser, access: computeAccess(user) } });
@@ -129,6 +141,9 @@ export const Route = createFileRoute('/api/auth')({
               return Response.json({ error: 'Credenciais inválidas. Senha incorreta.' }, { status: 401 });
             }
             const user = await promoteIfAdminEmail(foundUser);
+            if (user.subscriptionStatus === 'suspended') {
+              return Response.json({ error: 'Esta conta está desativada. Fale com o suporte.' }, { status: 403 });
+            }
 
             const token = await createToken({
               userId: user.id,

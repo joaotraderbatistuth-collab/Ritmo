@@ -6,6 +6,7 @@ import { computeAccess, nextRenewalDate } from '../src/lib/access.js';
 import { computeChain, weekStartKey, targetPerWeek } from '../src/lib/chain.js';
 import { DEFAULT_VISIBLE, normalizeVisible, moveCard, moveBefore, hideCard, showCard, hiddenCards, CARD_IDS } from '../src/lib/home-layout.js';
 import { calculateCommissionChain, COMMISSION_TOTAL_PERCENT, COMMISSION_DIRECT_PERCENT, COMMISSION_NETWORK_PERCENT, MAX_COMMISSION_LEVELS, levelPercent } from '../src/lib/commission-plan.js';
+import { PERMISSIONS, ALL_PERMISSION_KEYS, normalizePermissions, serializePermissions, isMasterEmail, isMasterAdmin, effectivePermissions, can, ACTION_PERMISSION, EXPORT_PERMISSION, filterDashboardByPermissions } from '../src/lib/admin-permissions.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
 
 /**
@@ -232,6 +233,32 @@ export function runTests() {
   assert(showCard(base7, 'tarefas').length === 3, 'não duplica card');
   assert(hiddenCards(base7).length === CARD_IDS.length - 3, 'catálogo mostra os que faltam');
   console.log('✓ Todos os testes do layout da tela inicial passaram com sucesso!');
+
+  // 8. Permissões do painel administrativo (master + administradores com permissões escolhidas)
+  console.log('8. Testando permissões do painel administrativo...');
+  assert(isMasterEmail('Batistuth@Live.com') && isMasterEmail(' batistuth@live.com '), 'e-mail master padrão ignora maiúsculas e espaços');
+  assert(!isMasterEmail('outro@live.com') && !isMasterEmail(''), 'outro e-mail não é master');
+  assert(isMasterEmail('chefe@x.com', 'chefe@x.com, dono@x.com') && !isMasterEmail('batistuth@live.com', 'chefe@x.com'), 'variável MASTER_ADMIN_EMAIL substitui o padrão');
+  const masterPerms = effectivePermissions({ role: 'admin', email: 'batistuth@live.com' });
+  assert(ALL_PERMISSION_KEYS.every((k) => masterPerms.includes(k)) && masterPerms.includes('admins_manage'), 'master tem tudo, inclusive gerir administradores');
+  assert(effectivePermissions({ role: 'user', email: 'batistuth@live.com' }).length === 0, 'conta comum não tem permissão, mesmo com e-mail master');
+  const supportPerms = effectivePermissions({ role: 'admin', email: 'ana@x.com', adminPermissions: '["overview","users_view","users_manage","admins_manage","lixo"]' });
+  assert(supportPerms.join() === 'overview,users_view,users_manage', 'só permissões válidas; admins_manage nunca vem do banco');
+  assert(effectivePermissions({ role: 'admin', email: 'velho@x.com', adminPermissions: null }).length === ALL_PERMISSION_KEYS.length && !effectivePermissions({ role: 'admin', email: 'velho@x.com', adminPermissions: null }).includes('admins_manage'), 'admin antigo (sem permissões salvas): operacional completo, sem gerir admins');
+  assert(effectivePermissions({ role: 'admin', email: 'zero@x.com', adminPermissions: '[]' }).length === 0, 'lista vazia = nenhuma permissão');
+  assert(normalizePermissions('texto quebrado').length === 0 && normalizePermissions(['coupons', 'coupons']).length === 1, 'normalização aguenta lixo e repetição');
+  assert(JSON.parse(serializePermissions(['finance', 'x'])).join() === 'finance', 'serializar remove inválidos');
+  assert(Object.values(ACTION_PERMISSION).every((p) => p === 'admins_manage' || ALL_PERMISSION_KEYS.includes(p as any)), 'toda ação mapeia para uma permissão existente');
+  assert(ACTION_PERMISSION['create_admin'] === 'admins_manage' && ACTION_PERMISSION['refund_order'] === 'refunds', 'criar admin só master; estorno exige permissão própria');
+  assert(Object.values(EXPORT_PERMISSION).every((p) => ALL_PERMISSION_KEYS.includes(p as any)), 'toda planilha mapeia para uma permissão existente');
+  assert(PERMISSIONS.length === ALL_PERMISSION_KEYS.length, 'catálogo de permissões consistente');
+  const fakeData = { metrics: { a: 1 }, signupsByDay: [], finance: { r: 1 }, payments: [1], users: [1], coupons: [1], affiliates: [1], withdrawals: [1], audit: [1], admins: [1] };
+  const f1 = filterDashboardByPermissions(fakeData, ['overview', 'users_view']);
+  assert(f1.metrics && f1.users && !f1.finance && !f1.payments && !f1.coupons && !f1.audit && !f1.admins && !f1.withdrawals, 'filtro esconde o que não tem permissão (valores, auditoria, admins)');
+  const f2 = filterDashboardByPermissions(fakeData, ['finance']);
+  assert(f2.finance && f2.payments && !f2.metrics && !f2.users, 'só finanças: sem números de usuários nem lista de usuários');
+  assert(can(['coupons'], 'coupons') && !can(['coupons'], 'finance'), 'can() confere permissão');
+  console.log('✓ Todos os testes de permissões passaram com sucesso!');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

@@ -16,6 +16,7 @@ export const users = pgTable("users", {
   referralCode: text("referral_code").notNull().unique(),
   referredBy: text("referred_by"),
   whatsappPhone: text("whatsapp_phone"),
+  adminPermissions: text("admin_permissions"), // JSON com as permissões do administrador; vazio = administrador antigo (acesso operacional completo)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -335,4 +336,18 @@ export const affiliateWithdrawals = pgTable("affiliate_withdrawals", {
   receiptReference: text("receipt_reference"),
   requestedAt: timestamp("requested_at").defaultNow().notNull(),
   processedAt: timestamp("processed_at"),
+});
+
+// ---------------------------------------------------------------------------
+// AUDITORIA DO PAINEL ADMINISTRATIVO — quem fez o quê e quando
+// ---------------------------------------------------------------------------
+export const adminAuditLog = pgTable("admin_audit_log", {
+  id: serial("id").primaryKey(),
+  adminUserId: integer("admin_user_id"),
+  adminEmail: text("admin_email").notNull(),
+  action: text("action").notNull(),
+  targetType: text("target_type"),
+  targetId: text("target_id"),
+  details: text("details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });

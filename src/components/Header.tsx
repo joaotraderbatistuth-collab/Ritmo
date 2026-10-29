@@ -105,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
           {user ? (
             <div className="flex items-center gap-2">
               {user.role === 'admin' && (
-                <a href="/admin" className="hidden sm:inline text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20">
+                <a href="/admin" className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20">
                   Admin
                 </a>
               )}

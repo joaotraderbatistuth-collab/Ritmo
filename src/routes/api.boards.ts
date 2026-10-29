@@ -1,5 +1,6 @@
+import { verifyActiveToken } from '../lib/session.js';
 import { createFileRoute } from '@tanstack/react-router';
-import { extractTokenFromRequest, verifyToken } from '../lib/auth.js';
+import { extractTokenFromRequest } from '../lib/auth.js';
 import {
   getBoards,
   createBoard,
@@ -32,7 +33,7 @@ import {
 async function requireUser(request: Request) {
   const token = extractTokenFromRequest(request);
   if (!token) return { error: Response.json({ error: 'Não autorizado.' }, { status: 401 }) };
-  const payload = await verifyToken(token);
+  const payload = await verifyActiveToken(token);
   if (!payload) return { error: Response.json({ error: 'Sessão expirada.' }, { status: 401 }) };
   return { userId: payload.userId, userName: payload.name };
 }

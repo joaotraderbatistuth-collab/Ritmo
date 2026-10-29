@@ -1,4 +1,4 @@
-import { eq, ne, desc, and, sql } from 'drizzle-orm';
+import { eq, ne, desc, and, sql, gte } from 'drizzle-orm';
 import { computeAccess, nextRenewalDate } from './access.js';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
@@ -21,11 +21,13 @@ import {
   CycleMilestone,
 } from './types.js';
 import { generateRoadmap } from './roadmap.js';
+import { effectivePermissions, isMasterAdmin, isMasterEmail, serializePermissions } from './admin-permissions.js';
 import {
   COMMISSION_DIRECT_PERCENT,
   COMMISSION_TOTAL_PERCENT,
   MAX_COMMISSION_LEVELS,
   MIN_PAYOUT_CENTS,
+  PLAN_PRICE_CENTS,
   brl,
   calculateCommissionChain,
 } from './commission-plan.js';
@@ -341,7 +343,8 @@ export async function createUserRecord(data: {
 }) {
   const trialDays = 7;
   const trialEndsAtDate = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
-  const userRole = data.role || (data.email.toLowerCase().includes('admin') ? 'admin' : 'user');
+  // Administrador NUNCA é definido pelo texto do e-mail: só pelo e-mail master/ADMIN_EMAILS (api.auth) ou pelo painel.
+  const userRole = data.role || 'user';
 
   const isDb = await checkDb();
   if (isDb) {
@@ -1598,6 +1601,13 @@ export async function validateCoupon(code: string) {
   if (!coupon) {
     return { valid: false, error: 'Cupom inválido ou expirado.' };
   }
+  const todayBR = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  if (coupon.expiresAt && String(coupon.expiresAt).slice(0, 10) < todayBR) {
+    return { valid: false, error: 'Cupom expirado.' };
+  }
+  if (coupon.maxUses && (coupon.usedCount || 0) >= coupon.maxUses) {
+    return { valid: false, error: 'Este cupom atingiu o limite de usos.' };
+  }
 
   return {
     valid: true,
@@ -2173,108 +2183,351 @@ export async function requestAffiliateWithdrawal(
 // -------------------------------------------------------------
 // ADMIN MANAGEMENT & METRICS
 // -------------------------------------------------------------
-export async function getAdminDashboardData() {
-  const isDb = await checkDb();
-  let allUsers: any[] = [];
-  let allPayments: any[] = [];
-  let allWithdrawals: any[] = [];
-  let allCoupons: any[] = [];
+// ---- Auditoria: quem fez o quê (nunca grave senhas aqui) ----
+const adminAuditMem: any[] = [];
 
+export async function logAdminAction(
+  admin: { id: number; email: string },
+  action: string,
+  target?: { type?: string; id?: string | number },
+  details?: Record<string, unknown>
+) {
+  const row = {
+    adminUserId: admin.id,
+    adminEmail: admin.email,
+    action,
+    targetType: target?.type || null,
+    targetId: target?.id !== undefined ? String(target.id) : null,
+    details: details ? JSON.stringify(details) : null,
+  };
+  const isDb = await checkDb();
   if (isDb) {
     try {
-      allUsers = await db.select().from(schema.users).orderBy(desc(schema.users.id));
-      allPayments = await db.select().from(schema.payments).orderBy(desc(schema.payments.id));
-      allWithdrawals = await db.select().from(schema.affiliateWithdrawals).orderBy(desc(schema.affiliateWithdrawals.id));
-      allCoupons = await db.select().from(schema.coupons).orderBy(desc(schema.coupons.id));
-    } catch {}
-  } else {
-    allUsers = [...memStore.users];
-    allPayments = [...memStore.payments];
-    allWithdrawals = [...memStore.affiliateWithdrawals];
-    allCoupons = [...memStore.coupons];
-  }
-
-  const totalUsers = allUsers.length;
-  const activeUsers = allUsers.filter((u) => u.subscriptionStatus === 'active' || u.subscriptionStatus === 'trial').length;
-  const paidSubscribers = allUsers.filter((u) => u.subscriptionStatus === 'active').length;
-  const trialUsers = allUsers.filter((u) => u.subscriptionStatus === 'trial').length;
-
-  // Monthly Recurring Revenue: paidSubscribers * R$ 39,90 (3990 cents)
-  const mrrCents = paidSubscribers * 3990;
-
-  // Pending affiliate commissions to pay (pending withdrawals)
-  const pendingCommissionsCents = allWithdrawals
-    .filter((w) => w.status === 'pending' || w.status === 'approved')
-    .reduce((acc, w) => acc + w.amountCents, 0);
-
-  const totalCommissionsPaidCents = allWithdrawals
-    .filter((w) => w.status === 'paid')
-    .reduce((acc, w) => acc + w.amountCents, 0);
-
-  // Map users with safe presentation
-  const safeUsers = allUsers.map((u) => {
-    let daysRemaining = 0;
-    if (u.trialEndsAt) {
-      const diff = new Date(u.trialEndsAt).getTime() - Date.now();
-      daysRemaining = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+      await db.insert(schema.adminAuditLog).values(row);
+      return;
+    } catch {
+      // fallback
     }
-    return {
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: u.role || 'user',
-      subscriptionStatus: u.subscriptionStatus || 'trial',
-      trialEndsAt: u.trialEndsAt instanceof Date ? u.trialEndsAt.toISOString() : u.trialEndsAt,
-      trialDaysRemaining: daysRemaining,
-      subscriptionRenewalDate: u.subscriptionRenewalDate,
-      referralCode: u.referralCode,
-      referredBy: u.referredBy,
-      pixKey: u.pixKey,
-      pixKeyType: u.pixKeyType,
-      whatsappPhone: u.whatsappPhone,
-      createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : u.createdAt,
-    };
-  });
+  }
+  adminAuditMem.unshift({ id: adminAuditMem.length + 1, ...row, createdAt: new Date().toISOString() });
+  if (adminAuditMem.length > 500) adminAuditMem.pop();
+}
 
-  // Map payments with customer name
-  const enrichedPayments = allPayments.map((p) => {
+export async function getAdminAuditLog(limit = 200) {
+  const isDb = await checkDb();
+  if (isDb) {
+    try {
+      const rows = await db.select().from(schema.adminAuditLog).orderBy(desc(schema.adminAuditLog.id)).limit(limit);
+      return rows.map((r) => ({ ...r, createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt }));
+    } catch {
+      // fallback
+    }
+  }
+  return adminAuditMem.slice(0, limit);
+}
+
+const brtDay = (d: Date | string) => new Date(new Date(d).getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+const iso = (v: any) => (v instanceof Date ? v.toISOString() : v || null);
+
+async function loadAdminRaw() {
+  const isDb = await checkDb();
+  const sinceActivity = brtDay(new Date(Date.now() - 7 * 86400000));
+  const raw = {
+    users: [] as any[],
+    payments: [] as any[],
+    withdrawals: [] as any[],
+    coupons: [] as any[],
+    commissions: [] as any[],
+    audit: [] as any[],
+    activeIds: new Set<number>(),
+  };
+  const safe = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await fn();
+    } catch {
+      return fallback;
+    }
+  };
+
+  if (isDb) {
+    raw.users = await safe(() => db.select().from(schema.users).orderBy(desc(schema.users.id)), memStore.users as any[]);
+    raw.payments = await safe(() => db.select().from(schema.payments).orderBy(desc(schema.payments.id)), []);
+    raw.withdrawals = await safe(() => db.select().from(schema.affiliateWithdrawals).orderBy(desc(schema.affiliateWithdrawals.id)), []);
+    raw.coupons = await safe(() => db.select().from(schema.coupons).orderBy(desc(schema.coupons.id)), []);
+    raw.commissions = await safe(() => db.select().from(schema.affiliateCommissions).orderBy(desc(schema.affiliateCommissions.id)), []);
+    const collect = async (rows: Promise<{ userId: number }[]>) => {
+      for (const r of await safe(() => rows, [])) raw.activeIds.add(r.userId);
+    };
+    await collect(db.select({ userId: schema.tasks.userId }).from(schema.tasks).where(gte(schema.tasks.date, sinceActivity)));
+    await collect(db.select({ userId: schema.habitLogs.userId }).from(schema.habitLogs).where(gte(schema.habitLogs.date, sinceActivity)));
+    await collect(db.select({ userId: schema.journalEntries.userId }).from(schema.journalEntries).where(gte(schema.journalEntries.date, sinceActivity)));
+    await collect(db.select({ userId: schema.focusSessions.userId }).from(schema.focusSessions).where(gte(schema.focusSessions.date, sinceActivity)));
+  } else {
+    raw.users = [...memStore.users];
+    raw.payments = [...memStore.payments];
+    raw.withdrawals = [...memStore.affiliateWithdrawals];
+    raw.coupons = [...memStore.coupons];
+    raw.commissions = [...memStore.affiliateCommissions];
+    for (const list of [memStore.tasks, memStore.habitLogs, memStore.journalEntries, memStore.focusSessions] as any[][]) {
+      for (const r of list) if (r.date && r.date >= sinceActivity) raw.activeIds.add(r.userId);
+    }
+  }
+  raw.audit = await getAdminAuditLog(200);
+  return raw;
+}
+
+type AdminRaw = Awaited<ReturnType<typeof loadAdminRaw>>;
+
+function buildAdminDashboard(raw: AdminRaw, masterConfigured?: string | null) {
+  const now = Date.now();
+  const DAY = 86400000;
+  const { users: allUsers, payments: allPayments, withdrawals: allWithdrawals, coupons: allCoupons, commissions: allCommissions } = raw;
+
+  const withAccess = allUsers.map((u) => ({
+    u,
+    access: computeAccess({ role: u.role, subscriptionStatus: u.subscriptionStatus, trialEndsAt: u.trialEndsAt, subscriptionRenewalDate: u.subscriptionRenewalDate }),
+  }));
+  const customers = withAccess.filter((x) => x.u.role !== 'admin');
+  const createdMs = (u: any) => new Date(u.createdAt).getTime();
+
+  const realPaid = allPayments.filter((p) => p.status === 'paid' && !p.isSimulated);
+  const payersEver = new Set(realPaid.map((p) => p.userId));
+  const paidSubscribers = customers.filter((x) => x.access.hasAccess && x.access.effectiveStatus === 'active').length;
+  const trialUsers = customers.filter((x) => x.access.hasAccess && x.access.effectiveStatus === 'trial').length;
+  const expiredUsers = customers.filter((x) => x.access.effectiveStatus === 'expired').length;
+  const suspendedUsers = customers.filter((x) => x.u.subscriptionStatus === 'suspended').length;
+  const canceledUsers = customers.filter((x) => x.u.subscriptionStatus === 'canceled').length;
+
+  const metrics = {
+    totalUsers: customers.length,
+    adminsCount: allUsers.length - customers.length,
+    paidSubscribers,
+    trialUsers,
+    expiredUsers,
+    suspendedUsers,
+    canceledUsers,
+    activeUsers: paidSubscribers + trialUsers,
+    newUsers7d: customers.filter((x) => now - createdMs(x.u) <= 7 * DAY).length,
+    newUsers30d: customers.filter((x) => now - createdMs(x.u) <= 30 * DAY).length,
+    payersEver: customers.filter((x) => payersEver.has(x.u.id)).length,
+    conversionPercent: customers.length ? Math.round((customers.filter((x) => payersEver.has(x.u.id)).length / customers.length) * 1000) / 10 : 0,
+    activeLast7d: customers.filter((x) => raw.activeIds.has(x.u.id)).length,
+  };
+
+  const days30 = Array.from({ length: 30 }, (_, i) => brtDay(new Date(now - (29 - i) * DAY)));
+  const signupsByDay = days30.map((date) => ({ date, count: customers.filter((x) => brtDay(x.u.createdAt) === date).length }));
+  const revenueByDay = days30.map((date) => ({
+    date,
+    cents: realPaid.filter((p) => p.paidAt && brtDay(p.paidAt) === date).reduce((a, p) => a + p.amountCents, 0),
+  }));
+
+  const sum = (rows: any[], f: (r: any) => number) => rows.reduce((a, r) => a + f(r), 0);
+  const revenueTotalCents = sum(realPaid, (p) => p.amountCents);
+  const commGenerated = sum(allCommissions.filter((c) => c.status === 'approved' || c.status === 'paid'), (c) => c.commissionCents);
+  const finance = {
+    mrrCents: paidSubscribers * PLAN_PRICE_CENTS,
+    revenueTotalCents,
+    revenue30dCents: sum(realPaid.filter((p) => p.paidAt && now - new Date(p.paidAt).getTime() <= 30 * DAY), (p) => p.amountCents),
+    paidCount: realPaid.length,
+    averageTicketCents: realPaid.length ? Math.round(revenueTotalCents / realPaid.length) : 0,
+    refundedCents: sum(allPayments.filter((p) => p.status === 'refunded' && !p.isSimulated), (p) => p.amountCents),
+    discountGivenCents: sum(realPaid, (p) => p.discountCents || 0),
+    simulatedPaidCents: sum(allPayments.filter((p) => p.status === 'paid' && p.isSimulated), (p) => p.amountCents),
+    simulatedPaidCount: allPayments.filter((p) => p.status === 'paid' && p.isSimulated).length,
+    commissionsGeneratedCents: commGenerated,
+    commissionsReversedCents: sum(allCommissions.filter((c) => c.status === 'refunded' || c.status === 'reversed'), (c) => c.commissionCents),
+    pendingCommissionsCents: sum(allWithdrawals.filter((w) => w.status === 'pending' || w.status === 'approved'), (w) => w.amountCents),
+    totalCommissionsPaidCents: sum(allWithdrawals.filter((w) => w.status === 'paid'), (w) => w.amountCents),
+    netAfterCommissionsCents: revenueTotalCents - commGenerated,
+    revenueByDay,
+  };
+
+  const nameByCode = new Map<string, string>(allUsers.map((u) => [u.referralCode, u.name]));
+  const paymentsCountByUser = new Map<number, number>();
+  for (const p of realPaid) paymentsCountByUser.set(p.userId, (paymentsCountByUser.get(p.userId) || 0) + 1);
+
+  const users = withAccess.map(({ u, access }) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role || 'user',
+    isMaster: isMasterAdmin(u, masterConfigured),
+    subscriptionStatus: u.subscriptionStatus || 'trial',
+    access,
+    trialEndsAt: iso(u.trialEndsAt),
+    subscriptionRenewalDate: u.subscriptionRenewalDate || null,
+    referralCode: u.referralCode,
+    referredBy: u.referredBy || null,
+    referredByName: u.referredBy ? nameByCode.get(u.referredBy) || null : null,
+    whatsappPhone: u.whatsappPhone || null,
+    paymentsCount: paymentsCountByUser.get(u.id) || 0,
+    active7d: raw.activeIds.has(u.id),
+    createdAt: iso(u.createdAt),
+  }));
+
+  const payments = allPayments.map((p) => {
     const cust = allUsers.find((u) => u.id === p.userId);
     return {
-      ...p,
+      id: p.id,
+      orderReference: p.orderReference,
+      userId: p.userId,
       userName: cust ? cust.name : 'Cliente',
       userEmail: cust ? cust.email : '',
-      createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
-      paidAt: p.paidAt instanceof Date ? p.paidAt.toISOString() : p.paidAt,
+      amountCents: p.amountCents,
+      discountCents: p.discountCents || 0,
+      couponCode: p.couponCode || null,
+      status: p.status,
+      paymentMethod: p.paymentMethod,
+      isSimulated: Boolean(p.isSimulated),
+      createdAt: iso(p.createdAt),
+      paidAt: iso(p.paidAt),
     };
   });
 
-  // Map withdrawals with affiliate name
-  const enrichedWithdrawals = allWithdrawals.map((w) => {
+  const withdrawals = allWithdrawals.map((w) => {
     const aff = allUsers.find((u) => u.id === w.affiliateUserId);
     return {
       ...w,
       affiliateName: aff ? aff.name : 'Afiliado',
       affiliateEmail: aff ? aff.email : '',
-      requestedAt: w.requestedAt instanceof Date ? w.requestedAt.toISOString() : w.requestedAt,
-      processedAt: w.processedAt instanceof Date ? w.processedAt.toISOString() : w.processedAt,
+      requestedAt: iso(w.requestedAt),
+      processedAt: iso(w.processedAt),
     };
   });
 
-  return {
-    metrics: {
-      totalUsers,
-      activeUsers,
-      paidSubscribers,
-      trialUsers,
-      mrrCents,
-      pendingCommissionsCents,
-      totalCommissionsPaidCents,
-    },
-    users: safeUsers,
-    payments: enrichedPayments,
-    withdrawals: enrichedWithdrawals,
-    coupons: allCoupons,
+  const todayBR = brtDay(new Date());
+  const coupons = allCoupons.map((c) => ({
+    ...c,
+    createdAt: iso(c.createdAt),
+    isExpired: Boolean(c.expiresAt && String(c.expiresAt).slice(0, 10) < todayBR),
+    isExhausted: Boolean(c.maxUses && (c.usedCount || 0) >= c.maxUses),
+  }));
+
+  // Afiliados: indicados diretos, rede (níveis 2 a 4) e comissões
+  const byCode = new Map<string, any>(allUsers.map((u) => [u.referralCode, u]));
+  const children = new Map<string, any[]>();
+  for (const u of allUsers) if (u.referredBy) children.set(u.referredBy, [...(children.get(u.referredBy) || []), u]);
+  const networkSize = (code: string) => {
+    let count = 0;
+    let level = children.get(code) || [];
+    for (let depth = 2; depth <= MAX_COMMISSION_LEVELS && level.length; depth++) {
+      level = level.flatMap((c) => children.get(c.referralCode) || []);
+      count += level.length;
+    }
+    return count;
   };
+  const affiliates = allUsers
+    .map((u) => {
+      const direct = (children.get(u.referralCode) || []).length;
+      const mine = allCommissions.filter((c) => c.affiliateUserId === u.id);
+      const generated = sum(mine.filter((c) => c.status === 'approved' || c.status === 'paid'), (c) => c.commissionCents);
+      const reversed = sum(mine.filter((c) => c.status === 'refunded' || c.status === 'reversed'), (c) => c.commissionCents);
+      const withdrawn = sum(allWithdrawals.filter((w) => w.affiliateUserId === u.id && w.status !== 'rejected'), (w) => w.amountCents);
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        referralCode: u.referralCode,
+        referredByName: u.referredBy ? byCode.get(u.referredBy)?.name || null : null,
+        directReferrals: direct,
+        networkReferrals: networkSize(u.referralCode),
+        generatedCents: generated,
+        reversedCents: reversed,
+        withdrawnCents: withdrawn,
+        balanceCents: Math.max(0, generated - withdrawn),
+      };
+    })
+    .filter((a) => a.directReferrals > 0 || a.generatedCents > 0 || a.reversedCents > 0)
+    .sort((a, b) => b.generatedCents - a.generatedCents || b.directReferrals - a.directReferrals)
+    .slice(0, 200);
+
+  const admins = allUsers
+    .filter((u) => u.role === 'admin')
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      isMaster: isMasterAdmin(u, masterConfigured),
+      suspended: u.subscriptionStatus === 'suspended',
+      permissions: effectivePermissions(u, masterConfigured),
+      createdAt: iso(u.createdAt),
+    }));
+
+  return { metrics, finance, signupsByDay, users, payments, withdrawals, coupons, affiliates, admins, audit: raw.audit };
+}
+
+export async function getAdminDashboardData(masterConfigured?: string | null) {
+  return buildAdminDashboard(await loadAdminRaw(), masterConfigured);
+}
+
+// ---- Exportação em CSV (separador ";" e BOM: abre direto no Excel em português) ----
+function csvCell(v: unknown): string {
+  const t = v === null || v === undefined ? '' : String(v);
+  // evita "injeção de fórmula" ao abrir no Excel
+  const safe = /^[=+\-@]/.test(t) && isNaN(Number(t)) ? `'${t}` : t;
+  return /[";\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+export function rowsToCsv(rows: unknown[][]): string {
+  return '\ufeff' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n');
+}
+const money = (c: number) => (c / 100).toFixed(2).replace('.', ',');
+
+export async function buildAdminExport(kind: string, masterConfigured?: string | null): Promise<{ filename: string; csv: string } | null> {
+  const raw = await loadAdminRaw();
+  const d = buildAdminDashboard(raw, masterConfigured);
+  const stamp = brtDay(new Date());
+  let rows: unknown[][] | null = null;
+  switch (kind) {
+    case 'users':
+      rows = [
+        ['ID', 'Nome', 'E-mail', 'Perfil', 'Status', 'Acesso', 'Dias restantes', 'Fim do teste', 'Pago até', 'Código de indicação', 'Indicado por', 'WhatsApp', 'Pagamentos reais', 'Ativo nos últimos 7 dias', 'Cadastro'],
+        ...d.users.map((u) => [u.id, u.name, u.email, u.role, u.subscriptionStatus, u.access.hasAccess ? 'Sim' : 'Não', u.access.daysLeft, u.trialEndsAt || '', u.subscriptionRenewalDate || '', u.referralCode, u.referredByName || u.referredBy || '', u.whatsappPhone || '', u.paymentsCount, u.active7d ? 'Sim' : 'Não', u.createdAt || '']),
+      ];
+      break;
+    case 'signups':
+      rows = [['Dia', 'Cadastros'], ...d.signupsByDay.map((x) => [x.date, x.count])];
+      break;
+    case 'payments':
+      rows = [
+        ['ID', 'Pedido', 'Cliente', 'E-mail', 'Valor (R$)', 'Desconto (R$)', 'Cupom', 'Status', 'Método', 'Simulado', 'Criado em', 'Pago em'],
+        ...d.payments.map((p) => [p.id, p.orderReference, p.userName, p.userEmail, money(p.amountCents), money(p.discountCents), p.couponCode || '', p.status, p.paymentMethod, p.isSimulated ? 'Sim' : 'Não', p.createdAt || '', p.paidAt || '']),
+      ];
+      break;
+    case 'commissions': {
+      const nameById = new Map<number, string>(raw.users.map((u) => [u.id, u.name]));
+      rows = [
+        ['ID', 'Afiliado', 'Indicado', 'Pedido', 'Nível', 'Percentual', 'Base (R$)', 'Comissão (R$)', 'Status', 'Criada em'],
+        ...raw.commissions.map((c) => [c.id, nameById.get(c.affiliateUserId) || c.affiliateUserId, nameById.get(c.referredUserId) || c.referredUserId, c.orderReference, c.level || 1, `${c.commissionRatePercent}%`, money(c.baseAmountCents), money(c.commissionCents), c.status, iso(c.createdAt) || '']),
+      ];
+      break;
+    }
+    case 'withdrawals':
+      rows = [
+        ['ID', 'Afiliado', 'E-mail', 'Valor (R$)', 'Status', 'Solicitado em', 'Processado em', 'Comprovante'],
+        ...d.withdrawals.map((w: any) => [w.id, w.affiliateName, w.affiliateEmail, money(w.amountCents), w.status, w.requestedAt || '', w.processedAt || '', w.receiptReference || '']),
+      ];
+      break;
+    case 'coupons':
+      rows = [
+        ['ID', 'Código', 'Desconto %', 'Desconto fixo (R$)', 'Ativo', 'Usos', 'Limite', 'Expira em', 'Expirado', 'Esgotado'],
+        ...d.coupons.map((c: any) => [c.id, c.code, c.discountPercent || 0, money(c.discountCents || 0), c.active ? 'Sim' : 'Não', c.usedCount || 0, c.maxUses, c.expiresAt || '', c.isExpired ? 'Sim' : 'Não', c.isExhausted ? 'Sim' : 'Não']),
+      ];
+      break;
+    case 'affiliates':
+      rows = [
+        ['ID', 'Nome', 'E-mail', 'Código', 'Indicados diretos', 'Rede (níveis 2 a 4)', 'Comissões geradas (R$)', 'Estornadas (R$)', 'Sacado (R$)', 'Saldo (R$)'],
+        ...d.affiliates.map((a) => [a.id, a.name, a.email, a.referralCode, a.directReferrals, a.networkReferrals, money(a.generatedCents), money(a.reversedCents), money(a.withdrawnCents), money(a.balanceCents)]),
+      ];
+      break;
+    case 'audit':
+      rows = [
+        ['Quando', 'Administrador', 'Ação', 'Alvo', 'Detalhes'],
+        ...d.audit.map((a: any) => [a.createdAt, a.adminEmail, a.action, [a.targetType, a.targetId].filter(Boolean).join(' #'), a.details || '']),
+      ];
+      break;
+  }
+  if (!rows) return null;
+  return { filename: `ritmo-${kind}-${stamp}.csv`, csv: rowsToCsv(rows) };
 }
 
 export async function adminUpdateUser(
@@ -2305,6 +2558,101 @@ export async function adminUpdateUser(
   return updated;
 }
 
+// ---- Ativar / desativar, acesso grátis, estorno e administradores ----
+
+/** Desativa (suspende) ou reativa um usuário. Reativar volta ao estado que ele merece (assinante, teste ou expirado). */
+export async function adminSetUserActive(userId: number, active: boolean) {
+  const user = await findUserById(userId);
+  if (!user) throw new Error('Usuário não encontrado.');
+  if (!active) return updateUserRecord(userId, { subscriptionStatus: 'suspended' });
+
+  const todayBR = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  let status: 'active' | 'trial' | 'expired' = 'expired';
+  if (user.subscriptionRenewalDate && user.subscriptionRenewalDate >= todayBR) status = 'active';
+  else if (user.trialEndsAt && new Date(user.trialEndsAt).getTime() > Date.now()) status = 'trial';
+  return updateUserRecord(userId, { subscriptionStatus: status });
+}
+
+/** Dá acesso grátis por N dias (soma ao que a pessoa já tem pago). 3650 dias = acesso "vitalício". */
+export async function adminGrantAccess(userId: number, days: number) {
+  const user = await findUserById(userId);
+  if (!user) throw new Error('Usuário não encontrado.');
+  const n = Math.round(Number(days));
+  if (!n || n < 1 || n > 3650) throw new Error('Informe de 1 a 3650 dias.');
+  const todayBR = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const baseStr = user.subscriptionRenewalDate && user.subscriptionRenewalDate >= todayBR ? user.subscriptionRenewalDate : todayBR;
+  const until = new Date(new Date(baseStr + 'T00:00:00Z').getTime() + n * 86400000).toISOString().slice(0, 10);
+  return updateUserRecord(userId, { subscriptionStatus: 'active', subscriptionRenewalDate: until });
+}
+
+/**
+ * Estorna um pedido no sistema: reverte as comissões (níveis 1 a 4), marca o pagamento como
+ * reembolsado e, se pedido, encerra o acesso de quem pagou.
+ * ATENÇÃO: isto NÃO devolve o dinheiro ao cliente — o reembolso é feito no painel do Mercado Pago.
+ */
+export async function adminRefundOrder(orderReference: string, revokeAccess: boolean) {
+  const isDb = await checkDb();
+  let payment: any = null;
+  if (isDb) {
+    try {
+      const [p] = await db.select().from(schema.payments).where(eq(schema.payments.orderReference, orderReference));
+      payment = p || null;
+    } catch {
+      // fallback
+    }
+  }
+  if (!payment) payment = (memStore.payments as any[]).find((p) => p.orderReference === orderReference) || null;
+  if (!payment) throw new Error('Pedido não encontrado.');
+  if (payment.status !== 'paid' && payment.status !== 'refunded') throw new Error('Só é possível estornar pedidos pagos.');
+
+  const result = await reverseCommissionsForOrder(orderReference, 'refunded');
+  if (revokeAccess) {
+    const yesterday = new Date(Date.now() - 3 * 3600 * 1000 - 86400000).toISOString().slice(0, 10);
+    await updateUserRecord(payment.userId, { subscriptionStatus: 'expired', subscriptionRenewalDate: yesterday });
+  }
+  return { ...result, userId: payment.userId as number, accessRevoked: revokeAccess };
+}
+
+function generateReferralCode() {
+  return 'RITMO-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+/** Cria um administrador novo (ou promove uma conta existente) com as permissões escolhidas pelo master. */
+export async function adminCreateAdmin(data: { name: string; email: string; passwordHash: string; permissions: unknown }) {
+  const email = data.email.trim().toLowerCase();
+  const permissions = serializePermissions(data.permissions);
+  const existing = await findUserByEmail(email);
+  if (existing) {
+    if (existing.role === 'admin') throw new Error('Este e-mail já é de um administrador.');
+    // conta que já existe: promove, sem trocar a senha da pessoa
+    const updated = await updateUserRecord(existing.id, { role: 'admin', adminPermissions: permissions });
+    return { user: updated, promoted: true };
+  }
+  const created = await createUserRecord({
+    email,
+    name: data.name.trim(),
+    passwordHash: data.passwordHash,
+    role: 'admin',
+    referralCode: generateReferralCode(),
+  });
+  const updated = await updateUserRecord(created.id, { adminPermissions: permissions, subscriptionStatus: 'active' });
+  return { user: updated, promoted: false };
+}
+
+export async function adminSetAdminPermissions(userId: number, permissions: unknown, masterConfigured?: string | null) {
+  const user = await findUserById(userId);
+  if (!user || user.role !== 'admin') throw new Error('Administrador não encontrado.');
+  if (isMasterEmail(user.email, masterConfigured)) throw new Error('O administrador master sempre tem todas as permissões.');
+  return updateUserRecord(userId, { adminPermissions: serializePermissions(permissions) });
+}
+
+export async function adminRemoveAdmin(userId: number, masterConfigured?: string | null) {
+  const user = await findUserById(userId);
+  if (!user || user.role !== 'admin') throw new Error('Administrador não encontrado.');
+  if (isMasterEmail(user.email, masterConfigured)) throw new Error('O administrador master não pode ser removido.');
+  return updateUserRecord(userId, { role: 'user', adminPermissions: null });
+}
+
 export async function adminCreateCoupon(coupon: {
   code: string;
   discountPercent?: number;
@@ -2313,34 +2661,46 @@ export async function adminCreateCoupon(coupon: {
   expiresAt?: string;
 }) {
   const cleanCode = coupon.code.trim().toUpperCase();
-  const isDb = await checkDb();
+  if (!/^[A-Z0-9_-]{3,30}$/.test(cleanCode)) {
+    throw new Error('O código do cupom deve ter de 3 a 30 letras, números, hífen ou sublinhado (sem espaços).');
+  }
+  const percent = Math.round(Number(coupon.discountPercent) || 0);
+  const cents = Math.round(Number(coupon.discountCents) || 0);
+  if ((percent > 0) === (cents > 0)) {
+    throw new Error('Informe o desconto em porcentagem OU em valor fixo (R$), apenas um dos dois.');
+  }
+  if (percent < 0 || percent > 100 || cents < 0) throw new Error('Desconto inválido: use de 1% a 100% ou um valor em R$ maior que zero.');
+  const maxUses = Math.round(Number(coupon.maxUses) || 100);
+  if (maxUses < 1 || maxUses > 1000000) throw new Error('O limite de usos deve ser de 1 a 1.000.000.');
+  const expiresAt = coupon.expiresAt ? String(coupon.expiresAt).slice(0, 10) : null;
+  if (expiresAt && !/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)) throw new Error('Data de validade inválida.');
 
+  const isDb = await checkDb();
   if (isDb) {
     try {
+      const [dup] = await db.select().from(schema.coupons).where(eq(schema.coupons.code, cleanCode));
+      if (dup) throw new Error('Já existe um cupom com este código.');
       const [newC] = await db
         .insert(schema.coupons)
-        .values({
-          code: cleanCode,
-          discountPercent: coupon.discountPercent || 0,
-          discountCents: coupon.discountCents || 0,
-          maxUses: coupon.maxUses || 100,
-          expiresAt: coupon.expiresAt || null,
-          active: true,
-        })
+        .values({ code: cleanCode, discountPercent: percent, discountCents: cents, maxUses, expiresAt, active: true })
         .returning();
       return newC;
-    } catch {}
+    } catch (e: any) {
+      if (e?.message?.startsWith('Já existe')) throw e;
+      // fallback para memória
+    }
   }
 
+  if (memStore.coupons.some((c) => c.code === cleanCode)) throw new Error('Já existe um cupom com este código.');
   const newC = {
     id: memStore.coupons.length + 1,
     code: cleanCode,
-    discountPercent: coupon.discountPercent || 0,
-    discountCents: coupon.discountCents || 0,
+    discountPercent: percent,
+    discountCents: cents,
     active: true,
-    maxUses: coupon.maxUses || 100,
+    maxUses,
     usedCount: 0,
-    expiresAt: coupon.expiresAt || null,
+    expiresAt,
     createdAt: new Date().toISOString(),
   };
   memStore.coupons.push(newC);

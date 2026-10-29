@@ -1,5 +1,6 @@
+import { verifyActiveToken } from '../lib/session.js';
 import { createFileRoute } from '@tanstack/react-router';
-import { extractTokenFromRequest, verifyToken } from '../lib/auth.js';
+import { extractTokenFromRequest } from '../lib/auth.js';
 import { createFocusCycle, getActiveFocusCycle, getAllFocusCycles, generateRoadmapForCycle } from '../lib/server-db.js';
 
 export const Route = createFileRoute('/api/cycles')({
@@ -8,7 +9,7 @@ export const Route = createFileRoute('/api/cycles')({
       GET: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyToken(token);
+        const payload = await verifyActiveToken(token);
         if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
         const active = await getActiveFocusCycle(payload.userId);
@@ -19,7 +20,7 @@ export const Route = createFileRoute('/api/cycles')({
       POST: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyToken(token);
+        const payload = await verifyActiveToken(token);
         if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
         const body = await request.json();
