@@ -9,6 +9,7 @@ import {
 } from '../lib/server-db.js';
 import { calculateAffiliateCommission } from '../lib/affiliate-engine.js';
 import { MAX_COMMISSION_LEVELS, levelPercent } from '../lib/commission-plan.js';
+import { payoutCycle, payoutDatesText, shortDateBR } from '../lib/payout-schedule.js';
 
 export const Route = createFileRoute('/api/affiliates')({
   server: {
@@ -42,25 +43,22 @@ export const Route = createFileRoute('/api/affiliates')({
             const payload = await verifyActiveToken(token);
             if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
-            const { amountCents, pixKey, pixKeyType } = body;
-            if (!amountCents || !pixKey) {
-              return Response.json({ error: 'Valor e Chave PIX são obrigatórios.' }, { status: 400 });
+            const amountCents = Math.round(Number(body.amountCents));
+            if (!amountCents) {
+              return Response.json({ error: 'Informe o valor do saque.' }, { status: 400 });
             }
 
-            const res = await requestAffiliateWithdrawal(
-              payload.userId,
-              Number(amountCents),
-              pixKey,
-              pixKeyType || 'cpf'
-            );
-
+            const res = await requestAffiliateWithdrawal(payload.userId, amountCents);
             if (!res.success) {
               return Response.json({ error: res.error }, { status: 400 });
             }
 
+            // Ciclo: pedidos até quarta 23:59 (Brasília) são pagos na quinta e na sexta da mesma semana.
+            const cycle = payoutCycle(new Date());
             return Response.json({
               success: true,
-              message: 'Solicitação de saque PIX enviada com sucesso! O pagamento será processado em até 24h úteis.',
+              message: `Solicitação enviada! Ela entra no ciclo de pagamento de ${payoutDatesText(cycle)}. O pagamento é liberado manualmente nesses dias.`,
+              cycle: { deadline: cycle.deadline.toISOString(), thursday: cycle.thursday, friday: cycle.friday, label: shortDateBR(cycle.thursday) },
               withdrawal: res.withdrawal,
             });
           }
@@ -77,8 +75,12 @@ export const Route = createFileRoute('/api/affiliates')({
               return Response.json({ error: 'Informe sua chave PIX.' }, { status: 400 });
             }
 
-            const user = await updateUserPixKey(payload.userId, pixKey, pixKeyType || 'cpf');
-            return Response.json({ success: true, message: 'Chave PIX atualizada com sucesso!', user });
+            try {
+              const user = await updateUserPixKey(payload.userId, pixKey, pixKeyType || 'cpf');
+              return Response.json({ success: true, message: 'Chave Pix salva! É para ela que o seu pagamento será enviado.', user });
+            } catch (e: any) {
+              return Response.json({ error: e.message || 'Chave Pix inválida.' }, { status: 400 });
+            }
           }
 
           // 3. Billing Webhook Processor (simulação: calcula a comissão do nível informado, não grava nada)

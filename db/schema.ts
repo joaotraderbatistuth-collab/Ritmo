@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   referredBy: text("referred_by"),
   whatsappPhone: text("whatsapp_phone"),
   adminPermissions: text("admin_permissions"), // JSON com as permissões do administrador; vazio = administrador antigo (acesso operacional completo)
+  feedMuted: boolean("feed_muted").notNull().default(false), // silenciado pela moderação: não publica nem comenta
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -203,6 +204,7 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   code: text("code").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   used: boolean("used").notNull().default(false),
+  attempts: integer("attempts").notNull().default(0), // tentativas erradas: 5 e o código é invalidado
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -234,6 +236,8 @@ export const payments = pgTable("payments", {
   providerPaymentId: text("provider_payment_id"), // ID do pagamento no Mercado Pago, quando real
   isSimulated: boolean("is_simulated").notNull().default(true), // false quando confirmado via Mercado Pago real
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  kind: text("kind").notNull().default("subscription"), // subscription | team
+  teamId: integer("team_id"), // preenchido quando o pagamento é a compra de acesso a uma equipe
 });
 
 export const coupons = pgTable("coupons", {
@@ -349,5 +353,82 @@ export const adminAuditLog = pgTable("admin_audit_log", {
   targetType: text("target_type"),
   targetId: text("target_id"),
   details: text("details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// FEED SOCIAL, EQUIPES PAGAS E REPASSES
+// ---------------------------------------------------------------------------
+export const teams = pgTable("teams", {
+  id: serial("id").primaryKey(),
+  ownerUserId: integer("owner_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  code: text("code").notNull(), // único (índice na migração); usado no link da equipe
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  priceCents: integer("price_cents").notNull().default(0),
+  periodDays: integer("period_days").notNull().default(0), // 0 = acesso único; 30 = renova a cada 30 dias
+  freeForReferred: boolean("free_for_referred").notNull().default(true),
+  membersCanPost: boolean("members_can_post").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const teamMembers = pgTable("team_members", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  source: text("source").notNull().default("purchase"), // owner | referral | purchase | free
+  status: text("status").notNull().default("active"), // active | removed
+  expiresAt: text("expires_at"), // YYYY-MM-DD; vazio = sem prazo
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const teamEarnings = pgTable("team_earnings", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  ownerUserId: integer("owner_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  buyerUserId: integer("buyer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  orderReference: text("order_reference").notNull(), // único (índice na migração)
+  grossCents: integer("gross_cents").notNull(),
+  platformFeeCents: integer("platform_fee_cents").notNull(),
+  ownerCents: integer("owner_cents").notNull(),
+  status: text("status").notNull().default("approved"), // approved | refunded | reversed
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const feedPosts = pgTable("feed_posts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  teamId: integer("team_id"), // vazio = feed geral; preenchido = só para membros da equipe
+  kind: text("kind").notNull().default("text"), // text | achievement
+  body: text("body").notNull().default(""),
+  payload: text("payload"), // JSON da conquista (validado no servidor)
+  status: text("status").notNull().default("visible"), // visible | hidden
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const feedLikes = pgTable("feed_likes", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").notNull().references(() => feedPosts.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const feedComments = pgTable("feed_comments", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").notNull().references(() => feedPosts.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  status: text("status").notNull().default("visible"), // visible | hidden
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const feedReports = pgTable("feed_reports", {
+  id: serial("id").primaryKey(),
+  targetType: text("target_type").notNull(), // post | comment
+  targetId: integer("target_id").notNull(),
+  reporterUserId: integer("reporter_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull().default(""),
+  status: text("status").notNull().default("open"), // open | dismissed | actioned
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

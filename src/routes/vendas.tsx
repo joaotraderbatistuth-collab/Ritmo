@@ -516,6 +516,12 @@ function SalesPage() {
         /* ignora */
       }
     }
+    const equipe = new URLSearchParams(window.location.search).get('equipe');
+    try {
+      if (equipe && /^[a-z0-9-]{3,40}$/.test(equipe)) localStorage.setItem('ritmo_team_invite', equipe);
+    } catch {
+      /* ignora */
+    }
     fetch('/api/auth')
       .then((r) => r.json())
       .then((d) => setLoggedIn(Boolean(d?.user)))

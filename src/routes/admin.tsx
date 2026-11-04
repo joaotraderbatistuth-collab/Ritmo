@@ -2,9 +2,10 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Flame, Users, CreditCard, Ticket, Wallet, LayoutDashboard, Search, X, AlertCircle, CheckCircle2,
-  ShieldCheck, Download, History, Network, UserCog, Gift, Power, RotateCcw, Pencil,
+  ShieldCheck, Download, History, Network, UserCog, Gift, Power, RotateCcw, Pencil, Flag,
 } from 'lucide-react';
 import { PERMISSIONS, PERMISSION_TEMPLATES } from '../lib/admin-permissions.js';
+import { payoutCycle, payoutDatesText, shortDateBR } from '../lib/payout-schedule.js';
 
 export const Route = createFileRoute('/admin')({
   component: AdminPage,
@@ -36,7 +37,7 @@ const STATUS_TONE: Record<string, string> = {
 const PERM_LABEL: Record<string, string> = Object.fromEntries(PERMISSIONS.map((p) => [p.key, p.label]));
 
 type Act = (body: Record<string, unknown>) => Promise<boolean>;
-type Tab = 'geral' | 'usuarios' | 'admins' | 'vendas' | 'cupons' | 'afiliados' | 'saques' | 'planilhas' | 'auditoria';
+type Tab = 'geral' | 'usuarios' | 'admins' | 'vendas' | 'cupons' | 'afiliados' | 'saques' | 'moderacao' | 'planilhas' | 'auditoria';
 
 const inputCls = 'bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:border-emerald-500';
 const btnPrimary = 'px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm disabled:opacity-50';
@@ -104,6 +105,7 @@ function AdminPage() {
       { id: 'cupons', label: 'Cupons', icon: Ticket, show: can('coupons') },
       { id: 'afiliados', label: 'Afiliados', icon: Network, show: can('affiliates') },
       { id: 'saques', label: 'Saques', icon: Wallet, show: can('withdrawals') },
+      { id: 'moderacao', label: 'Moderação', icon: Flag, show: can('moderation') },
       { id: 'planilhas', label: 'Planilhas', icon: Download, show: can('exports') },
       { id: 'auditoria', label: 'Auditoria', icon: History, show: can('audit') },
     ];
@@ -178,10 +180,11 @@ function AdminPage() {
         {tab === 'geral' && <Overview data={data} />}
         {tab === 'usuarios' && <UsersTab users={data.users || []} act={act} canManage={can('users_manage')} isMaster={Boolean(data.adminUser?.isMaster)} me={data.adminUser?.id} />}
         {tab === 'admins' && <AdminsTab admins={data.admins || []} act={act} me={data.adminUser?.id} />}
-        {tab === 'vendas' && <SalesTab finance={data.finance} payments={data.payments || []} act={act} canRefund={can('refunds')} />}
+        {tab === 'vendas' && <SalesTab finance={data.finance} teamsFinance={data.teamsFinance} payments={data.payments || []} act={act} canRefund={can('refunds')} />}
         {tab === 'cupons' && <CouponsTab coupons={data.coupons || []} act={act} />}
         {tab === 'afiliados' && <AffiliatesTab affiliates={data.affiliates || []} />}
         {tab === 'saques' && <WithdrawalsTab withdrawals={data.withdrawals || []} act={act} />}
+        {tab === 'moderacao' && <ModerationTab data={data.moderation} act={act} />}
         {tab === 'planilhas' && <ExportsTab can={can} />}
         {tab === 'auditoria' && <AuditTab audit={data.audit || []} />}
       </div>
@@ -599,7 +602,7 @@ function AdminsTab({ admins, act, me }: { admins: any[]; act: Act; me: number })
 
 const PAY_LABEL: Record<string, string> = { paid: 'Pago', pending: 'Pendente', failed: 'Falhou', refunded: 'Reembolsado' };
 
-function SalesTab({ finance, payments, act, canRefund }: { finance: any; payments: any[]; act: Act; canRefund: boolean }) {
+function SalesTab({ finance, teamsFinance, payments, act, canRefund }: { finance: any; teamsFinance?: any; payments: any[]; act: Act; canRefund: boolean }) {
   const [status, setStatus] = useState('todos');
   const [real, setReal] = useState(true);
   const [refunding, setRefunding] = useState<any>(null);
@@ -614,6 +617,18 @@ function SalesTab({ finance, payments, act, canRefund }: { finance: any; payment
         <Card label="Ticket médio" value={brl(finance.averageTicketCents)} />
         <Card label="Reembolsado" value={brl(finance.refundedCents)} tone="text-rose-300" />
       </div>
+      {teamsFinance && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="text-sm font-bold text-amber-300">Equipes (marketplace)</div>
+          <div className="mt-2 grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+            <div><div className="text-xs text-slate-400">Vendas</div><div className="font-bold">{teamsFinance.salesCount}</div></div>
+            <div><div className="text-xs text-slate-400">Valor vendido</div><div className="font-bold">{brl(teamsFinance.grossCents)}</div></div>
+            <div><div className="text-xs text-slate-400">Comissão da plataforma (40%)</div><div className="font-bold text-emerald-300">{brl(teamsFinance.platformFeeCents)}</div></div>
+            <div><div className="text-xs text-slate-400">Repassado aos criadores (60%)</div><div className="font-bold">{brl(teamsFinance.ownerCents)}</div></div>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-2">Vendas de equipes aparecem na lista abaixo como pagamentos comuns; um estorno também reverte o repasse do criador e remove o acesso comprado.</p>
+        </div>
+      )}
       <div className="flex flex-wrap gap-3 items-center">
         <select value={status} onChange={(e) => setStatus(e.target.value)} className="bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm">
           <option value="todos">Todos os status</option>
@@ -766,6 +781,15 @@ function AffiliatesTab({ affiliates }: { affiliates: any[] }) {
 
 function WithdrawalsTab({ withdrawals, act }: { withdrawals: any[]; act: Act }) {
   const label: Record<string, string> = { pending: 'Pendente', approved: 'Aprovado', paid: 'Pago', rejected: 'Recusado' };
+  const todayBR = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const current = payoutCycle(new Date());
+
+  // Regra: pedidos até quarta 23:59 (Brasília) são pagos na quinta e na sexta da mesma semana.
+  const open = withdrawals
+    .filter((w) => w.status === 'pending' || w.status === 'approved')
+    .map((w) => ({ w, cycle: payoutCycle(new Date(w.requestedAt)) }));
+  const dueNow = open.filter((x) => x.cycle.thursday <= current.thursday);
+  const dueNowTotal = dueNow.reduce((a, x) => a + x.w.amountCents, 0);
 
   const process = async (w: any, status: 'approved' | 'paid' | 'rejected') => {
     let receipt: string | undefined;
@@ -779,28 +803,109 @@ function WithdrawalsTab({ withdrawals, act }: { withdrawals: any[]; act: Act }) 
   };
 
   return (
-    <div>
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-emerald-800/50 bg-emerald-950/20 p-4 text-sm">
+        <div className="font-bold text-emerald-300">Ciclo de pagamento desta semana: {payoutDatesText(current)}</div>
+        <div className="text-slate-300 mt-1">
+          Para pagar agora: <strong>{dueNow.length}</strong> pedido(s), total <strong>{brl(dueNowTotal)}</strong>.
+          O prazo dos afiliados é quarta 23:59 (Brasília); a liberação é manual na quinta e na sexta.
+        </div>
+      </div>
       <Table>
-        <Thead cols={['Solicitado', 'Afiliado', 'Valor', 'Chave Pix', 'Status', 'Ações']} />
+        <Thead cols={['Solicitado', 'Afiliado', 'Valor', 'Chave Pix', 'Quando pagar', 'Status', 'Ações']} />
         <tbody>
-          {withdrawals.length === 0 && <Empty cols={6} text="Nenhuma solicitação de saque." />}
-          {withdrawals.map((w) => (
-            <tr key={w.id} className="border-t border-[#30363d]">
-              <td className={`${td} text-slate-400`}>{dateBR(w.requestedAt)}</td>
-              <td className={td}>{w.affiliateName}<div className="text-[11px] text-slate-500">{w.affiliateEmail}</div></td>
-              <td className={td}>{brl(w.amountCents)}</td>
-              <td className={`${td} font-mono text-xs`}>{w.pixKey}<div className="text-[10px] text-slate-500">{w.pixKeyType}</div></td>
-              <td className={td}>{label[w.status] || w.status}</td>
-              <td className={`${td} space-x-3 whitespace-nowrap`}>
-                {w.status === 'pending' && <button className="text-emerald-400 hover:underline" onClick={() => process(w, 'approved')}>Aprovar</button>}
-                {(w.status === 'pending' || w.status === 'approved') && <button className="text-amber-300 hover:underline" onClick={() => process(w, 'paid')}>Marcar como pago</button>}
-                {(w.status === 'pending' || w.status === 'approved') && <button className="text-rose-400 hover:underline" onClick={() => process(w, 'rejected')}>Recusar</button>}
-              </td>
-            </tr>
-          ))}
+          {withdrawals.length === 0 && <Empty cols={7} text="Nenhuma solicitação de saque." />}
+          {withdrawals.map((w) => {
+            const isOpen = w.status === 'pending' || w.status === 'approved';
+            const cycle = payoutCycle(new Date(w.requestedAt));
+            const overdue = isOpen && cycle.friday < todayBR;
+            return (
+              <tr key={w.id} className="border-t border-[#30363d]">
+                <td className={`${td} text-slate-400`}>{dateBR(w.requestedAt)}</td>
+                <td className={td}>{w.affiliateName}<div className="text-[11px] text-slate-500">{w.affiliateEmail}</div></td>
+                <td className={td}>{brl(w.amountCents)}</td>
+                <td className={`${td} font-mono text-xs`}>{w.pixKey}<div className="text-[10px] text-slate-500">{w.pixKeyType}</div></td>
+                <td className={`${td} text-xs ${overdue ? 'text-rose-300' : 'text-slate-400'}`}>
+                  {isOpen ? (overdue ? `Atrasado (era ${shortDateBR(cycle.thursday)}/${shortDateBR(cycle.friday)})` : payoutDatesText(cycle)) : '—'}
+                </td>
+                <td className={td}>{label[w.status] || w.status}</td>
+                <td className={`${td} space-x-3 whitespace-nowrap`}>
+                  {w.status === 'pending' && <button className="text-emerald-400 hover:underline" onClick={() => process(w, 'approved')}>Aprovar</button>}
+                  {isOpen && <button className="text-amber-300 hover:underline" onClick={() => process(w, 'paid')}>Marcar como pago</button>}
+                  {isOpen && <button className="text-rose-400 hover:underline" onClick={() => process(w, 'rejected')}>Recusar</button>}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </Table>
-      <p className="text-[11px] text-slate-500 mt-3">O Pix é enviado por você, manualmente, pelo seu banco; aqui você registra o resultado. Nenhum pagamento é feito automaticamente.</p>
+      <p className="text-[11px] text-slate-500">O Pix é enviado por você, manualmente, pelo seu banco; aqui você registra o resultado. Nenhum pagamento é feito automaticamente.</p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Moderação do Feed e equipes                                         */
+/* ------------------------------------------------------------------ */
+
+function ModerationTab({ data, act }: { data: any; act: Act }) {
+  if (!data) return <p className="text-sm text-slate-400">Não foi possível carregar a moderação. O Feed precisa do banco de dados configurado.</p>;
+  const moderate = (r: any, moderation: 'hide' | 'restore' | 'dismiss' | 'delete') => {
+    if (moderation === 'delete' && !confirm('Excluir definitivamente este conteúdo?')) return;
+    return act({ action: 'moderate_content', targetType: r.targetType, targetId: r.targetId, moderation });
+  };
+  return (
+    <div className="space-y-8">
+      <section>
+        <h2 className="font-bold mb-1">Denúncias abertas ({data.reports.length})</h2>
+        <p className="text-xs text-slate-500 mb-3">Quando 3 pessoas diferentes denunciam, o conteúdo é escondido automaticamente até a sua análise.</p>
+        <div className="space-y-3">
+          {data.reports.length === 0 && <div className="rounded-2xl border border-dashed border-[#30363d] p-6 text-center text-sm text-slate-500">Nenhuma denúncia aberta.</div>}
+          {data.reports.map((r: any) => (
+            <div key={`${r.targetType}-${r.targetId}`} className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                <span>{r.targetType === 'post' ? 'Publicação' : 'Comentário'} #{r.targetId}{r.teamId ? ' (equipe)' : ''} · {r.reportCount} denúncia(s) · {r.status === 'hidden' ? <b className="text-amber-300">escondido</b> : 'visível'}</span>
+                <span>{dateTimeBR(r.lastReportAt)}</span>
+              </div>
+              <p className="mt-2 text-sm whitespace-pre-wrap break-words">{r.body || '(sem texto)'}</p>
+              <p className="mt-1 text-xs text-slate-500">Autor: {r.author.name} · {r.author.email}{r.author.muted ? ' · silenciado' : ''}</p>
+              {r.reasons.length > 0 && <p className="mt-1 text-xs text-slate-500">Motivos: {r.reasons.join(' · ')}</p>}
+              <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                {r.status === 'hidden' ? <button className="text-emerald-400 hover:underline" onClick={() => moderate(r, 'restore')}>Restaurar</button> : <button className="text-amber-300 hover:underline" onClick={() => moderate(r, 'hide')}>Esconder</button>}
+                <button className="text-slate-300 hover:underline" onClick={() => moderate(r, 'dismiss')}>Ignorar denúncias</button>
+                <button className="text-rose-400 hover:underline" onClick={() => moderate(r, 'delete')}>Excluir</button>
+                <button className="text-sky-300 hover:underline" onClick={() => act({ action: 'set_user_muted', targetUserId: r.author.id, muted: !r.author.muted })}>{r.author.muted ? 'Liberar autor' : 'Silenciar autor'}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-bold mb-3">Equipes ({data.teams.length})</h2>
+        <Table>
+          <Thead cols={['Equipe', 'Criador', 'Preço', 'Membros', 'Vendas', 'Plataforma (40%)', 'Situação', 'Ações']} />
+          <tbody>
+            {data.teams.length === 0 && <Empty cols={8} text="Nenhuma equipe criada." />}
+            {data.teams.map((t: any) => (
+              <tr key={t.id} className="border-t border-[#30363d]">
+                <td className={td}>{t.name}<div className="text-[11px] text-slate-500 font-mono">{t.code}</div></td>
+                <td className={td}>{t.ownerName}<div className="text-[11px] text-slate-500">{t.ownerEmail}</div></td>
+                <td className={td}>{t.priceCents ? `${brl(t.priceCents)}${t.periodDays ? ` / ${t.periodDays}d` : ''}` : 'Grátis'}</td>
+                <td className={td}>{t.membersCount}</td>
+                <td className={td}>{t.salesCount} · {brl(t.grossCents)}</td>
+                <td className={`${td} text-emerald-300`}>{brl(t.platformFeeCents)}</td>
+                <td className={td}>{t.active ? 'Ativa' : <span className="text-rose-300">Suspensa</span>}</td>
+                <td className={td}>
+                  <button className={t.active ? 'text-rose-400 hover:underline' : 'text-emerald-400 hover:underline'} onClick={() => (t.active ? confirm(`Suspender a equipe ${t.name}? Os membros perdem o acesso até ela ser reativada.`) : true) && act({ action: 'set_team_active', teamId: t.id, active: !t.active })}>
+                    {t.active ? 'Suspender' : 'Reativar'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </section>
     </div>
   );
 }

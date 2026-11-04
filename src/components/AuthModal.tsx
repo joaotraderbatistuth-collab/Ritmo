@@ -80,11 +80,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setSuccessMessage(
           data.demoMode && data.code
             ? `Modo demonstração (e-mail não configurado): seu código é ${data.code}`
-            : 'Enviamos um código de 6 dígitos para o seu e-mail. Ele vale por 1 hora.'
+            : (data.message as string) || 'Se este e-mail estiver cadastrado, enviamos um código de 6 dígitos. Ele vale por 1 hora.'
         );
         setPassword('');
       } else {
-        const data = await post({ action: 'reset_password', code: resetCode.trim(), newPassword: password });
+        const data = await post({ action: 'reset_password', email, code: resetCode.trim(), newPassword: password });
         switchTab('login');
         setPassword('');
         setSuccessMessage(data.message || 'Senha atualizada! Você já pode entrar.');

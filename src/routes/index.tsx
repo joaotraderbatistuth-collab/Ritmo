@@ -63,6 +63,8 @@ function LandingPage() {
     // Guarda o código de indicação (?ref=) para atribuir a venda ao afiliado no cadastro.
     const ref = new URLSearchParams(window.location.search).get('ref');
     if (ref) localStorage.setItem('ritmo_referral', ref);
+    const equipe = new URLSearchParams(window.location.search).get('equipe');
+    if (equipe && /^[a-z0-9-]{3,40}$/.test(equipe)) localStorage.setItem('ritmo_team_invite', equipe);
     fetch('/api/auth')
       .then((r) => r.json())
       .then((d) => setLoggedIn(Boolean(d?.user)))

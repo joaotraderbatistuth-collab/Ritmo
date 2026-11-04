@@ -10,6 +10,7 @@ import {
   isMasterAdmin,
 } from '../lib/admin-permissions.js';
 import { invalidateSessionCache } from '../lib/session.js';
+import { getModerationData, getTeamsFinance, moderateTarget, setUserFeedMuted, adminSetTeamActive } from '../lib/community-db.js';
 import {
   findUserById,
   findUserByEmail,
@@ -76,11 +77,13 @@ export const Route = createFileRoute('/api/admin')({
           });
         }
 
-        const data = await getAdminDashboardData(masterConfigured());
+        const data: any = await getAdminDashboardData(masterConfigured());
+        if (can(permissions, 'moderation')) data.moderation = await getModerationData().catch(() => null);
         return Response.json({
           success: true,
           adminUser: { id: user.id, name: user.name, email: user.email, role: user.role, isMaster },
           ...filterDashboardByPermissions(data, permissions),
+          ...(can(permissions, 'finance') ? { teamsFinance: await getTeamsFinance() } : {}),
         });
       },
 
@@ -219,7 +222,26 @@ export const Route = createFileRoute('/api/admin')({
             });
           }
 
-          // 7. Administradores (somente master)
+          // 7. Moderação do Feed
+          if (action === 'moderate_content') {
+            await moderateTarget(String(body.targetType), Number(body.targetId), String(body.moderation));
+            await logAdminAction(user, 'moderar_conteudo', { type: String(body.targetType), id: body.targetId }, { acao: body.moderation });
+            return Response.json({ success: true, message: 'Moderação aplicada.' });
+          }
+          if (action === 'set_user_muted') {
+            const g = await guardTarget(body.targetUserId);
+            if ('error' in g) return g.error;
+            await setUserFeedMuted(g.target.id, Boolean(body.muted));
+            await logAdminAction(user, body.muted ? 'silenciar_usuario_feed' : 'liberar_usuario_feed', { type: 'usuario', id: g.target.id });
+            return Response.json({ success: true, message: body.muted ? 'Usuário silenciado no Feed.' : 'Usuário liberado no Feed.' });
+          }
+          if (action === 'set_team_active') {
+            await adminSetTeamActive(Number(body.teamId), Boolean(body.active));
+            await logAdminAction(user, body.active ? 'reativar_equipe' : 'suspender_equipe', { type: 'equipe', id: body.teamId });
+            return Response.json({ success: true, message: body.active ? 'Equipe reativada.' : 'Equipe suspensa.' });
+          }
+
+          // 8. Administradores (somente master)
           if (action === 'create_admin') {
             const { name, email, password, permissions: perms } = body;
             if (!email || !EMAIL_RE.test(email)) return fail('Informe um e-mail válido.', 400);

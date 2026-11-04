@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { eq, ne, desc, and, sql, gte } from 'drizzle-orm';
 import { computeAccess, nextRenewalDate } from './access.js';
 import { db } from '../../db/index.js';
@@ -21,6 +22,9 @@ import {
   CycleMilestone,
 } from './types.js';
 import { generateRoadmap } from './roadmap.js';
+import { validatePix } from './pix.js';
+import { runSchemaSync } from './schema-sync.js';
+import { invalidateSessionCache } from './session-cache.js';
 import { effectivePermissions, isMasterAdmin, isMasterEmail, serializePermissions } from './admin-permissions.js';
 import {
   COMMISSION_DIRECT_PERCENT,
@@ -275,15 +279,41 @@ const memStore = {
 };
 
 let dbAvailable: boolean | null = null;
+let dbCheckedAt = 0;
+let schemaReady: Promise<void> | null = null;
 
-async function checkDb(): Promise<boolean> {
-  if (dbAvailable !== null) return dbAvailable;
+/**
+ * Antes do primeiro uso do banco, deixa o esquema na versão atual (só acrescenta o que falta).
+ * Assim publicar o código novo sobre qualquer versão antiga do banco funciona sem depender de migrações.
+ */
+function ensureSchema(): Promise<void> {
+  if (!schemaReady) {
+    schemaReady = (async () => {
+      try {
+        const r = await runSchemaSync((statement) => db.execute(sql.raw(statement)));
+        if (r.failed.length) console.error('[schema-sync] algumas instruções falharam:', JSON.stringify(r.failed));
+      } catch (e) {
+        console.error('[schema-sync] erro inesperado:', e);
+      }
+    })();
+  }
+  return schemaReady;
+}
+
+export async function checkDb(): Promise<boolean> {
+  // "banco indisponível" só vale por 20 segundos: uma falha passageira na partida do servidor
+  // não pode mandar a instância inteira para a memória (onde os dados se perdem).
+  if (dbAvailable === true) return true;
+  if (dbAvailable === false && Date.now() - dbCheckedAt < 20_000) return false;
   try {
     await db.select({ count: sql`1` }).from(schema.users).limit(1);
+    await ensureSchema();
     dbAvailable = true;
+    dbCheckedAt = Date.now();
     return true;
   } catch (err) {
     dbAvailable = false;
+    dbCheckedAt = Date.now();
     return false;
   }
 }
@@ -394,6 +424,11 @@ export async function createUserRecord(data: {
   return newUser;
 }
 
+/** Qualquer mudança no usuário (pagamento, admin, desativação) vale na hora para a verificação de acesso das rotas. */
+function forgetSession(userId: number) {
+  invalidateSessionCache(userId);
+}
+
 export async function updateUserRecord(id: number, data: Partial<typeof schema.users.$inferInsert>) {
   const isDb = await checkDb();
   if (isDb) {
@@ -403,6 +438,7 @@ export async function updateUserRecord(id: number, data: Partial<typeof schema.u
         .set({ ...data, updatedAt: new Date() })
         .where(eq(schema.users.id, id))
         .returning();
+      forgetSession(id);
       return updated;
     } catch {
       // fallback
@@ -411,6 +447,7 @@ export async function updateUserRecord(id: number, data: Partial<typeof schema.u
   const user = memStore.users.find((u) => u.id === id);
   if (user) {
     Object.assign(user, data, { updatedAt: new Date().toISOString() });
+    forgetSession(id);
     return user;
   }
   return null;
@@ -1307,7 +1344,15 @@ export async function getAffiliateData(userId: number, userReferralCode: string)
     .filter((w) => w.status === 'pending' || w.status === 'approved' || w.status === 'paid')
     .reduce((acc, w) => acc + w.amountCents, 0);
 
-  const availableBalanceCents = Math.max(0, approvedCommissionCents - withdrawnOrPendingCents);
+  // Vendas de equipes (60% do criador) entram na mesma carteira das comissões.
+  let teamEarningsCents = 0;
+  try {
+    const { getTeamEarningsTotal } = await import('./community-db.js');
+    teamEarningsCents = await getTeamEarningsTotal(userId);
+  } catch {
+    teamEarningsCents = 0;
+  }
+  const availableBalanceCents = Math.max(0, approvedCommissionCents + teamEarningsCents - withdrawnOrPendingCents);
 
   return {
     stats: {
@@ -1320,6 +1365,7 @@ export async function getAffiliateData(userId: number, userReferralCode: string)
       commissionTotalPercent: COMMISSION_TOTAL_PERCENT,
       pendingCommissionCents,
       approvedCommissionCents,
+      teamEarningsCents,
       paidCommissionCents,
       availableBalanceCents,
     },
@@ -1485,96 +1531,123 @@ export async function updateIntegrationsConfig(userId: number, updates: Partial<
 // -------------------------------------------------------------
 // PASSWORD RECOVERY / RESET
 // -------------------------------------------------------------
+// Recuperação de senha: o código de 6 dígitos nunca é guardado em texto (só um hash ligado ao usuário),
+// vale por 1 hora, só o código MAIS RECENTE funciona e 5 tentativas erradas o invalidam.
+const RESET_TTL_MS = 60 * 60 * 1000;
+const RESET_MAX_ATTEMPTS = 5;
+const RESET_MAX_REQUESTS_PER_HOUR = 3;
+const GENERIC_RESET_ERROR = 'Código inválido ou expirado. Solicite um novo código.';
+
+function hashResetCode(userId: number, code: string): string {
+  return crypto.createHash('sha256').update(`${userId}:${code}:${process.env.JWT_SECRET || ''}`).digest('hex');
+}
+
+/**
+ * Cria um pedido de recuperação. NUNCA revela se o e-mail existe: para e-mail desconhecido ou
+ * pedido em excesso devolve sucesso com `send: false` (nada é enviado).
+ */
 export async function createPasswordResetRequest(email: string) {
   const cleanEmail = email.toLowerCase().trim();
   const user = await findUserByEmail(cleanEmail);
-  if (!user) {
-    return { success: false, error: 'E-mail não encontrado no sistema.' };
-  }
+  if (!user) return { success: true, send: false as const };
 
-  // 6-digit numeric recovery code + random unique token
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const token = 'rst_' + Math.random().toString(36).substring(2, 12) + Date.now().toString(36);
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+  const code = String(crypto.randomInt(100000, 1000000)); // aleatoriedade criptográfica
+  const token = 'rst_' + crypto.randomBytes(12).toString('hex');
+  const expiresAt = new Date(Date.now() + RESET_TTL_MS);
+  const row = { userId: user.id, email: cleanEmail, code: hashResetCode(user.id, code), token, expiresAt, used: false, attempts: 0 };
 
   const isDb = await checkDb();
   if (isDb) {
     try {
-      await db.insert(schema.passwordResetTokens).values({
-        userId: user.id,
-        email: cleanEmail,
-        code,
-        token,
-        expiresAt,
-        used: false,
-      });
-    } catch {}
+      const open = await db
+        .select({ id: schema.passwordResetTokens.id })
+        .from(schema.passwordResetTokens)
+        .where(and(eq(schema.passwordResetTokens.userId, user.id), gte(schema.passwordResetTokens.expiresAt, new Date())));
+      if (open.length >= RESET_MAX_REQUESTS_PER_HOUR) return { success: true, send: false as const };
+      await db.update(schema.passwordResetTokens).set({ used: true }).where(and(eq(schema.passwordResetTokens.userId, user.id), eq(schema.passwordResetTokens.used, false)));
+      await db.insert(schema.passwordResetTokens).values(row);
+      return { success: true, send: true as const, code, email: cleanEmail, userName: user.name };
+    } catch {
+      // cai para a memória
+    }
   }
 
-  memStore.passwordResetTokens.push({
-    id: memStore.passwordResetTokens.length + 1,
-    userId: user.id,
-    email: cleanEmail,
-    code,
-    token,
-    expiresAt: expiresAt.toISOString(),
-    used: false,
-    createdAt: new Date().toISOString(),
-  });
-
-  return {
-    success: true,
-    code, // o chamador (api.auth.ts) decide se isso pode ir na resposta ou não
-    token,
-    email: cleanEmail,
-    userName: user.name,
-  };
+  const live = memStore.passwordResetTokens.filter((t: any) => t.userId === user.id && new Date(t.expiresAt).getTime() > Date.now());
+  if (live.length >= RESET_MAX_REQUESTS_PER_HOUR) return { success: true, send: false as const };
+  for (const t of memStore.passwordResetTokens as any[]) if (t.userId === user.id) t.used = true;
+  memStore.passwordResetTokens.push({ id: memStore.passwordResetTokens.length + 1, ...row, expiresAt: expiresAt.toISOString(), createdAt: new Date().toISOString() });
+  return { success: true, send: true as const, code, email: cleanEmail, userName: user.name };
 }
 
-export async function resetPasswordWithToken(code: string, newPasswordHash: string) {
-  const cleanCode = code.trim();
-  const isDb = await checkDb();
-  let tokenRecord: any = null;
+/** Troca a senha. Exige o E-MAIL e o código; erro sempre genérico (não diz se o e-mail existe). */
+export async function resetPasswordWithToken(email: string, code: string, newPasswordHash: string) {
+  const cleanEmail = String(email || '').toLowerCase().trim();
+  const cleanCode = String(code || '').trim();
+  const user = await findUserByEmail(cleanEmail);
+  if (!user) return { success: false, error: GENERIC_RESET_ERROR };
 
+  const isDb = await checkDb();
+  let record: any = null;
   if (isDb) {
     try {
-      const [record] = await db
+      const [r] = await db
         .select()
         .from(schema.passwordResetTokens)
-        .where(and(eq(schema.passwordResetTokens.code, cleanCode), eq(schema.passwordResetTokens.used, false)))
-        .orderBy(desc(schema.passwordResetTokens.id));
-      tokenRecord = record;
-    } catch {}
-  } else {
-    tokenRecord = memStore.passwordResetTokens
-      .filter((t) => t.code === cleanCode && !t.used)
-      .sort((a, b) => b.id - a.id)[0];
+        .where(and(eq(schema.passwordResetTokens.userId, user.id), eq(schema.passwordResetTokens.used, false)))
+        .orderBy(desc(schema.passwordResetTokens.id))
+        .limit(1);
+      record = r || null;
+    } catch {
+      // cai para a memória
+    }
+  }
+  const useMem = !isDb;
+  if (useMem) {
+    record = (memStore.passwordResetTokens as any[]).filter((t) => t.userId === user.id && !t.used).sort((a, b) => b.id - a.id)[0] || null;
+  }
+  if (!record) return { success: false, error: GENERIC_RESET_ERROR };
+
+  const markUsed = async () => {
+    if (isDb) {
+      try {
+        await db.update(schema.passwordResetTokens).set({ used: true }).where(eq(schema.passwordResetTokens.id, record.id));
+      } catch {}
+    }
+    const m = (memStore.passwordResetTokens as any[]).find((t) => t.id === record.id);
+    if (m) m.used = true;
+  };
+
+  if (new Date(record.expiresAt).getTime() < Date.now() || (record.attempts || 0) >= RESET_MAX_ATTEMPTS) {
+    await markUsed();
+    return { success: false, error: GENERIC_RESET_ERROR };
   }
 
-  if (!tokenRecord) {
-    return { success: false, error: 'Código de recuperação inválido ou já utilizado.' };
+  const expected = Buffer.from(String(record.code), 'utf8');
+  const given = Buffer.from(hashResetCode(user.id, cleanCode), 'utf8');
+  const match = expected.length === given.length && crypto.timingSafeEqual(expected, given);
+  if (!match) {
+    const attempts = (record.attempts || 0) + 1;
+    if (isDb) {
+      try {
+        await db.update(schema.passwordResetTokens).set({ attempts, used: attempts >= RESET_MAX_ATTEMPTS }).where(eq(schema.passwordResetTokens.id, record.id));
+      } catch {}
+    }
+    const m = (memStore.passwordResetTokens as any[]).find((t) => t.id === record.id);
+    if (m) {
+      m.attempts = attempts;
+      if (attempts >= RESET_MAX_ATTEMPTS) m.used = true;
+    }
+    return { success: false, error: GENERIC_RESET_ERROR };
   }
 
-  const expTime = new Date(tokenRecord.expiresAt).getTime();
-  if (Date.now() > expTime) {
-    return { success: false, error: 'Código de recuperação expirou. Solicite um novo código.' };
-  }
-
-  // Update user password
-  await updateUserRecord(tokenRecord.userId, { passwordHash: newPasswordHash });
-
-  // Mark token as used
+  await updateUserRecord(user.id, { passwordHash: newPasswordHash });
+  // invalida qualquer outro código pendente desta pessoa
   if (isDb) {
     try {
-      await db
-        .update(schema.passwordResetTokens)
-        .set({ used: true })
-        .where(eq(schema.passwordResetTokens.id, tokenRecord.id));
+      await db.update(schema.passwordResetTokens).set({ used: true }).where(eq(schema.passwordResetTokens.userId, user.id));
     } catch {}
   }
-  const memTok = memStore.passwordResetTokens.find((t) => t.id === tokenRecord.id);
-  if (memTok) memTok.used = true;
-
+  for (const t of memStore.passwordResetTokens as any[]) if (t.userId === user.id) t.used = true;
   return { success: true, message: 'Senha atualizada com sucesso!' };
 }
 
@@ -1820,6 +1893,14 @@ export async function confirmCheckoutPayment(orderReference: string) {
   payment.status = 'paid';
   payment.paidAt = now.toISOString();
 
+  // Compra de acesso a uma equipe: libera o acesso e registra o repasse (40% plataforma / 60% criador).
+  // Não mexe na assinatura do Ritmo nem gera comissão de afiliado.
+  if (payment.kind === 'team') {
+    const { finalizeTeamPurchase } = await import('./community-db.js');
+    await finalizeTeamPurchase(payment);
+    return { success: true, payment, message: 'Pagamento confirmado! Seu acesso à equipe foi liberado.' };
+  }
+
   // Renovação: soma 30 dias ao que sobrou da assinatura (ou a partir de hoje se já venceu)
   const userBefore = await findUserById(payment.userId);
   const renewalDate = nextRenewalDate(userBefore?.subscriptionRenewalDate, now);
@@ -2035,6 +2116,15 @@ export async function reverseCommissionsForOrder(
   const memPayment = (memStore.payments as any[]).find((p) => p.orderReference === orderReference);
   if (memPayment) memPayment.status = 'refunded';
 
+  // Pedido de equipe: reverte também o repasse do criador e o acesso comprado.
+  try {
+    const { reverseTeamForOrder } = await import('./community-db.js');
+    const t = await reverseTeamForOrder(orderReference, newStatus);
+    reversed += t.reversed;
+  } catch {
+    /* sem banco ou sem equipes: nada a reverter */
+  }
+
   if (!dbDone) {
     reversed = memReversed;
     alreadyPaid = memPaid;
@@ -2113,21 +2203,24 @@ export async function updateUserPixKey(
   pixKey: string,
   pixKeyType: 'cpf' | 'email' | 'telefone' | 'aleatoria'
 ) {
-  const updated = await updateUserRecord(userId, {
-    pixKey: pixKey.trim(),
-    pixKeyType,
-  });
-  return updated;
+  if (!['cpf', 'email', 'telefone', 'aleatoria'].includes(pixKeyType)) throw new Error('Tipo de chave Pix inválido.');
+  const check = validatePix(pixKey, pixKeyType);
+  if (!check.ok) throw new Error(check.error || 'Chave Pix inválida.');
+  return updateUserRecord(userId, { pixKey: check.value, pixKeyType });
 }
 
-export async function requestAffiliateWithdrawal(
-  userId: number,
-  amountCents: number,
-  pixKey: string,
-  pixKeyType: 'cpf' | 'email' | 'telefone' | 'aleatoria'
-) {
+export async function requestAffiliateWithdrawal(userId: number, amountCents: number) {
   const user = await findUserById(userId);
   if (!user) return { success: false, error: 'Usuário não encontrado.' };
+  // O pagamento sempre vai para a chave Pix CADASTRADA (não aceita chave enviada no pedido).
+  if (!user.pixKey || !user.pixKeyType) {
+    return { success: false, error: 'Cadastre sua chave Pix antes de solicitar o saque.' };
+  }
+  const pixKey: string = user.pixKey;
+  const pixKeyType = user.pixKeyType as 'cpf' | 'email' | 'telefone' | 'aleatoria';
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    return { success: false, error: 'Informe um valor de saque válido.' };
+  }
 
   const affData = await getAffiliateData(userId, user.referralCode);
   if (affData.stats.availableBalanceCents < amountCents) {
@@ -2239,6 +2332,7 @@ async function loadAdminRaw() {
     coupons: [] as any[],
     commissions: [] as any[],
     audit: [] as any[],
+    teamEarnings: new Map<number, number>(),
     activeIds: new Set<number>(),
   };
   const safe = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => {
@@ -2255,6 +2349,16 @@ async function loadAdminRaw() {
     raw.withdrawals = await safe(() => db.select().from(schema.affiliateWithdrawals).orderBy(desc(schema.affiliateWithdrawals.id)), []);
     raw.coupons = await safe(() => db.select().from(schema.coupons).orderBy(desc(schema.coupons.id)), []);
     raw.commissions = await safe(() => db.select().from(schema.affiliateCommissions).orderBy(desc(schema.affiliateCommissions.id)), []);
+    const teamRows = await safe(
+      () =>
+        db
+          .select({ owner: schema.teamEarnings.ownerUserId, total: sql<number>`coalesce(sum(${schema.teamEarnings.ownerCents}),0)::int` })
+          .from(schema.teamEarnings)
+          .where(eq(schema.teamEarnings.status, 'approved'))
+          .groupBy(schema.teamEarnings.ownerUserId),
+      [] as { owner: number; total: number }[]
+    );
+    for (const r of teamRows) raw.teamEarnings.set(r.owner, r.total);
     const collect = async (rows: Promise<{ userId: number }[]>) => {
       for (const r of await safe(() => rows, [])) raw.activeIds.add(r.userId);
     };
@@ -2423,6 +2527,7 @@ function buildAdminDashboard(raw: AdminRaw, masterConfigured?: string | null) {
       const generated = sum(mine.filter((c) => c.status === 'approved' || c.status === 'paid'), (c) => c.commissionCents);
       const reversed = sum(mine.filter((c) => c.status === 'refunded' || c.status === 'reversed'), (c) => c.commissionCents);
       const withdrawn = sum(allWithdrawals.filter((w) => w.affiliateUserId === u.id && w.status !== 'rejected'), (w) => w.amountCents);
+      const teamEarned = raw.teamEarnings.get(u.id) || 0;
       return {
         id: u.id,
         name: u.name,
@@ -2434,10 +2539,11 @@ function buildAdminDashboard(raw: AdminRaw, masterConfigured?: string | null) {
         generatedCents: generated,
         reversedCents: reversed,
         withdrawnCents: withdrawn,
-        balanceCents: Math.max(0, generated - withdrawn),
+        teamEarningsCents: teamEarned,
+        balanceCents: Math.max(0, generated + teamEarned - withdrawn),
       };
     })
-    .filter((a) => a.directReferrals > 0 || a.generatedCents > 0 || a.reversedCents > 0)
+    .filter((a) => a.directReferrals > 0 || a.generatedCents > 0 || a.reversedCents > 0 || a.teamEarningsCents > 0)
     .sort((a, b) => b.generatedCents - a.generatedCents || b.directReferrals - a.directReferrals)
     .slice(0, 200);
 
@@ -2606,11 +2712,36 @@ export async function adminRefundOrder(orderReference: string, revokeAccess: boo
   if (payment.status !== 'paid' && payment.status !== 'refunded') throw new Error('Só é possível estornar pedidos pagos.');
 
   const result = await reverseCommissionsForOrder(orderReference, 'refunded');
-  if (revokeAccess) {
+  if (revokeAccess && payment.kind !== 'team') {
     const yesterday = new Date(Date.now() - 3 * 3600 * 1000 - 86400000).toISOString().slice(0, 10);
     await updateUserRecord(payment.userId, { subscriptionStatus: 'expired', subscriptionRenewalDate: yesterday });
   }
   return { ...result, userId: payment.userId as number, accessRevoked: revokeAccess };
+}
+
+/**
+ * Reembolso/contestação de uma ASSINATURA: encerra o acesso de quem pagou (a pessoa pode assinar de novo).
+ * Pedido de equipe não passa por aqui (o acesso comprado já é removido no estorno da equipe).
+ * Idempotente. Devolve true se encerrou o acesso.
+ */
+export async function revokeSubscriptionAccessForOrder(orderReference: string): Promise<boolean> {
+  const isDb = await checkDb();
+  let payment: any = null;
+  if (isDb) {
+    try {
+      const [p] = await db.select().from(schema.payments).where(eq(schema.payments.orderReference, orderReference));
+      payment = p || null;
+    } catch {
+      // fallback
+    }
+  }
+  if (!payment) payment = (memStore.payments as any[]).find((p) => p.orderReference === orderReference) || null;
+  if (!payment || payment.kind === 'team') return false;
+  const user = await findUserById(payment.userId);
+  if (!user || user.role === 'admin') return false; // nunca derruba conta de administrador
+  const yesterday = new Date(Date.now() - 3 * 3600 * 1000 - 86400000).toISOString().slice(0, 10);
+  await updateUserRecord(payment.userId, { subscriptionStatus: 'expired', subscriptionRenewalDate: yesterday });
+  return true;
 }
 
 function generateReferralCode() {

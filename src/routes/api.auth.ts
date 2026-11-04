@@ -184,47 +184,40 @@ export const Route = createFileRoute('/api/auth')({
               return Response.json({ error: 'Informe seu e-mail cadastrado.' }, { status: 400 });
             }
 
+            // A resposta é SEMPRE a mesma, exista ou não o e-mail: assim ninguém descobre quem tem conta.
+            const generic = {
+              success: true,
+              message: 'Se este e-mail estiver cadastrado, enviamos um código de 6 dígitos. Confira também a caixa de spam.',
+            };
+
             const res = await createPasswordResetRequest(email);
-            if (!res.success) {
-              return Response.json({ error: res.error }, { status: 404 });
-            }
+            if (!res.send) return Response.json(generic);
 
             const emailResult = await sendPasswordResetEmail(res.email!, res.userName || '', res.code!);
+            if (emailResult.sent) return Response.json(generic);
 
-            if (emailResult.sent) {
-              // E-mail real enviado: o código NUNCA volta na resposta da API.
-              return Response.json({
-                success: true,
-                message: 'Código de recuperação enviado para o seu e-mail.',
-                token: res.token,
-              });
-            }
-
-            // Sem RESEND_API_KEY configurada (ambiente de desenvolvimento/demo):
-            // devolve o código na resposta só para não travar o teste local,
-            // e avisa claramente que isso é inseguro para produção.
             console.warn('[auth] Envio de e-mail de recuperação não configurado:', emailResult.error);
-            return Response.json({
-              success: true,
-              message: 'Código de recuperação gerado (envio de e-mail não configurado — modo de demonstração).',
-              demoMode: true,
-              code: res.code,
-              token: res.token,
-            });
+            // O código só volta na resposta em ambiente de desenvolvimento. Em produção NUNCA:
+            // senão qualquer pessoa conseguiria trocar a senha de qualquer conta.
+            const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.env.NETLIFY);
+            if (!isProduction) {
+              return Response.json({ ...generic, demoMode: true, code: res.code });
+            }
+            return Response.json(generic);
           }
 
           // 5. RESET PASSWORD WITH CODE
           if (action === 'reset_password') {
-            const { code, newPassword } = body;
-            if (!code || !newPassword) {
-              return Response.json({ error: 'Código de recuperação e nova senha são obrigatórios.' }, { status: 400 });
+            const { email, code, newPassword } = body;
+            if (!email || !code || !newPassword) {
+              return Response.json({ error: 'E-mail, código de recuperação e nova senha são obrigatórios.' }, { status: 400 });
             }
             if (newPassword.length < 6) {
               return Response.json({ error: 'A nova senha deve ter no mínimo 6 caracteres.' }, { status: 400 });
             }
 
             const pHash = await hashPassword(newPassword);
-            const res = await resetPasswordWithToken(code, pHash);
+            const res = await resetPasswordWithToken(email, code, pHash);
             if (!res.success) {
               return Response.json({ error: res.error }, { status: 400 });
             }
@@ -244,8 +237,12 @@ export const Route = createFileRoute('/api/auth')({
               return Response.json({ error: 'Informe uma chave PIX válida.' }, { status: 400 });
             }
 
-            const updated = await updateUserPixKey(payload.userId, pixKey, pixKeyType || 'cpf');
-            return Response.json({ success: true, user: updated });
+            try {
+              const updated = await updateUserPixKey(payload.userId, pixKey, pixKeyType || 'cpf');
+              return Response.json({ success: true, user: updated });
+            } catch (e: any) {
+              return Response.json({ error: e.message || 'Chave Pix inválida.' }, { status: 400 });
+            }
           }
 
           return Response.json({ error: 'Ação não reconhecida.' }, { status: 400 });

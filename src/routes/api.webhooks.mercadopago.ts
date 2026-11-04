@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { fetchMercadoPagoPayment, isValidMercadoPagoSignature, isMercadoPagoConfigured } from '../lib/mercadopago.js';
-import { checkRealPaymentStatus, reverseCommissionsForOrder } from '../lib/server-db.js';
+import { checkRealPaymentStatus, reverseCommissionsForOrder, revokeSubscriptionAccessForOrder } from '../lib/server-db.js';
 
 // ============================================================================
 // Webhook de notificações do Mercado Pago.
@@ -56,6 +56,8 @@ export const Route = createFileRoute('/api/webhooks/mercadopago')({
             mpPayment.externalReference,
             mpPayment.status === 'charged_back' ? 'reversed' : 'refunded'
           );
+          // Assinatura reembolsada: o acesso termina junto (a pessoa pode assinar de novo quando quiser).
+          await revokeSubscriptionAccessForOrder(mpPayment.externalReference);
         }
 
         return Response.json({ received: true });

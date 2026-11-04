@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { COMMISSION_DETAIL, COMMISSION_DIRECT_PERCENT, COMMISSION_LEVELS_TEXT, COMMISSION_TOTAL_PERCENT, DIRECT_EXAMPLE_BRL } from '../lib/commission-plan.js';
+import { COMMISSION_DETAIL, COMMISSION_DIRECT_PERCENT, COMMISSION_LEVELS_TEXT, COMMISSION_TOTAL_PERCENT, DIRECT_EXAMPLE_BRL, MIN_PAYOUT_CENTS, brl } from '../lib/commission-plan.js';
+import { AffiliatePayout } from './AffiliatePayout.js';
+import { StoryGenerator } from './StoryGenerator.js';
+import { AffiliateCourse } from './AffiliateCourse.js';
 import {
   Share2,
   Copy,
   Check,
   Shield,
-  Sliders,
 } from 'lucide-react';
 import { AffiliateStats, AffiliateCommissionItem } from '../lib/types.js';
 
@@ -19,9 +21,7 @@ export const TabAffiliates: React.FC<TabAffiliatesProps> = ({
   commissions,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [simulatedGross, setSimulatedGross] = useState('97,00');
-  const [webhookResult, setWebhookResult] = useState<any>(null);
+  const [view, setView] = useState<'resumo' | 'receber' | 'divulgacao' | 'curso'>('resumo');
 
   const fullShareUrl =
     typeof window !== 'undefined'
@@ -34,28 +34,6 @@ export const TabAffiliates: React.FC<TabAffiliatesProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     }
-  };
-
-  const handleSimulateWebhook = async () => {
-    try {
-      const grossCents = Math.round(parseFloat(simulatedGross.replace(',', '.')) * 100);
-      const res = await fetch('/api/affiliates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'process_billing_webhook',
-          eventId: 'evt_' + Math.random().toString(36).substring(2, 9),
-          eventType: 'payment_confirmed',
-          orderReference: 'ORD-' + Math.floor(100000 + Math.random() * 900000),
-          customerUserId: 999,
-          affiliateUserId: 1,
-          grossAmountCents: grossCents,
-          netAmountCents: grossCents,
-        }),
-      });
-      const data = await res.json();
-      setWebhookResult(data);
-    } catch {}
   };
 
   return (
@@ -100,6 +78,34 @@ export const TabAffiliates: React.FC<TabAffiliatesProps> = ({
         </div>
       </div>
 
+      {/* Seções da aba */}
+      <div role="tablist" aria-label="Seções de indicação" className="flex gap-2 overflow-x-auto pb-1">
+        {([
+          ['resumo', 'Resumo'],
+          ['receber', 'Receber (Pix)'],
+          ['divulgacao', 'Material de divulgação'],
+          ['curso', 'Mini curso'],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={view === id}
+            onClick={() => setView(id)}
+            className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap border transition-colors ${
+              view === id ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'border-[#30363d] text-[#c9d1d9] hover:bg-[#21262d]'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'receber' && <AffiliatePayout />}
+      {view === 'divulgacao' && <StoryGenerator referralLink={fullShareUrl} />}
+      {view === 'curso' && <AffiliateCourse />}
+
+      {view === 'resumo' && (
+        <>
       {/* 2. Key Metrics Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-4">
@@ -142,7 +148,7 @@ export const TabAffiliates: React.FC<TabAffiliatesProps> = ({
               currency: 'BRL',
             })}
           </span>
-          <span className="text-[10px] text-[#6e7681]">Saque mínimo: R$ 100,00</span>
+          <span className="text-[10px] text-[#6e7681]">Saque mínimo: {brl(MIN_PAYOUT_CENTS)}</span>
         </div>
       </div>
 
@@ -313,56 +319,13 @@ export const TabAffiliates: React.FC<TabAffiliatesProps> = ({
           <div className="space-y-1.5">
             <h4 className="font-semibold text-[#f0f6fc]">Repasses e Condições de Saque</h4>
             <p>
-              Repasses manuais mensais via PIX para saldos mínimos acumulados a partir de <strong>R$ 100,00</strong>.
+              Cadastre sua chave Pix na aba <strong>Receber</strong> e solicite o saque até <strong>quarta-feira, 23:59</strong> (horário de Brasília), com saldo mínimo de <strong>{brl(MIN_PAYOUT_CENTS)}</strong>. O pagamento é liberado manualmente na <strong>quinta e na sexta-feira</strong> da mesma semana; pedidos feitos depois da quarta, 23:59, entram no ciclo da semana seguinte.
             </p>
           </div>
         </div>
-
-        <div className="pt-2">
-          <button
-            onClick={() => setShowAdmin(!showAdmin)}
-            className="text-xs text-[#6e7681] hover:text-[#f0f6fc] flex items-center gap-1.5 transition-colors"
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            {showAdmin ? 'Ocultar Ferramentas de Administração' : 'Painel de Administração & Webhooks'}
-          </button>
-        </div>
-
-        {/* Administration & Webhook Simulator Drawer */}
-        {showAdmin && (
-          <div className="mt-4 p-4 rounded-xl bg-[#0d1117] border border-[#30363d] space-y-4 animate-fade-in">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#f0f6fc]">
-                Simulador de Eventos de Cobrança (Idempotente)
-              </span>
-              <span className="text-[10px] text-emerald-400 font-mono">Backend Protegido</span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs text-[#8b949e]">Valor da Assinatura:</span>
-              <input
-                type="text"
-                value={simulatedGross}
-                onChange={(e) => setSimulatedGross(e.target.value)}
-                className="w-24 bg-[#161b22] border border-[#30363d] rounded-lg px-2.5 py-1 text-xs text-[#f0f6fc] font-mono"
-              />
-              <button
-                type="button"
-                onClick={handleSimulateWebhook}
-                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs"
-              >
-                Disparar Webhook de Pagamento (nível 1 · {COMMISSION_DIRECT_PERCENT}%)
-              </button>
-            </div>
-
-            {webhookResult && (
-              <pre className="p-3 bg-[#161b22] rounded-lg text-[11px] font-mono text-emerald-300 overflow-x-auto">
-                {JSON.stringify(webhookResult, null, 2)}
-              </pre>
-            )}
-          </div>
-        )}
       </div>
+        </>
+      )}
     </div>
   );
 };

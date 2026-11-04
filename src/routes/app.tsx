@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Header } from '../components/Header.js';
 import { AuthModal } from '../components/AuthModal.js';
 import { OnboardingModal } from '../components/OnboardingModal.js';
@@ -17,6 +17,11 @@ import { TabSettings } from '../components/TabSettings.js';
 import { TabBoards } from '../components/TabBoards.js';
 import { TabRoadmap } from '../components/TabRoadmap.js';
 import { WelcomeTour } from '../components/WelcomeTour.js';
+import { SetupGuide } from '../components/SetupGuide.js';
+import { TabFeed } from '../components/TabFeed.js';
+import { NoticeBell } from '../components/NoticeBell.js';
+import { computeNotices } from '../lib/notices.js';
+import { parseGuideState, shouldAutoStartGuide } from '../lib/setup-guide.js';
 import {
   User,
   FocusCycle,
@@ -44,6 +49,8 @@ import {
   LayoutGrid,
   Map as MapIcon,
   Lightbulb,
+  ListChecks,
+  Users as UsersIcon,
 } from 'lucide-react';
 
 import { localDateStr } from '../lib/chain.js';
@@ -59,6 +66,9 @@ function RitmoApp() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [teamInvite, setTeamInvite] = useState<string | null>(null);
+  const [guideTab, setGuideTab] = useState<string | null>(null);
 
   // App State
   const [user, setUser] = useState<User | null>(null);
@@ -101,6 +111,12 @@ function RitmoApp() {
         const storedRef = localStorage.getItem('ritmo_referral');
         if (storedRef) setRefParam(storedRef);
       }
+
+      // Link de equipe (?equipe=codigo): guarda e abre a equipe depois do login
+      const equipe = urlParams.get('equipe');
+      try {
+        if (equipe && /^[a-z0-9-]{3,40}$/.test(equipe)) localStorage.setItem('ritmo_team_invite', equipe);
+      } catch {}
 
       // Check session
       loadSessionAndData();
@@ -203,7 +219,15 @@ function RitmoApp() {
     } catch {}
   };
 
-  // Apresentação guiada: abre sozinha no primeiro acesso de cada usuário neste navegador.
+  // Primeiro acesso: 1) apresentação (WelcomeTour) e 2) modo ajuda de configuração, que guia por todas as abas.
+  const guideShouldAutoStart = () => {
+    try {
+      return shouldAutoStartGuide(parseGuideState(localStorage.getItem(`ritmo_guide_v1_${user?.id ?? 'anon'}`)), user?.createdAt);
+    } catch {
+      return false;
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
     try {
@@ -211,14 +235,53 @@ function RitmoApp() {
         const t = setTimeout(() => setIsTourOpen(true), 600);
         return () => clearTimeout(t);
       }
+      // já viu a apresentação: se for conta nova e ainda não viu o modo ajuda, abre ele
+      if (guideShouldAutoStart()) {
+        const t = setTimeout(() => setIsGuideOpen(true), 900);
+        return () => clearTimeout(t);
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const invite = localStorage.getItem('ritmo_team_invite');
+      if (invite) {
+        setTeamInvite(invite);
+        setActiveTab('feed');
+      }
     } catch {}
   }, [user?.id]);
+
+  // Avisos do sino: recalculados com os dados da tela (sem chamada extra ao servidor)
+  const notices = useMemo(() => {
+    if (!user) return [];
+    const nowD = new Date();
+    return computeNotices({
+      now: nowD,
+      today: localDateStr(),
+      hour: nowD.getHours(),
+      minutes: nowD.getMinutes(),
+      isAdmin: user.role === 'admin',
+      access: user.access || null,
+      config: (user as any).remindersConfig || null,
+      tasks: tasks as any,
+      transactions: transactions as any,
+      habits: habits as any,
+      habitLogs: habitLogs as any,
+      journalToday: journalEntries.some((e: any) => e.date === localDateStr() && e.entryType === 'daily_checkin'),
+      affiliateBalanceCents: affiliateStats.availableBalanceCents,
+    });
+  }, [user, tasks, transactions, habits, habitLogs, journalEntries, affiliateStats]);
 
   const closeTour = () => {
     setIsTourOpen(false);
     try {
       if (user) localStorage.setItem(`ritmo_tour_v1_${user.id}`, '1');
     } catch {}
+    if (guideShouldAutoStart()) setTimeout(() => setIsGuideOpen(true), 400);
   };
 
   // Handlers for Tasks
@@ -407,6 +470,7 @@ function RitmoApp() {
     { id: 'whatsapp', label: 'WhatsApp Bot', icon: <Smartphone className="w-4 h-4" /> },
     { id: 'planilha', label: 'Planilhas', icon: <FileSpreadsheet className="w-4 h-4" /> },
     { id: 'afiliados', label: 'Indique e Ganhe', icon: <Share2 className="w-4 h-4" /> },
+    { id: 'feed', label: 'Feed', icon: <UsersIcon className="w-4 h-4" /> },
     { id: 'progresso', label: 'Progresso', icon: <TrendingUp className="w-4 h-4" /> },
     { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4" /> },
   ];
@@ -459,13 +523,21 @@ function RitmoApp() {
                     active
                       ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
                       : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#161b22]'
-                  }`}
+                  } ${isGuideOpen && guideTab === item.id ? 'ring-2 ring-amber-300 ring-offset-2 ring-offset-[#0d1117]' : ''}`}
                 >
                   {item.icon}
                   <span>{item.label}</span>
                 </button>
               );
             })}
+            <NoticeBell notices={notices} onOpenTab={(tab) => setActiveTab(tab)} />
+            <button
+              onClick={() => setIsGuideOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10 transition-all"
+            >
+              <ListChecks className="w-4 h-4" />
+              <span>Modo ajuda</span>
+            </button>
             <button
               onClick={() => setIsTourOpen(true)}
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-amber-300 hover:bg-amber-500/10 transition-all"
@@ -558,6 +630,22 @@ function RitmoApp() {
             />
           )}
 
+          {activeTab === 'feed' && (
+            <TabFeed
+              referralCode={user?.referralCode || ''}
+              habits={habits}
+              habitLogs={habitLogs}
+              sessions={sessions}
+              tasks={tasks}
+              activeCycle={activeCycle}
+              inviteCode={teamInvite}
+              onInviteHandled={() => {
+                setTeamInvite(null);
+                try { localStorage.removeItem('ritmo_team_invite'); } catch {}
+              }}
+            />
+          )}
+
           {activeTab === 'afiliados' && (
             <TabAffiliates
               affiliateStats={affiliateStats}
@@ -607,6 +695,15 @@ function RitmoApp() {
         onClose={closeTour}
         onNavigate={(tab) => setActiveTab(tab)}
         onStartCycle={() => setIsOnboardingOpen(true)}
+      />
+
+      <SetupGuide
+        isOpen={isGuideOpen}
+        userId={user?.id}
+        onClose={() => setIsGuideOpen(false)}
+        onNavigate={(tab) => setActiveTab(tab)}
+        onStepTab={setGuideTab}
+        onAction={(id) => id === 'open_cycle' && setIsOnboardingOpen(true)}
       />
 
       {/* Onboarding / Focus Cycle Modal */}

@@ -18,6 +18,7 @@ import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiTeamsRouteImport } from './routes/api.teams'
 import { Route as ApiTasksRouteImport } from './routes/api.tasks'
 import { Route as ApiMilestonesRouteImport } from './routes/api.milestones'
 import { Route as ApiJournalRouteImport } from './routes/api.journal'
@@ -25,6 +26,7 @@ import { Route as ApiIntegrationsRouteImport } from './routes/api.integrations'
 import { Route as ApiHabitsRouteImport } from './routes/api.habits'
 import { Route as ApiFocusRouteImport } from './routes/api.focus'
 import { Route as ApiFinanceRouteImport } from './routes/api.finance'
+import { Route as ApiFeedRouteImport } from './routes/api.feed'
 import { Route as ApiCyclesRouteImport } from './routes/api.cycles'
 import { Route as ApiCheckoutRouteImport } from './routes/api.checkout'
 import { Route as ApiBoardsRouteImport } from './routes/api.boards'
@@ -79,6 +81,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTeamsRoute = ApiTeamsRouteImport.update({
+  id: '/api/teams',
+  path: '/api/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTasksRoute = ApiTasksRouteImport.update({
   id: '/api/tasks',
   path: '/api/tasks',
@@ -112,6 +119,11 @@ const ApiFocusRoute = ApiFocusRouteImport.update({
 const ApiFinanceRoute = ApiFinanceRouteImport.update({
   id: '/api/finance',
   path: '/api/finance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFeedRoute = ApiFeedRouteImport.update({
+  id: '/api/feed',
+  path: '/api/feed',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCyclesRoute = ApiCyclesRouteImport.update({
@@ -171,6 +183,7 @@ export interface FileRoutesByFullPath {
   '/api/boards': typeof ApiBoardsRoute
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/cycles': typeof ApiCyclesRoute
+  '/api/feed': typeof ApiFeedRoute
   '/api/finance': typeof ApiFinanceRoute
   '/api/focus': typeof ApiFocusRoute
   '/api/habits': typeof ApiHabitsRoute
@@ -178,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/api/journal': typeof ApiJournalRoute
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/tasks': typeof ApiTasksRoute
+  '/api/teams': typeof ApiTeamsRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
 }
@@ -197,6 +211,7 @@ export interface FileRoutesByTo {
   '/api/boards': typeof ApiBoardsRoute
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/cycles': typeof ApiCyclesRoute
+  '/api/feed': typeof ApiFeedRoute
   '/api/finance': typeof ApiFinanceRoute
   '/api/focus': typeof ApiFocusRoute
   '/api/habits': typeof ApiHabitsRoute
@@ -204,6 +219,7 @@ export interface FileRoutesByTo {
   '/api/journal': typeof ApiJournalRoute
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/tasks': typeof ApiTasksRoute
+  '/api/teams': typeof ApiTeamsRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
 }
@@ -224,6 +240,7 @@ export interface FileRoutesById {
   '/api/boards': typeof ApiBoardsRoute
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/cycles': typeof ApiCyclesRoute
+  '/api/feed': typeof ApiFeedRoute
   '/api/finance': typeof ApiFinanceRoute
   '/api/focus': typeof ApiFocusRoute
   '/api/habits': typeof ApiHabitsRoute
@@ -231,6 +248,7 @@ export interface FileRoutesById {
   '/api/journal': typeof ApiJournalRoute
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/tasks': typeof ApiTasksRoute
+  '/api/teams': typeof ApiTeamsRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
 }
@@ -252,6 +270,7 @@ export interface FileRouteTypes {
     | '/api/boards'
     | '/api/checkout'
     | '/api/cycles'
+    | '/api/feed'
     | '/api/finance'
     | '/api/focus'
     | '/api/habits'
@@ -259,6 +278,7 @@ export interface FileRouteTypes {
     | '/api/journal'
     | '/api/milestones'
     | '/api/tasks'
+    | '/api/teams'
     | '/api/cron/lembretes'
     | '/api/webhooks/mercadopago'
   fileRoutesByTo: FileRoutesByTo
@@ -278,6 +298,7 @@ export interface FileRouteTypes {
     | '/api/boards'
     | '/api/checkout'
     | '/api/cycles'
+    | '/api/feed'
     | '/api/finance'
     | '/api/focus'
     | '/api/habits'
@@ -285,6 +306,7 @@ export interface FileRouteTypes {
     | '/api/journal'
     | '/api/milestones'
     | '/api/tasks'
+    | '/api/teams'
     | '/api/cron/lembretes'
     | '/api/webhooks/mercadopago'
   id:
@@ -304,6 +326,7 @@ export interface FileRouteTypes {
     | '/api/boards'
     | '/api/checkout'
     | '/api/cycles'
+    | '/api/feed'
     | '/api/finance'
     | '/api/focus'
     | '/api/habits'
@@ -311,6 +334,7 @@ export interface FileRouteTypes {
     | '/api/journal'
     | '/api/milestones'
     | '/api/tasks'
+    | '/api/teams'
     | '/api/cron/lembretes'
     | '/api/webhooks/mercadopago'
   fileRoutesById: FileRoutesById
@@ -331,6 +355,7 @@ export interface RootRouteChildren {
   ApiBoardsRoute: typeof ApiBoardsRoute
   ApiCheckoutRoute: typeof ApiCheckoutRoute
   ApiCyclesRoute: typeof ApiCyclesRoute
+  ApiFeedRoute: typeof ApiFeedRoute
   ApiFinanceRoute: typeof ApiFinanceRoute
   ApiFocusRoute: typeof ApiFocusRoute
   ApiHabitsRoute: typeof ApiHabitsRoute
@@ -338,6 +363,7 @@ export interface RootRouteChildren {
   ApiJournalRoute: typeof ApiJournalRoute
   ApiMilestonesRoute: typeof ApiMilestonesRoute
   ApiTasksRoute: typeof ApiTasksRoute
+  ApiTeamsRoute: typeof ApiTeamsRoute
   ApiCronLembretesRoute: typeof ApiCronLembretesRoute
   ApiWebhooksMercadopagoRoute: typeof ApiWebhooksMercadopagoRoute
 }
@@ -407,6 +433,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/teams': {
+      id: '/api/teams'
+      path: '/api/teams'
+      fullPath: '/api/teams'
+      preLoaderRoute: typeof ApiTeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tasks': {
       id: '/api/tasks'
       path: '/api/tasks'
@@ -454,6 +487,13 @@ declare module '@tanstack/react-router' {
       path: '/api/finance'
       fullPath: '/api/finance'
       preLoaderRoute: typeof ApiFinanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/feed': {
+      id: '/api/feed'
+      path: '/api/feed'
+      fullPath: '/api/feed'
+      preLoaderRoute: typeof ApiFeedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cycles': {
@@ -531,6 +571,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBoardsRoute: ApiBoardsRoute,
   ApiCheckoutRoute: ApiCheckoutRoute,
   ApiCyclesRoute: ApiCyclesRoute,
+  ApiFeedRoute: ApiFeedRoute,
   ApiFinanceRoute: ApiFinanceRoute,
   ApiFocusRoute: ApiFocusRoute,
   ApiHabitsRoute: ApiHabitsRoute,
@@ -538,6 +579,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiJournalRoute: ApiJournalRoute,
   ApiMilestonesRoute: ApiMilestonesRoute,
   ApiTasksRoute: ApiTasksRoute,
+  ApiTeamsRoute: ApiTeamsRoute,
   ApiCronLembretesRoute: ApiCronLembretesRoute,
   ApiWebhooksMercadopagoRoute: ApiWebhooksMercadopagoRoute,
 }

@@ -1,4 +1,4 @@
-import { verifyActiveToken } from '../lib/session.js';
+import { authorizeData } from '../lib/session.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { extractTokenFromRequest } from '../lib/auth.js';
 import { createTask, deleteTask, getTasks, updateTask } from '../lib/server-db.js';
@@ -9,8 +9,9 @@ export const Route = createFileRoute('/api/tasks')({
       GET: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyActiveToken(token);
-        if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
+        const auth = await authorizeData(token);
+        if ('response' in auth) return auth.response;
+        const payload = auth.payload;
 
         const url = new URL(request.url);
         const date = url.searchParams.get('date') || undefined;
@@ -22,8 +23,9 @@ export const Route = createFileRoute('/api/tasks')({
       POST: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyActiveToken(token);
-        if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
+        const auth = await authorizeData(token);
+        if ('response' in auth) return auth.response;
+        const payload = auth.payload;
 
         const body = await request.json();
         if (!body.title) {
@@ -37,8 +39,9 @@ export const Route = createFileRoute('/api/tasks')({
       PUT: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyActiveToken(token);
-        if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
+        const auth = await authorizeData(token);
+        if ('response' in auth) return auth.response;
+        const payload = auth.payload;
 
         const body = await request.json();
         if (!body.id) {
@@ -53,8 +56,9 @@ export const Route = createFileRoute('/api/tasks')({
       DELETE: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyActiveToken(token);
-        if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
+        const auth = await authorizeData(token);
+        if ('response' in auth) return auth.response;
+        const payload = auth.payload;
 
         const url = new URL(request.url);
         const id = url.searchParams.get('id');

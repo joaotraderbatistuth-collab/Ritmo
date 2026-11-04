@@ -18,6 +18,7 @@ export const PERMISSIONS = [
   { key: 'withdrawals', label: 'Saques', description: 'Aprovar, pagar ou recusar saques de afiliados.' },
   { key: 'refunds', label: 'Estornos', description: 'Estornar pedidos (reverte as comissões e pode encerrar o acesso).' },
   { key: 'exports', label: 'Planilhas', description: 'Baixar planilhas de dados (usuários, vendas, comissões...).' },
+  { key: 'moderation', label: 'Moderação do Feed', description: 'Analisar denúncias do Feed, esconder conteúdo, silenciar usuários e suspender equipes.' },
   { key: 'audit', label: 'Auditoria', description: 'Ver o histórico de tudo o que os administradores fizeram.' },
 ] as const;
 
@@ -27,7 +28,7 @@ export type AdminPermission = PermissionKey | 'admins_manage';
 export const ALL_PERMISSION_KEYS: PermissionKey[] = PERMISSIONS.map((p) => p.key);
 
 export const PERMISSION_TEMPLATES: { id: string; label: string; permissions: PermissionKey[] }[] = [
-  { id: 'suporte', label: 'Suporte', permissions: ['overview', 'users_view', 'users_manage'] },
+  { id: 'suporte', label: 'Suporte', permissions: ['overview', 'users_view', 'users_manage', 'moderation'] },
   { id: 'financeiro', label: 'Financeiro', permissions: ['overview', 'finance', 'affiliates', 'withdrawals', 'refunds', 'exports'] },
   { id: 'marketing', label: 'Marketing', permissions: ['overview', 'coupons', 'affiliates'] },
   { id: 'total', label: 'Tudo (sem gerir administradores)', permissions: [...ALL_PERMISSION_KEYS] },
@@ -104,6 +105,9 @@ export const ACTION_PERMISSION: Record<string, AdminPermission> = {
   delete_coupon: 'coupons',
   process_withdrawal: 'withdrawals',
   refund_order: 'refunds',
+  moderate_content: 'moderation',
+  set_user_muted: 'moderation',
+  set_team_active: 'moderation',
   create_admin: 'admins_manage',
   set_admin_permissions: 'admins_manage',
   remove_admin: 'admins_manage',
@@ -137,6 +141,7 @@ export function filterDashboardByPermissions<T extends Record<string, any>>(data
   if (can(perms, 'affiliates')) out.affiliates = data.affiliates;
   if (can(perms, 'withdrawals')) out.withdrawals = data.withdrawals;
   if (can(perms, 'audit')) out.audit = data.audit;
+  if (can(perms, 'moderation')) out.moderation = data.moderation;
   if (can(perms, 'admins_manage')) out.admins = data.admins;
   return out;
 }

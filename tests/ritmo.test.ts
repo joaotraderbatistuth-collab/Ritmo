@@ -7,6 +7,14 @@ import { computeChain, weekStartKey, targetPerWeek } from '../src/lib/chain.js';
 import { DEFAULT_VISIBLE, normalizeVisible, moveCard, moveBefore, hideCard, showCard, hiddenCards, CARD_IDS } from '../src/lib/home-layout.js';
 import { calculateCommissionChain, COMMISSION_TOTAL_PERCENT, COMMISSION_DIRECT_PERCENT, COMMISSION_NETWORK_PERCENT, MAX_COMMISSION_LEVELS, levelPercent } from '../src/lib/commission-plan.js';
 import { PERMISSIONS, ALL_PERMISSION_KEYS, normalizePermissions, serializePermissions, isMasterEmail, isMasterAdmin, effectivePermissions, can, ACTION_PERMISSION, EXPORT_PERMISSION, filterDashboardByPermissions } from '../src/lib/admin-permissions.js';
+import { payoutCycle, cycleStatus, describeCountdown, shortDateBR, payoutDatesText } from '../src/lib/payout-schedule.js';
+import { validatePix, formatPix } from '../src/lib/pix.js';
+import { STORY_MODELS, COURSE_LESSONS, courseWordCount } from '../src/lib/affiliate-content.js';
+import { GUIDE_STEPS, parseGuideState, shouldAutoStartGuide } from '../src/lib/setup-guide.js';
+import { splitTeamPayment, validateTeamInput, teamCodeFrom, isValidTeamCode, membershipActive, nextMembershipExpiry, teamPriceLabel, qualifiesForFreeAccess, TEAM_PLATFORM_FEE_PERCENT } from '../src/lib/teams-plan.js';
+import { normalizeText, displayName, initials, sanitizeAchievement, achievementHeadline, parsePayload, rateLimited, timeAgo, FEED_LIMITS } from '../src/lib/feed-rules.js';
+import { computeShareable } from '../src/lib/achievements.js';
+import { computeNotices } from '../src/lib/notices.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
 
 /**
@@ -258,7 +266,145 @@ export function runTests() {
   const f2 = filterDashboardByPermissions(fakeData, ['finance']);
   assert(f2.finance && f2.payments && !f2.metrics && !f2.users, 'só finanças: sem números de usuários nem lista de usuários');
   assert(can(['coupons'], 'coupons') && !can(['coupons'], 'finance'), 'can() confere permissão');
+  assert(ACTION_PERMISSION['moderate_content'] === 'moderation' && ACTION_PERMISSION['set_user_muted'] === 'moderation' && ACTION_PERMISSION['set_team_active'] === 'moderation', 'moderar, silenciar e suspender equipe exigem a permissão de moderação');
+  assert(filterDashboardByPermissions({ ...fakeData, moderation: { x: 1 } }, ['moderation']).moderation && !filterDashboardByPermissions({ ...fakeData, moderation: { x: 1 } }, ['coupons']).moderation, 'fila de moderação só aparece para quem tem permissão');
   console.log('✓ Todos os testes de permissões passaram com sucesso!');
+
+  // 9. Ciclo de pagamento (quarta 23:59 BRT -> quinta/sexta), Pix e conteúdo do afiliado
+  console.log('9. Testando ciclo de saque, chave Pix e conteúdo do afiliado...');
+  // 28/10/2026 é quarta-feira. 23:30 em Brasília = 02:30 UTC do dia 29.
+  const wedLate = payoutCycle(new Date('2026-10-29T02:30:00Z'));
+  assert(wedLate.thursday === '2026-10-29' && wedLate.friday === '2026-10-30' && wedLate.wednesday === '2026-10-28', 'pedido na quarta 23:30 entra no ciclo da própria semana (quinta 29/10, sexta 30/10)');
+  const thuEarly = payoutCycle(new Date('2026-10-29T13:00:00Z')); // quinta 10:00 BRT
+  assert(thuEarly.thursday === '2026-11-05' && thuEarly.friday === '2026-11-06', 'pedido na quinta perde o prazo e vai para a semana seguinte');
+  const wedJustAfter = payoutCycle(new Date('2026-10-29T03:00:00Z')); // quarta 24:00 = quinta 00:00 BRT
+  assert(wedJustAfter.thursday === '2026-11-05', 'meia-noite de quinta já é o ciclo seguinte');
+  const sun = payoutCycle(new Date('2026-11-01T15:00:00Z')); // domingo
+  assert(sun.wednesday === '2026-11-04' && sun.thursday === '2026-11-05', 'domingo fecha na quarta seguinte');
+  const mon = cycleStatus(new Date('2026-11-02T15:00:00Z')); // segunda 12:00 BRT
+  assert(mon.countdown.startsWith('2 dias') && !mon.lastDay, `segunda ao meio-dia: ${mon.countdown}`);
+  const tueNight = cycleStatus(new Date('2026-11-04T12:00:00Z')); // quarta 09:00 BRT
+  assert(tueNight.lastDay && tueNight.countdown === '14 horas', `quarta 09:00 faltam ${tueNight.countdown}`);
+  assert(describeCountdown(0) === 'encerrado' && describeCountdown(30 * 60000) === 'menos de 1 hora' && describeCountdown(26 * 3600000) === '1 dia e 2 horas', 'texto do contador');
+  assert(shortDateBR('2026-11-05') === '05/11' && payoutDatesText(thuEarly) === 'quinta 05/11 e sexta 06/11', 'datas curtas');
+
+  assert(validatePix('529.982.247-25', 'cpf').ok && validatePix('52998224725', 'cpf').value === '52998224725', 'CPF válido aceito e normalizado');
+  assert(!validatePix('111.111.111-11', 'cpf').ok && !validatePix('529.982.247-24', 'cpf').ok, 'CPF repetido ou com dígito errado recusado');
+  assert(validatePix(' Joao@Email.COM ', 'email').value === 'joao@email.com' && !validatePix('sem-arroba', 'email').ok, 'e-mail normalizado e validado');
+  assert(validatePix('(24) 99999-9999', 'telefone').value === '24999999999' && validatePix('+55 24 99999-9999', 'telefone').value === '24999999999', 'celular normalizado, com ou sem +55');
+  assert(!validatePix('(24) 8999-99', 'telefone').ok && !validatePix('(00) 99999-9999', 'telefone').ok, 'celular curto ou DDD inválido recusado');
+  assert(validatePix('123E4567-E89B-12D3-A456-426614174000', 'aleatoria').ok && !validatePix('123', 'aleatoria').ok, 'chave aleatória (UUID)');
+  assert(!validatePix('', 'cpf').ok, 'chave vazia recusada');
+  assert(formatPix('52998224725', 'cpf') === '529.982.247-25' && formatPix('24999999999', 'telefone') === '(24) 99999-9999', 'formatação para exibir');
+
+  assert(STORY_MODELS.length === 10 && new Set(STORY_MODELS.map((m) => m.id)).size === 10, 'são 10 modelos de story, todos com id único');
+  const banned = /renda garantida|dinheiro f[aá]cil|ganhe dinheiro|enrique|sem esfor[cç]o|milagre|lucro garantido|vai mudar sua vida/i;
+  assert(STORY_MODELS.every((m) => !banned.test(`${m.headline} ${m.sub} ${m.caption}`)), 'nenhum modelo promete renda ou milagre');
+  assert(STORY_MODELS.every((m) => m.caption.includes('{link}') && /indica[cç][aã]o|7 dias gr[aá]tis/i.test(m.caption)), 'toda legenda tem o espaço {link} e identifica o link de indicação');
+  assert(COURSE_LESSONS.length === 5, 'mini curso com 5 lições');
+  const words = courseWordCount();
+  assert(words >= 650 && words <= 1100, `mini curso cabe numa leitura de ~5 minutos (${words} palavras)`);
+  assert(COURSE_LESSONS.some((l) => l.body.join(' ').includes('quarta-feira, 23:59')), 'mini curso explica o prazo de quarta 23:59');
+  console.log('✓ Todos os testes de saque, Pix e conteúdo do afiliado passaram com sucesso!');
+
+  // 10. Modo ajuda de configuração (primeiro acesso)
+  console.log('10. Testando o modo ajuda de configuração...');
+  const NAV_IDS = ['hoje', 'roteiro', 'rotina', 'quadros', 'habitos', 'foco', 'diario', 'financas', 'whatsapp', 'planilha', 'afiliados', 'feed', 'progresso', 'configuracoes'];
+  assert(GUIDE_STEPS.map((x) => x.tab).join() === NAV_IDS.join(), 'o guia passa por TODAS as abas, na ordem do menu');
+  assert(new Set(GUIDE_STEPS.map((x) => x.id)).size === GUIDE_STEPS.length && GUIDE_STEPS.every((x) => x.tasks.length >= 2 && x.title && x.intro), 'cada passo tem título, explicação e tarefas');
+  assert(GUIDE_STEPS.find((x) => x.tab === 'roteiro')?.action?.id === 'open_cycle', 'passo da meta oferece abrir o ciclo');
+  assert(GUIDE_STEPS.find((x) => x.tab === 'afiliados')!.tasks.join(' ').includes('quarta-feira, 23:59'), 'passo de afiliados explica o prazo de quarta 23:59');
+  assert(parseGuideState('{"status":"open","step":4}')?.step === 4 && parseGuideState('{"status":"done","step":99}')?.step === GUIDE_STEPS.length - 1, 'lê o progresso salvo e limita o passo');
+  assert(parseGuideState('lixo') === null && parseGuideState(null) === null && parseGuideState('{"status":"x"}') === null, 'estado inválido é ignorado');
+  const nowG = new Date('2026-10-29T12:00:00Z');
+  assert(shouldAutoStartGuide(null, '2026-10-27T10:00:00Z', nowG) === true, 'conta nova sem estado: abre sozinho');
+  assert(shouldAutoStartGuide(null, '2026-08-01T10:00:00Z', nowG) === false, 'conta antiga: não abre sozinho (usa o botão)');
+  assert(shouldAutoStartGuide({ status: 'skipped', step: 3 }, '2026-10-28T10:00:00Z', nowG) === false && shouldAutoStartGuide({ status: 'done', step: 12 }, '2026-10-28T10:00:00Z', nowG) === false && shouldAutoStartGuide({ status: 'open', step: 2 }, '2026-10-28T10:00:00Z', nowG) === false, 'quem já interagiu não é interrompido de novo');
+  assert(shouldAutoStartGuide(null, undefined, nowG) === true, 'sem data de cadastro: trata como conta nova');
+  console.log('✓ Todos os testes do modo ajuda passaram com sucesso!');
+
+  // 11. Feed e equipes: divisão 40/60, validação, acesso, conquistas e limites
+  console.log('11. Testando regras do Feed e das Equipes...');
+  assert(TEAM_PLATFORM_FEE_PERCENT === 40, 'plataforma retém 40%');
+  assert(JSON.stringify(splitTeamPayment(10000)) === '{"platformFeeCents":4000,"ownerCents":6000}', '10.000 centavos: 4.000 plataforma / 6.000 criador');
+  const odd = splitTeamPayment(1999);
+  assert(odd.platformFeeCents === 799 && odd.ownerCents === 1200 && odd.platformFeeCents + odd.ownerCents === 1999, 'centavos quebrados: arredonda a taxa para baixo, criador nunca recebe menos de 60%');
+  for (const g of [500, 777, 4990, 12345, 200000]) { const x = splitTeamPayment(g); assert(x.platformFeeCents + x.ownerCents === g && x.ownerCents * 100 >= g * 60, `soma fecha e criador >= 60% (${g})`); }
+
+  assert(validateTeamInput({ name: '  Treino   do João ', description: 'Treinos', priceCents: 4990, periodDays: 30, freeForReferred: true }).ok, 'equipe válida');
+  assert(validateTeamInput({ name: 'ab', priceCents: 0, periodDays: 0 }).ok === false, 'nome curto recusado');
+  assert(validateTeamInput({ name: 'Equipe', priceCents: 100, periodDays: 0 }).ok === false && validateTeamInput({ name: 'Equipe', priceCents: 300000, periodDays: 0 }).ok === false, 'preço fora da faixa recusado');
+  assert(validateTeamInput({ name: 'Equipe grátis', priceCents: 0, periodDays: 0 }).ok, 'equipe grátis permitida');
+  assert(validateTeamInput({ name: 'Equipe', priceCents: 1000, periodDays: 7 }).ok === false && validateTeamInput({ name: 'Equipe', priceCents: 10.5, periodDays: 0 }).ok === false, 'período e centavos inválidos recusados');
+  assert(validateTeamInput({ name: ' Treino   do João ', priceCents: 0 }).value?.name === 'Treino do João', 'nome normalizado');
+  assert(validateTeamInput({ name: 'Equipe', priceCents: 0 }).value?.membersCanPost === false && validateTeamInput({ name: 'Equipe', priceCents: 0, membersCanPost: true }).value?.membersCanPost === true, 'por padrão só o criador publica na equipe');
+  const code = teamCodeFrom('Personal João — Treino Funcional!', () => 0.5);
+  assert(isValidTeamCode(code) && code.startsWith('personal-joao-treino-func'), 'código da equipe: ' + code);
+  assert(!isValidTeamCode('Com Espaço') && !isValidTeamCode('../etc') && !isValidTeamCode('a'.repeat(50)), 'código só aceita letras minúsculas, números e hífen');
+
+  assert(membershipActive({ status: 'active', expiresAt: null }, '2026-10-30') && membershipActive({ status: 'active', expiresAt: '2026-10-30' }, '2026-10-30'), 'acesso sem prazo e no último dia');
+  assert(!membershipActive({ status: 'active', expiresAt: '2026-10-29' }, '2026-10-30') && !membershipActive({ status: 'removed', expiresAt: null }, '2026-10-30') && !membershipActive(null, '2026-10-30'), 'vencido, removido ou inexistente: sem acesso');
+  assert(nextMembershipExpiry(null, '2026-10-30', 30) === '2026-11-29' && nextMembershipExpiry('2026-11-05', '2026-10-30', 30) === '2026-12-05' && nextMembershipExpiry('2026-10-01', '2026-10-30', 30) === '2026-11-29' && nextMembershipExpiry('2026-11-05', '2026-10-30', 0) === null, 'renovação soma 30 dias ao que sobrou; único não vence');
+  assert(teamPriceLabel(0, 0) === 'Grátis' && teamPriceLabel(4990, 30).includes('a cada 30 dias') && teamPriceLabel(4990, 0).includes('acesso único'), 'texto do preço');
+  assert(qualifiesForFreeAccess({ freeForReferred: true }, 'RITMO-A', 'RITMO-A') && !qualifiesForFreeAccess({ freeForReferred: true }, 'RITMO-A', 'RITMO-B') && !qualifiesForFreeAccess({ freeForReferred: false }, 'RITMO-A', 'RITMO-A') && !qualifiesForFreeAccess({ freeForReferred: true }, 'RITMO-A', null), 'acesso grátis só para quem veio pelo link do criador (e se ele permitir)');
+
+  assert(normalizeText('  oi\u0000\u202E  mundo\n\n\n\n fim  ', 100) === 'oi  mundo\n\n fim' && normalizeText('x'.repeat(5000), FEED_LIMITS.postMax).length === 2000 && normalizeText(null, 10) === '', 'texto: remove controle, limita e apara');
+  assert(displayName('João Batista da Silva') === 'João S.' && displayName('Ana') === 'Ana' && displayName('') === 'Usuário' && initials('joão batista') === 'JB', 'nome no feed: primeiro nome + inicial do sobrenome');
+  assert(sanitizeAchievement({ type: 'corrente', habit: ' Treino ', weeks: 5 })?.type === 'corrente' && sanitizeAchievement({ type: 'corrente', habit: 'x', weeks: 0 }) === null && sanitizeAchievement({ type: 'foco', minutes: 120 })?.type === 'foco', 'conquistas válidas');
+  assert(sanitizeAchievement({ type: 'tarefas', done: 5, total: 3 }) === null && sanitizeAchievement({ type: 'meta', title: 'x', day: 9, totalDays: 7 }) === null && sanitizeAchievement({ type: 'hack', x: 1 }) === null && sanitizeAchievement('x') === null && sanitizeAchievement({ type: 'foco', minutes: 'abc' }) === null, 'conquista fora do formato é recusada');
+  assert(achievementHeadline({ type: 'corrente', habit: 'Treino', weeks: 1 }).startsWith('1 semana seguida') && achievementHeadline({ type: 'tarefas', done: 4, total: 6 }).includes('4 de 6'), 'texto da conquista');
+  assert(parsePayload('{"type":"foco","minutes":30}')?.type === 'foco' && parsePayload('lixo') === null && parsePayload(null) === null, 'lê o payload salvo com segurança');
+  const nowMs = Date.UTC(2026, 9, 30, 12, 0, 0);
+  assert(rateLimited([nowMs - 1000, nowMs - 2000], 3600000, 2, nowMs) && !rateLimited([nowMs - 4000000], 3600000, 1, nowMs) && !rateLimited([], 3600000, 1, nowMs), 'limite por janela de tempo');
+  const nowD = new Date('2026-10-30T12:00:00Z');
+  assert(timeAgo('2026-10-30T11:59:40Z', nowD) === 'agora há pouco' && timeAgo('2026-10-30T11:30:00Z', nowD) === 'há 30 min' && timeAgo('2026-10-30T09:00:00Z', nowD) === 'há 3 h' && timeAgo('2026-10-28T12:00:00Z', nowD) === 'há 2 dias', 'tempo relativo em português');
+  console.log('✓ Todos os testes de Feed e Equipes passaram com sucesso!');
+
+  // 12. Conquistas compartilháveis (calculadas dos dados da própria pessoa)
+  console.log('12. Testando conquistas compartilháveis...');
+  const sh = computeShareable({
+    today: '2026-10-28',
+    habits: [{ id: 1, name: 'Treino', targetFrequency: '3x_semana', createdAt: '2026-10-05T12:00:00' }, { id: 2, name: 'Leitura', targetFrequency: 'diario', createdAt: '2026-10-27T12:00:00' }],
+    habitLogs: ['2026-10-05','2026-10-07','2026-10-09','2026-10-12','2026-10-14','2026-10-16','2026-10-19','2026-10-21','2026-10-23','2026-10-26','2026-10-27','2026-10-28'].map((date) => ({ habitId: 1, date, completed: true })),
+    sessions: [{ date: '2026-10-27', durationMinutes: 25, status: 'completed' }, { date: '2026-10-28', durationMinutes: 50, status: 'completed' }, { date: '2026-10-28', durationMinutes: 25, status: 'canceled' }, { date: '2026-10-10', durationMinutes: 90, status: 'completed' }],
+    tasks: [{ date: '2026-10-27', completed: true }, { date: '2026-10-28', completed: false }, { date: '2026-10-05', completed: true }],
+    activeCycle: { startDate: '2026-10-20', durationDays: 40, mainGoal: 'Correr 5 km' },
+  });
+  const byType = (t: string) => sh.filter((a) => a.type === t);
+  assert(byType('corrente').length === 1 && (byType('corrente')[0] as any).habit === 'Treino' && (byType('corrente')[0] as any).weeks === 4, 'corrente do hábito cumprido (hábito sem semana cumprida não aparece)');
+  assert(byType('foco').length === 1 && (byType('foco')[0] as any).minutes === 75, 'foco: soma só sessões concluídas da semana atual');
+  assert(byType('tarefas').length === 1 && (byType('tarefas')[0] as any).done === 1 && (byType('tarefas')[0] as any).total === 2, 'tarefas: só as da semana atual');
+  assert(byType('meta').length === 1 && (byType('meta')[0] as any).day === 9 && (byType('meta')[0] as any).totalDays === 40, 'meta: dia do ciclo');
+  assert(computeShareable({ habits: [], habitLogs: [], sessions: [], tasks: [], activeCycle: null, today: '2026-10-28' }).length === 0, 'sem dados: nada para compartilhar');
+  assert(sh.every((a) => sanitizeAchievement(a) !== null), 'toda conquista gerada passa na validação do servidor');
+  console.log('✓ Todos os testes de conquistas passaram com sucesso!');
+
+  // 13. Avisos do sino
+  console.log('13. Testando avisos do app...');
+  const baseN = { today: '2026-10-28', hour: 10, now: new Date('2026-10-28T13:00:00Z'), tasks: [] as any[], transactions: [] as any[], habits: [] as any[], habitLogs: [] as any[], journalToday: true };
+  assert(computeNotices(baseN).length === 0, 'sem pendências: nenhum aviso');
+  const nA = computeNotices({ ...baseN, access: { effectiveStatus: 'trial', daysLeft: 1, hasAccess: true } });
+  assert(nA.length === 1 && nA[0].level === 'urgent' && nA[0].href === '/checkout', 'teste acabando: aviso urgente com link para assinar');
+  assert(computeNotices({ ...baseN, isAdmin: true, access: { effectiveStatus: 'trial', daysLeft: 0, hasAccess: true } }).length === 0, 'administrador não recebe aviso de assinatura');
+  assert(computeNotices({ ...baseN, access: { effectiveStatus: 'active', daysLeft: 3, hasAccess: true } })[0]?.id === 'renew', 'assinatura vencendo');
+  const nB = computeNotices({ ...baseN, transactions: [
+    { type: 'expense', description: 'Luz', amountCents: 15000, date: '2026-10-20', dueDate: '2026-10-25', status: 'pending' },
+    { type: 'expense', description: 'Internet', amountCents: 10000, date: '2026-10-20', dueDate: '2026-10-30', status: 'pending' },
+    { type: 'expense', description: 'Paga', amountCents: 9999, date: '2026-10-20', dueDate: '2026-10-25', status: 'paid' },
+    { type: 'income', description: 'Cliente', amountCents: 50000, date: '2026-10-20', dueDate: '2026-10-29', status: 'pending' },
+  ] });
+  assert(nB.map((n) => n.id).join() === 'bills-late,bills-soon,income-soon' && nB[0].detail.includes('150,00') && !nB[0].detail.includes('Paga'), 'contas: atrasada (urgente), a vencer e recebimento; conta paga ignorada');
+  assert(computeNotices({ ...baseN, config: { financeDue: false }, transactions: [{ type: 'expense', description: 'Luz', amountCents: 1, date: '2026-10-20', dueDate: '2026-10-25', status: 'pending' }] }).length === 0, 'respeita a opção de lembrar contas desligada');
+  const nC = computeNotices({ ...baseN, hour: 13, minutes: 30, tasks: [{ title: 'Reunião', date: '2026-10-28', startTime: '14:00', completed: false }, { title: 'Ontem', date: '2026-10-27', startTime: '09:00', completed: false }] });
+  assert(nC.length === 1 && nC[0].id === 'task-soon' && nC[0].title.includes('14:00'), 'tarefa com horário nas próximas 2 horas (tarefa de outro dia ignorada)');
+  assert(computeNotices({ ...baseN, hour: 15, tasks: [{ title: 'Cedo', date: '2026-10-28', startTime: '09:00', completed: false }] })[0]?.id === 'task-missed', 'tarefa com horário que passou');
+  assert(computeNotices({ ...baseN, hour: 21, journalToday: false }).some((n) => n.id === 'journal') && !computeNotices({ ...baseN, hour: 19, journalToday: false }).some((n) => n.id === 'journal'), 'diário só lembrado à noite');
+  const nD = computeNotices({ ...baseN, hour: 18, habits: [{ id: 1, name: 'Treino', targetFrequency: '3x_semana', createdAt: '2026-10-05T12:00:00' }], habitLogs: ['2026-10-05','2026-10-07','2026-10-09','2026-10-12','2026-10-14','2026-10-16','2026-10-19','2026-10-21','2026-10-23'].map((date) => ({ habitId: 1, date, completed: true })) });
+  assert(nD.some((n) => n.id === 'habits-today'), 'hábito ainda não marcado, depois das 17h');
+  assert(computeNotices({ ...baseN, now: new Date('2026-11-04T14:00:00Z'), today: '2026-11-04', affiliateBalanceCents: 3000 }).some((n) => n.id === 'payout') && !computeNotices({ ...baseN, now: new Date('2026-11-02T14:00:00Z'), today: '2026-11-02', affiliateBalanceCents: 3000 }).some((n) => n.id === 'payout'), 'prazo do saque só avisa no último dia (quarta)');
+  assert(computeNotices({ ...baseN, now: new Date('2026-11-04T14:00:00Z'), today: '2026-11-04', affiliateBalanceCents: 1000 }).every((n) => n.id !== 'payout'), 'sem saldo mínimo não avisa saque');
+  assert(computeNotices({ ...baseN, access: { effectiveStatus: 'trial', daysLeft: 1, hasAccess: true }, transactions: [{ type: 'expense', description: 'x', amountCents: 1, date: '2026-10-20', dueDate: '2026-10-25', status: 'pending' }, { type: 'income', description: 'y', amountCents: 1, date: '2026-10-20', dueDate: '2026-10-29', status: 'pending' }] }).map((n) => n.level).join() === 'urgent,urgent,info', 'avisos ordenados: urgentes primeiro');
+  console.log('✓ Todos os testes de avisos passaram com sucesso!');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

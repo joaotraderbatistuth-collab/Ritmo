@@ -35,17 +35,22 @@ function TermosPage() {
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-white mb-1">5. Avisos importantes</h2>
+            <h2 className="text-base font-semibold text-white mb-1">5. Feed e equipes</h2>
+            <p>O Feed é um espaço de convivência entre usuários. Você só compartilha o que escolher publicar: nenhuma conquista é publicada automaticamente. Os demais usuários veem seu primeiro nome e a inicial do sobrenome. Você é responsável pelo que publica e comenta. É proibido publicar conteúdo ilegal, ofensivo, discriminatório, sexual, enganoso, spam ou dados de outras pessoas sem autorização. Podemos esconder ou excluir conteúdo, silenciar usuários e suspender equipes que violem estes termos, inclusive após denúncias de outros usuários.</p>
+            <p>Qualquer usuário pode criar uma equipe, definir o preço de entrada e compartilhar conteúdo com os membros. A plataforma retém 40% do valor de cada venda e o criador recebe o restante, em saldo sacado por Pix conforme o ciclo semanal de pagamentos. Reembolso ou contestação de um pagamento desfaz o repasse correspondente e remove o acesso comprado. O criador é responsável pelo conteúdo, por suas obrigações fiscais e pelas exigências da sua atividade profissional, e não deve prometer resultados de saúde, financeiros ou de qualquer outra natureza. Quem se cadastra no Ritmo pelo link de indicação do criador pode ter acesso incluso, se o criador permitir. Pedidos de reembolso feitos dentro do prazo legal serão analisados.</p>
+          </section>
+          <section>
+            <h2 className="text-base font-semibold text-white mb-1">6. Avisos importantes</h2>
             <p>O Ritmo não substitui aconselhamento médico, psicológico ou financeiro profissional. O módulo financeiro é uma ferramenta de organização pessoal, não consultoria de investimentos.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-white mb-1">6. Rescisão</h2>
+            <h2 className="text-base font-semibold text-white mb-1">7. Rescisão</h2>
             <p>Podemos suspender ou encerrar contas que violem estes termos, com aviso prévio sempre que possível.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-white mb-1">7. Contato</h2>
+            <h2 className="text-base font-semibold text-white mb-1">8. Contato</h2>
             <p>Dúvidas sobre estes termos: [preencher e-mail de suporte/contato].</p>
           </section>
         </div>

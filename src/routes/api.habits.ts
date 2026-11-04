@@ -1,4 +1,4 @@
-import { verifyActiveToken } from '../lib/session.js';
+import { authorizeData } from '../lib/session.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { extractTokenFromRequest } from '../lib/auth.js';
 import { createHabit, getHabits, toggleHabitLog } from '../lib/server-db.js';
@@ -9,8 +9,9 @@ export const Route = createFileRoute('/api/habits')({
       GET: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyActiveToken(token);
-        if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
+        const auth = await authorizeData(token);
+        if ('response' in auth) return auth.response;
+        const payload = auth.payload;
 
         const data = await getHabits(payload.userId);
         return Response.json(data);
@@ -19,8 +20,9 @@ export const Route = createFileRoute('/api/habits')({
       POST: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyActiveToken(token);
-        if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
+        const auth = await authorizeData(token);
+        if ('response' in auth) return auth.response;
+        const payload = auth.payload;
 
         const body = await request.json();
 
