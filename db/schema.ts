@@ -511,3 +511,13 @@ export const reminders = pgTable("reminders", {
   doneAt: timestamp("done_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Consentimentos da LGPD (termos, dados de saúde, GPS, voz), com a versão aceita e a data.
+export const consents = pgTable("consents", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // termos | saude | gps | voz
+  version: text("version").notNull(),
+  grantedAt: timestamp("granted_at").defaultNow().notNull(),
+  revokedAt: timestamp("revoked_at"),
+});

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Send, X, Settings2, Volume2, VolumeX, Bell, Check, Undo2, Sparkles, MessageSquareText } from 'lucide-react';
 import { PushToggle } from './PushToggle.js';
+import { ConsentPrompt, hasConsent, loadConsents } from './Consents.js';
 import { callApi } from '../lib/client-api.js';
 import {
   AssistantTab,
@@ -360,6 +361,10 @@ export const Assistant: React.FC<{
       }
 
       case 'start_workout': {
+        if (!hasConsent('gps')) {
+          onNavigate('treino');
+          return say('Antes do primeiro treino, permita a localização na aba Treino. Depois é só pedir de novo.');
+        }
         if (recorder.getState().status !== 'idle') {
           onNavigate('treino');
           return say('Você já tem um treino em andamento. Abri a aba Treino.');
@@ -437,9 +442,17 @@ export const Assistant: React.FC<{
   };
 
   /* ---------- microfone ---------- */
-  const toggleMic = () => {
+  const [askVoice, setAskVoice] = useState(false);
+  useEffect(() => {
+    loadConsents();
+  }, []);
+  const toggleMic = (skipConsent = false) => {
     if (listening) {
       recRef.current?.stop();
+      return;
+    }
+    if (!skipConsent && !hasConsent('voz')) {
+      setAskVoice(true);
       return;
     }
     const rec = getRecognition();
@@ -508,6 +521,17 @@ export const Assistant: React.FC<{
 
   return (
     <>
+      {askVoice && (
+        <ConsentPrompt
+          kind="voz"
+          onCancel={() => setAskVoice(false)}
+          onAccept={() => {
+            setAskVoice(false);
+            toggleMic(true);
+          }}
+        />
+      )}
+
       {/* lembrete tocando */}
       {alert && (
         <div role="alertdialog" aria-label="Lembrete" className="fixed z-[75] top-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-amber-400/50 bg-[#161b22] shadow-2xl shadow-black/50 p-4 ritmo-level-pop">
@@ -708,7 +732,7 @@ export const Assistant: React.FC<{
               ) : (
                 <button
                   type="button"
-                  onClick={toggleMic}
+                  onClick={() => toggleMic()}
                   aria-label={listening ? 'Parar de ouvir' : 'Falar'}
                   className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 text-white ${listening ? 'bg-rose-500 animate-pulse' : supportsVoice ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-[#30363d]'}`}
                 >

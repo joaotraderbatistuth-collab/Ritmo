@@ -25,6 +25,7 @@ import { Route as ApiTasksRouteImport } from './routes/api.tasks'
 import { Route as ApiPushRouteImport } from './routes/api.push'
 import { Route as ApiProfileRouteImport } from './routes/api.profile'
 import { Route as ApiMilestonesRouteImport } from './routes/api.milestones'
+import { Route as ApiMeusDadosRouteImport } from './routes/api.meus-dados'
 import { Route as ApiMediaRouteImport } from './routes/api.media'
 import { Route as ApiJournalRouteImport } from './routes/api.journal'
 import { Route as ApiIntegrationsRouteImport } from './routes/api.integrations'
@@ -33,6 +34,7 @@ import { Route as ApiFocusRouteImport } from './routes/api.focus'
 import { Route as ApiFinanceRouteImport } from './routes/api.finance'
 import { Route as ApiFeedRouteImport } from './routes/api.feed'
 import { Route as ApiCyclesRouteImport } from './routes/api.cycles'
+import { Route as ApiConsentsRouteImport } from './routes/api.consents'
 import { Route as ApiCheckoutRouteImport } from './routes/api.checkout'
 import { Route as ApiBoardsRouteImport } from './routes/api.boards'
 import { Route as ApiAuthRouteImport } from './routes/api.auth'
@@ -124,6 +126,11 @@ const ApiMilestonesRoute = ApiMilestonesRouteImport.update({
   path: '/api/milestones',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMeusDadosRoute = ApiMeusDadosRouteImport.update({
+  id: '/api/meus-dados',
+  path: '/api/meus-dados',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMediaRoute = ApiMediaRouteImport.update({
   id: '/api/media',
   path: '/api/media',
@@ -162,6 +169,11 @@ const ApiFeedRoute = ApiFeedRouteImport.update({
 const ApiCyclesRoute = ApiCyclesRouteImport.update({
   id: '/api/cycles',
   path: '/api/cycles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConsentsRoute = ApiConsentsRouteImport.update({
+  id: '/api/consents',
+  path: '/api/consents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCheckoutRoute = ApiCheckoutRouteImport.update({
@@ -232,6 +244,7 @@ export interface FileRoutesByFullPath {
   '/api/auth': typeof ApiAuthRoute
   '/api/boards': typeof ApiBoardsRoute
   '/api/checkout': typeof ApiCheckoutRoute
+  '/api/consents': typeof ApiConsentsRoute
   '/api/cycles': typeof ApiCyclesRoute
   '/api/feed': typeof ApiFeedRoute
   '/api/finance': typeof ApiFinanceRoute
@@ -240,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/journal': typeof ApiJournalRoute
   '/api/media': typeof ApiMediaRoute
+  '/api/meus-dados': typeof ApiMeusDadosRoute
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
@@ -268,6 +282,7 @@ export interface FileRoutesByTo {
   '/api/auth': typeof ApiAuthRoute
   '/api/boards': typeof ApiBoardsRoute
   '/api/checkout': typeof ApiCheckoutRoute
+  '/api/consents': typeof ApiConsentsRoute
   '/api/cycles': typeof ApiCyclesRoute
   '/api/feed': typeof ApiFeedRoute
   '/api/finance': typeof ApiFinanceRoute
@@ -276,6 +291,7 @@ export interface FileRoutesByTo {
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/journal': typeof ApiJournalRoute
   '/api/media': typeof ApiMediaRoute
+  '/api/meus-dados': typeof ApiMeusDadosRoute
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
@@ -305,6 +321,7 @@ export interface FileRoutesById {
   '/api/auth': typeof ApiAuthRoute
   '/api/boards': typeof ApiBoardsRoute
   '/api/checkout': typeof ApiCheckoutRoute
+  '/api/consents': typeof ApiConsentsRoute
   '/api/cycles': typeof ApiCyclesRoute
   '/api/feed': typeof ApiFeedRoute
   '/api/finance': typeof ApiFinanceRoute
@@ -313,6 +330,7 @@ export interface FileRoutesById {
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/journal': typeof ApiJournalRoute
   '/api/media': typeof ApiMediaRoute
+  '/api/meus-dados': typeof ApiMeusDadosRoute
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
@@ -343,6 +361,7 @@ export interface FileRouteTypes {
     | '/api/auth'
     | '/api/boards'
     | '/api/checkout'
+    | '/api/consents'
     | '/api/cycles'
     | '/api/feed'
     | '/api/finance'
@@ -351,6 +370,7 @@ export interface FileRouteTypes {
     | '/api/integrations'
     | '/api/journal'
     | '/api/media'
+    | '/api/meus-dados'
     | '/api/milestones'
     | '/api/profile'
     | '/api/push'
@@ -379,6 +399,7 @@ export interface FileRouteTypes {
     | '/api/auth'
     | '/api/boards'
     | '/api/checkout'
+    | '/api/consents'
     | '/api/cycles'
     | '/api/feed'
     | '/api/finance'
@@ -387,6 +408,7 @@ export interface FileRouteTypes {
     | '/api/integrations'
     | '/api/journal'
     | '/api/media'
+    | '/api/meus-dados'
     | '/api/milestones'
     | '/api/profile'
     | '/api/push'
@@ -415,6 +437,7 @@ export interface FileRouteTypes {
     | '/api/auth'
     | '/api/boards'
     | '/api/checkout'
+    | '/api/consents'
     | '/api/cycles'
     | '/api/feed'
     | '/api/finance'
@@ -423,6 +446,7 @@ export interface FileRouteTypes {
     | '/api/integrations'
     | '/api/journal'
     | '/api/media'
+    | '/api/meus-dados'
     | '/api/milestones'
     | '/api/profile'
     | '/api/push'
@@ -452,6 +476,7 @@ export interface RootRouteChildren {
   ApiAuthRoute: typeof ApiAuthRoute
   ApiBoardsRoute: typeof ApiBoardsRoute
   ApiCheckoutRoute: typeof ApiCheckoutRoute
+  ApiConsentsRoute: typeof ApiConsentsRoute
   ApiCyclesRoute: typeof ApiCyclesRoute
   ApiFeedRoute: typeof ApiFeedRoute
   ApiFinanceRoute: typeof ApiFinanceRoute
@@ -460,6 +485,7 @@ export interface RootRouteChildren {
   ApiIntegrationsRoute: typeof ApiIntegrationsRoute
   ApiJournalRoute: typeof ApiJournalRoute
   ApiMediaRoute: typeof ApiMediaRoute
+  ApiMeusDadosRoute: typeof ApiMeusDadosRoute
   ApiMilestonesRoute: typeof ApiMilestonesRoute
   ApiProfileRoute: typeof ApiProfileRoute
   ApiPushRoute: typeof ApiPushRoute
@@ -587,6 +613,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMilestonesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/meus-dados': {
+      id: '/api/meus-dados'
+      path: '/api/meus-dados'
+      fullPath: '/api/meus-dados'
+      preLoaderRoute: typeof ApiMeusDadosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/media': {
       id: '/api/media'
       path: '/api/media'
@@ -641,6 +674,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cycles'
       fullPath: '/api/cycles'
       preLoaderRoute: typeof ApiCyclesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/consents': {
+      id: '/api/consents'
+      path: '/api/consents'
+      fullPath: '/api/consents'
+      preLoaderRoute: typeof ApiConsentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/checkout': {
@@ -732,6 +772,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthRoute: ApiAuthRoute,
   ApiBoardsRoute: ApiBoardsRoute,
   ApiCheckoutRoute: ApiCheckoutRoute,
+  ApiConsentsRoute: ApiConsentsRoute,
   ApiCyclesRoute: ApiCyclesRoute,
   ApiFeedRoute: ApiFeedRoute,
   ApiFinanceRoute: ApiFinanceRoute,
@@ -740,6 +781,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiIntegrationsRoute: ApiIntegrationsRoute,
   ApiJournalRoute: ApiJournalRoute,
   ApiMediaRoute: ApiMediaRoute,
+  ApiMeusDadosRoute: ApiMeusDadosRoute,
   ApiMilestonesRoute: ApiMilestonesRoute,
   ApiProfileRoute: ApiProfileRoute,
   ApiPushRoute: ApiPushRoute,

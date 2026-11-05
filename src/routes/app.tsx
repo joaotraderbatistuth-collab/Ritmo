@@ -65,6 +65,7 @@ import { ProfilePhotoCard } from '../components/ProfilePhotoCard.js';
 import { TabWorkout, WorkoutLiveBar } from '../components/TabWorkout.js';
 import { Assistant } from '../components/Assistant.js';
 import { InstallBanner } from '../components/InstallPwaButton.js';
+import { LegalUpdateModal, PrivacyCard } from '../components/Consents.js';
 import { initials as initialsOf } from '../lib/feed-rules.js';
 
 export const Route = createFileRoute('/app')({
@@ -754,6 +755,8 @@ function RitmoApp() {
             />
           )}
 
+          {activeTab === 'configuracoes' && user && <PrivacyCard />}
+
           {activeTab === 'configuracoes' && (
             <TabSettings
               user={user}
@@ -802,6 +805,7 @@ function RitmoApp() {
           }}
         />
       )}
+      {user && <LegalUpdateModal />}
       <XpToast gain={xp.gain} />
       <LevelUpModal info={xp.levelUp} initials={userInitials} avatarUrl={xp.data?.avatarUrl} onClose={xp.closeLevelUp} />
 

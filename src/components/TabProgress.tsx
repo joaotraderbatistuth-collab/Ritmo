@@ -31,7 +31,7 @@ interface TabProgressProps {
 export const TabProgress: React.FC<TabProgressProps> = ({
   cycles,
   tasks,
-  habits,
+  habits: _habits,
   habitLogs,
   sessions,
   transactions,
@@ -95,25 +95,9 @@ export const TabProgress: React.FC<TabProgressProps> = ({
   ];
 
   // Full LGPD Export
+  // Exportação completa (LGPD): todos os dados da conta, direto do servidor
   const handleExportFullData = () => {
-    const fullBackup = {
-      exportedAt: new Date().toISOString(),
-      platform: 'Ritmo — Modo Foco',
-      cycles,
-      tasks,
-      habits,
-      habitLogs,
-      sessions,
-      transactions,
-    };
-
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(fullBackup, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `ritmo-backup-completo-${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    window.location.href = '/api/meus-dados';
   };
 
   const handleConfirmDelete = async () => {

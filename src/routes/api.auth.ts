@@ -13,6 +13,7 @@ import {
 } from '../lib/server-db.js';
 import { createToken, extractTokenFromRequest, hashPassword, verifyPassword, verifyToken } from '../lib/auth.js';
 import { verifyActiveToken } from '../lib/session.js';
+import { grantConsent } from '../lib/consents-db.js';
 import { sendPasswordResetEmail } from '../lib/email.js';
 import { computeAccess } from '../lib/access.js';
 import { isMasterEmail } from '../lib/admin-permissions.js';
@@ -140,6 +141,9 @@ export const Route = createFileRoute('/api/auth')({
               referredBy: referralCode || null,
             });
             const newUser = await promoteIfAdminEmail(createdUser);
+            // registra o aceite (versão e data) dos Termos, da Política e do uso dos dados de bem-estar
+            await grantConsent(newUser.id, 'termos').catch(() => null);
+            await grantConsent(newUser.id, 'saude').catch(() => null);
 
             if (referralCode) {
               await recordAffiliateClick(referralCode);

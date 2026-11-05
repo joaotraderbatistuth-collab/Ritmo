@@ -27,6 +27,7 @@ import {
   trimRoute,
 } from '../lib/workout.js';
 import { workoutImage } from '../lib/workout-share-image.js';
+import { ConsentPrompt, useConsents } from './Consents.js';
 
 const SPORT_ICON: Record<SportId, React.ComponentType<{ className?: string }>> = { corrida: Activity, caminhada: Footprints, bike: Bike, trilha: Mountain };
 
@@ -454,7 +455,12 @@ export const TabWorkout: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
   const [manual, setManual] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => rec.warmUp(), []);
+  const consents = useConsents();
+  const gpsOk = consents.has('gps');
+  const [askGps, setAskGps] = useState(false);
+  // o GPS só é ligado depois da permissão (LGPD)
+  useEffect(() => (gpsOk ? rec.warmUp() : undefined), [gpsOk]);
+  const startNow = () => (gpsOk ? rec.start(s.sport) : setAskGps(true));
 
   const load = useCallback(async () => {
     const r = await callApi<{ workouts?: SavedWorkout[]; error?: string }>('/api/workouts');
@@ -490,7 +496,7 @@ export const TabWorkout: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
         <div>
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <h2 className="text-xl font-extrabold text-[#f0f6fc]">Treino</h2>
-            <GpsBadge acc={s.fix?.acc ?? null} error={s.gpsError} />
+            {gpsOk && <GpsBadge acc={s.fix?.acc ?? null} error={s.gpsError} />}
           </div>
           <p className="text-sm text-[#8b949e]">Grave sua corrida, caminhada, pedal ou trilha com GPS e veja o caminho aparecer no mapa.</p>
         </div>
@@ -507,9 +513,16 @@ export const TabWorkout: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
           })}
         </div>
 
-        <RouteMap segments={[]} current={s.fix} live className="h-56" />
+        {gpsOk ? (
+          <RouteMap segments={[]} current={s.fix} live className="h-56" />
+        ) : (
+          <div className="h-56 rounded-2xl border border-dashed border-[#30363d] bg-[#0d1117] flex flex-col items-center justify-center text-center gap-2 px-6">
+            <p className="text-sm text-[#c9d1d9]">Para medir a distância e desenhar a rota, o Ritmo precisa da sua localização durante o treino.</p>
+            <button type="button" onClick={() => setAskGps(true)} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Permitir localização</button>
+          </div>
+        )}
 
-        <button type="button" onClick={() => rec.start(s.sport)} className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-[#0d1117] text-lg font-extrabold inline-flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
+        <button type="button" onClick={startNow} className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-[#0d1117] text-lg font-extrabold inline-flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
           <Play className="w-6 h-6 fill-[#0d1117]" /> Iniciar {SPORTS[s.sport].label.toLowerCase()}
         </button>
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#8b949e]">
@@ -554,6 +567,7 @@ export const TabWorkout: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
 
       {openId !== null && <WorkoutDetail id={openId} onClose={() => setOpenId(null)} onDeleted={() => { setOpenId(null); load(); onSaved?.(); }} />}
       {manual && <ManualForm onClose={() => setManual(false)} onSaved={afterSave} />}
+      {askGps && <ConsentPrompt kind="gps" onCancel={() => setAskGps(false)} onAccept={() => setAskGps(false)} />}
     </div>
   );
 };

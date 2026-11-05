@@ -219,6 +219,17 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS "reminders_due_idx" ON "reminders" ("sent_at","remind_at")`,
   `CREATE INDEX IF NOT EXISTS "reminders_user_idx" ON "reminders" ("user_id","remind_at")`,
 
+  // ---- consentimentos (LGPD)
+  `CREATE TABLE IF NOT EXISTS "consents" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "kind" text NOT NULL,
+    "version" text NOT NULL,
+    "granted_at" timestamp DEFAULT now() NOT NULL,
+    "revoked_at" timestamp
+  )`,
+  `CREATE INDEX IF NOT EXISTS "consents_user_idx" ON "consents" ("user_id","kind")`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

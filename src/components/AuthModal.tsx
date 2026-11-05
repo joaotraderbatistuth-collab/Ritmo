@@ -238,7 +238,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">
                   Política de Privacidade
                 </a>
-                , incluindo o teste grátis de 7 dias e a assinatura de R$ 39,90/mês depois dele.
+                , incluindo o teste grátis de 7 dias e a assinatura de R$ 39,90/mês depois dele. Autorizo o uso dos dados de bem-estar que eu registrar (hábitos, treinos, diário) só para o app funcionar para mim. Declaro ter 18 anos ou mais.
               </span>
             </label>
           )}
