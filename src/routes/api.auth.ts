@@ -24,14 +24,21 @@ async function promoteIfAdminEmail<T extends { id: number; email: string; role?:
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
   const master = isMasterEmail(user.email, process.env.MASTER_ADMIN_EMAIL);
-  if (user.role !== 'admin' && (master || list.includes(user.email.toLowerCase()))) {
+  // o master é sempre admin, ativo e sem período de teste (nunca fica desativado nem em trial)
+  if (master) {
+    const fix: { role?: string; subscriptionStatus?: string; trialEndsAt?: null } = {};
+    if (user.role !== 'admin') fix.role = 'admin';
+    if (user.subscriptionStatus !== 'active') fix.subscriptionStatus = 'active';
+    if ((user as any).trialEndsAt) fix.trialEndsAt = null;
+    if (Object.keys(fix).length) {
+      await updateUserRecord(user.id, fix as any);
+      return { ...user, ...fix } as T;
+    }
+    return user;
+  }
+  if (user.role !== 'admin' && list.includes(user.email.toLowerCase())) {
     await updateUserRecord(user.id, { role: 'admin' });
     return { ...user, role: 'admin' };
-  }
-  // o master nunca fica desativado
-  if (master && user.subscriptionStatus === 'suspended') {
-    await updateUserRecord(user.id, { subscriptionStatus: 'active' });
-    return { ...user, subscriptionStatus: 'active' };
   }
   return user;
 }

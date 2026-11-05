@@ -11,6 +11,10 @@
 const TERMS =
   'Comissão total de 35% sobre pagamentos recorrentes elegíveis: 25% para quem indica diretamente (nível 1) e 10% distribuídos até o quarto nível da rede (5% no nível 2, 3% no nível 3 e 2% no nível 4). Resgate via chave PIX.';
 
+// Conta master. Só o hash bcrypt da senha fica no código, nunca a senha em texto.
+const MASTER_EMAIL = 'batistuth@live.com';
+const MASTER_PASSWORD_HASH = '$2a$10$fADPSg9B43me/ywXyP8H7O/8855XOE6lXcUnm4BjVM/ci585x58WC';
+
 export const SCHEMA_SYNC_STATEMENTS: string[] = [
   // ---- usuários
   `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "admin_permissions" text`,
@@ -127,6 +131,24 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS "feed_comments_post_idx" ON "feed_comments" ("post_id","created_at")`,
   `CREATE INDEX IF NOT EXISTS "team_members_user_idx" ON "team_members" ("user_id")`,
   `CREATE INDEX IF NOT EXISTS "team_earnings_owner_idx" ON "team_earnings" ("owner_user_id","status")`,
+
+  // ---- administrador master: batistuth@live.com
+  // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
+  `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")
+   VALUES ('${MASTER_EMAIL}','João','${MASTER_PASSWORD_HASH}','admin','active',NULL,'RITMO-MASTER')
+   ON CONFLICT ("email") DO NOTHING`,
+  // Define a senha UMA única vez (marcada na auditoria). Depois disso, se a senha for trocada pelo
+  // "esqueci a senha", ela não volta a ser sobrescrita.
+  `UPDATE "users" SET "password_hash" = '${MASTER_PASSWORD_HASH}', "updated_at" = now()
+   WHERE "email" = '${MASTER_EMAIL}'
+     AND NOT EXISTS (SELECT 1 FROM "admin_audit_log" WHERE "action" = 'master_bootstrap_v1')`,
+  `INSERT INTO "admin_audit_log" ("admin_email","action","details")
+   SELECT '${MASTER_EMAIL}','master_bootstrap_v1','Conta master definida como admin com acesso total e senha inicial'
+   WHERE NOT EXISTS (SELECT 1 FROM "admin_audit_log" WHERE "action" = 'master_bootstrap_v1')`,
+  // Sempre: admin, ativo e sem período de teste.
+  `UPDATE "users" SET "role" = 'admin', "subscription_status" = 'active', "trial_ends_at" = NULL, "updated_at" = now()
+   WHERE "email" = '${MASTER_EMAIL}'
+     AND ("role" <> 'admin' OR "subscription_status" <> 'active' OR "trial_ends_at" IS NOT NULL)`,
 ];
 
 export interface SchemaSyncResult {
