@@ -19,6 +19,7 @@ export const users = pgTable("users", {
   adminPermissions: text("admin_permissions"), // JSON com as permissões do administrador; vazio = administrador antigo (acesso operacional completo)
   feedMuted: boolean("feed_muted").notNull().default(false), // silenciado pela moderação: não publica nem comenta
   avatarUrl: text("avatar_url"), // foto de perfil (/api/media?k=...)
+  bio: text("bio"), // frase curta do perfil (até 160 caracteres), visível para outros membros
   xpTotal: integer("xp_total").notNull().default(0), // Pontos de Ritmo (cópia do cálculo, para o Feed)
   level: integer("level").notNull().default(1), // nível atual (1 a 12), define a moldura da foto
   createdAt: timestamp("created_at").defaultNow().notNull(),

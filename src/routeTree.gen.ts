@@ -22,6 +22,7 @@ import { Route as ApiXpRouteImport } from './routes/api.xp'
 import { Route as ApiTeamsRouteImport } from './routes/api.teams'
 import { Route as ApiTasksRouteImport } from './routes/api.tasks'
 import { Route as ApiPushRouteImport } from './routes/api.push'
+import { Route as ApiProfileRouteImport } from './routes/api.profile'
 import { Route as ApiMilestonesRouteImport } from './routes/api.milestones'
 import { Route as ApiMediaRouteImport } from './routes/api.media'
 import { Route as ApiJournalRouteImport } from './routes/api.journal'
@@ -103,6 +104,11 @@ const ApiTasksRoute = ApiTasksRouteImport.update({
 const ApiPushRoute = ApiPushRouteImport.update({
   id: '/api/push',
   path: '/api/push',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProfileRoute = ApiProfileRouteImport.update({
+  id: '/api/profile',
+  path: '/api/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMilestonesRoute = ApiMilestonesRouteImport.update({
@@ -215,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/api/journal': typeof ApiJournalRoute
   '/api/media': typeof ApiMediaRoute
   '/api/milestones': typeof ApiMilestonesRoute
+  '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
@@ -247,6 +254,7 @@ export interface FileRoutesByTo {
   '/api/journal': typeof ApiJournalRoute
   '/api/media': typeof ApiMediaRoute
   '/api/milestones': typeof ApiMilestonesRoute
+  '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
@@ -280,6 +288,7 @@ export interface FileRoutesById {
   '/api/journal': typeof ApiJournalRoute
   '/api/media': typeof ApiMediaRoute
   '/api/milestones': typeof ApiMilestonesRoute
+  '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
@@ -314,6 +323,7 @@ export interface FileRouteTypes {
     | '/api/journal'
     | '/api/media'
     | '/api/milestones'
+    | '/api/profile'
     | '/api/push'
     | '/api/tasks'
     | '/api/teams'
@@ -346,6 +356,7 @@ export interface FileRouteTypes {
     | '/api/journal'
     | '/api/media'
     | '/api/milestones'
+    | '/api/profile'
     | '/api/push'
     | '/api/tasks'
     | '/api/teams'
@@ -378,6 +389,7 @@ export interface FileRouteTypes {
     | '/api/journal'
     | '/api/media'
     | '/api/milestones'
+    | '/api/profile'
     | '/api/push'
     | '/api/tasks'
     | '/api/teams'
@@ -411,6 +423,7 @@ export interface RootRouteChildren {
   ApiJournalRoute: typeof ApiJournalRoute
   ApiMediaRoute: typeof ApiMediaRoute
   ApiMilestonesRoute: typeof ApiMilestonesRoute
+  ApiProfileRoute: typeof ApiProfileRoute
   ApiPushRoute: typeof ApiPushRoute
   ApiTasksRoute: typeof ApiTasksRoute
   ApiTeamsRoute: typeof ApiTeamsRoute
@@ -511,6 +524,13 @@ declare module '@tanstack/react-router' {
       path: '/api/push'
       fullPath: '/api/push'
       preLoaderRoute: typeof ApiPushRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/profile': {
+      id: '/api/profile'
+      path: '/api/profile'
+      fullPath: '/api/profile'
+      preLoaderRoute: typeof ApiProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/milestones': {
@@ -659,6 +679,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiJournalRoute: ApiJournalRoute,
   ApiMediaRoute: ApiMediaRoute,
   ApiMilestonesRoute: ApiMilestonesRoute,
+  ApiProfileRoute: ApiProfileRoute,
   ApiPushRoute: ApiPushRoute,
   ApiTasksRoute: ApiTasksRoute,
   ApiTeamsRoute: ApiTeamsRoute,

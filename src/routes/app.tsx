@@ -19,7 +19,8 @@ import { TabRoadmap } from '../components/TabRoadmap.js';
 import { WelcomeTour } from '../components/WelcomeTour.js';
 import { SetupGuide } from '../components/SetupGuide.js';
 import { TabFeed } from '../components/TabFeed.js';
-import { SHARE_EVENT } from '../lib/share-feed.js';
+import { SHARE_EVENT, OPEN_PROFILE_EVENT } from '../lib/share-feed.js';
+import { ProfileModal } from '../components/FeedView.js';
 import type { Achievement } from '../lib/feed-rules.js';
 import { NoticeBell } from '../components/NoticeBell.js';
 import { computeNotices } from '../lib/notices.js';
@@ -89,6 +90,17 @@ function RitmoApp() {
     return () => window.removeEventListener(SHARE_EVENT, onShare);
   }, []);
   const [guideTab, setGuideTab] = useState<string | null>(null);
+
+  // Perfil de um membro (toque na foto ou no nome no Feed)
+  const [profileUserId, setProfileUserId] = useState<number | null>(null);
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const id = (e as CustomEvent<number>).detail;
+      if (Number.isInteger(id) && id > 0) setProfileUserId(id);
+    };
+    window.addEventListener(OPEN_PROFILE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PROFILE_EVENT, onOpen);
+  }, []);
 
   // App State
   const [user, setUser] = useState<User | null>(null);
@@ -728,7 +740,9 @@ function RitmoApp() {
             <ProfilePhotoCard
               data={xp.data}
               initials={userInitials}
+              userId={user.id}
               onChanged={(avatarUrl) => xp.setData((d) => (d ? { ...d, avatarUrl } : d))}
+              onBioChanged={(bio) => xp.setData((d) => (d ? { ...d, bio } : d))}
             />
           )}
 
@@ -743,6 +757,14 @@ function RitmoApp() {
         </main>
       </div>
 
+      <ProfileModal
+        userId={profileUserId}
+        onClose={() => setProfileUserId(null)}
+        onEditMine={() => {
+          setActiveTab('configuracoes');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
       <XpToast gain={xp.gain} />
       <LevelUpModal info={xp.levelUp} initials={userInitials} avatarUrl={xp.data?.avatarUrl} onClose={xp.closeLevelUp} />
 

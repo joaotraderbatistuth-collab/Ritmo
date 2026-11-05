@@ -27,6 +27,7 @@ export const Route = createFileRoute('/api/xp')({
             breakdown: xp.breakdown,
             level: xp.info,
             avatarUrl: xp.avatarUrl,
+            bio: xp.bio,
           });
         } catch (e) {
           console.error('[xp]', e);

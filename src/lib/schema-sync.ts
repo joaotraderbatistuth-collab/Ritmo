@@ -182,6 +182,8 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text`,
   `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "xp_total" integer NOT NULL DEFAULT 0`,
   `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "level" integer NOT NULL DEFAULT 1`,
+  // ---- bio do perfil público
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text`,
 
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).

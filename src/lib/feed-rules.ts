@@ -3,6 +3,7 @@ import { levelDef, MAX_LEVEL } from './levels.js';
 
 export const FEED_LIMITS = {
   postMax: 2000,
+  bioMax: 160,
   commentMax: 500,
   reportReasonMax: 300,
   postsPerHour: 10,

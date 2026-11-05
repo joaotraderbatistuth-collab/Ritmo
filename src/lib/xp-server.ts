@@ -29,6 +29,7 @@ export function dayIn(timezone: string | null | undefined, when: Date | string =
 export interface UserXp extends XpResult {
   info: LevelInfo;
   avatarUrl: string | null;
+  bio: string;
 }
 
 export async function getUserXp(userId: number): Promise<UserXp | null> {
@@ -75,5 +76,5 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
   if ((user as any).xpTotal !== result.total || (user as any).level !== info.level) {
     await updateUserRecord(userId, { xpTotal: result.total, level: info.level } as any).catch(() => null);
   }
-  return { ...result, info, avatarUrl: (user as any).avatarUrl || null };
+  return { ...result, info, avatarUrl: (user as any).avatarUrl || null, bio: (user as any).bio || '' };
 }

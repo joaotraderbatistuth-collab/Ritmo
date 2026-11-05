@@ -3,7 +3,7 @@
 import { and, desc, eq, gte, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
-import { checkDb, findUserById } from './server-db.js';
+import { checkDb, findUserById, updateUserRecord } from './server-db.js';
 import { createRealPixPayment, isMercadoPagoConfigured } from './mercadopago.js';
 import {
   isValidTeamCode,
@@ -498,7 +498,7 @@ function authorProfile(a: { avatarUrl?: string | null; level?: number | null } |
   return { avatarUrl, level, levelName: levelDef(level).name };
 }
 
-export async function listPosts(viewerId: number, opts: { teamId?: number | null; beforeId?: number; limit?: number }) {
+export async function listPosts(viewerId: number, opts: { teamId?: number | null; beforeId?: number; limit?: number; authorId?: number }) {
   await need();
   const limit = Math.min(Math.max(opts.limit || 20, 1), 50);
   if (opts.teamId) {
@@ -507,6 +507,7 @@ export async function listPosts(viewerId: number, opts: { teamId?: number | null
   }
   const where = and(
     opts.teamId ? eq(schema.feedPosts.teamId, opts.teamId) : isNull(schema.feedPosts.teamId),
+    opts.authorId ? eq(schema.feedPosts.userId, opts.authorId) : undefined,
     eq(schema.feedPosts.status, 'visible'),
     opts.beforeId ? lt(schema.feedPosts.id, opts.beforeId) : undefined
   );
@@ -550,6 +551,52 @@ export async function listPosts(viewerId: number, opts: { teamId?: number | null
       canDelete: p.userId === viewerId || ownerOf === viewerId,
     })),
   };
+}
+
+/* ---------------- Perfil público ---------------- */
+
+/**
+ * O que outro membro vê ao abrir um perfil: nome curto, foto, nível, bio e as publicações do Feed
+ * geral (nunca o conteúdo exclusivo de Ritus, nem dados de hábitos, finanças ou diário).
+ */
+export async function getPublicProfile(viewerId: number, userId: number) {
+  await need();
+  if (!Number.isInteger(userId) || userId <= 0) throw new CommunityError(400, 'Perfil inválido.');
+  const [u] = await db
+    .select({ id: schema.users.id, name: schema.users.name, avatarUrl: schema.users.avatarUrl, level: schema.users.level, xpTotal: schema.users.xpTotal, bio: schema.users.bio, feedMuted: schema.users.feedMuted, createdAt: schema.users.createdAt })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId));
+  if (!u) throw new CommunityError(404, 'Perfil não encontrado.');
+  const publicPosts = and(eq(schema.feedPosts.userId, userId), isNull(schema.feedPosts.teamId), eq(schema.feedPosts.status, 'visible'));
+  const [p] = await db.select({ n: count }).from(schema.feedPosts).where(publicPosts);
+  const [l] = await db
+    .select({ n: count })
+    .from(schema.feedLikes)
+    .innerJoin(schema.feedPosts, eq(schema.feedLikes.postId, schema.feedPosts.id))
+    .where(publicPosts);
+  const prof = authorProfile(u);
+  return {
+    id: u.id,
+    name: displayName(u.name),
+    initials: initials(u.name),
+    ...prof,
+    xp: Math.max(0, Number(u.xpTotal) || 0),
+    // bio de conta silenciada pela moderação não aparece para os outros
+    bio: u.feedMuted && u.id !== viewerId ? '' : u.bio || '',
+    memberSince: iso(u.createdAt),
+    posts: Number(p?.n) || 0,
+    likesReceived: Number(l?.n) || 0,
+    isMe: u.id === viewerId,
+  };
+}
+
+export async function setBio(userId: number, raw: unknown) {
+  await need();
+  await assertCanWrite(userId);
+  // bio é uma frase: quebras de linha viram espaço
+  const bio = normalizeText(String(raw ?? '').replace(/\s*\n+\s*/g, ' '), FEED_LIMITS.bioMax);
+  await updateUserRecord(userId, { bio: bio || null } as any);
+  return bio;
 }
 
 async function loadVisiblePost(viewerId: number, postId: number) {

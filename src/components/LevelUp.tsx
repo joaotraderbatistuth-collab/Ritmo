@@ -11,6 +11,7 @@ export interface XpData {
   breakdown: Record<XpSource, { count: number; xp: number }>;
   level: LevelInfo;
   avatarUrl: string | null;
+  bio?: string;
 }
 
 /* ------------------------------------------------------------------ */
