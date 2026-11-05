@@ -66,6 +66,7 @@ import { ProfilePhotoCard } from '../components/ProfilePhotoCard.js';
 import { TabWorkout, WorkoutLiveBar } from '../components/TabWorkout.js';
 import { Assistant } from '../components/Assistant.js';
 import { InstallBanner } from '../components/InstallPwaButton.js';
+import { PushAutoPrompt } from '../components/PushAutoPrompt.js';
 import { LegalUpdateModal, PrivacyCard } from '../components/Consents.js';
 import { initials as initialsOf } from '../lib/feed-rules.js';
 
@@ -591,6 +592,7 @@ function RitmoApp() {
       {/* Main Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {user && <InstallBanner />}
+        {user && <PushAutoPrompt />}
         {/* Navigation Bar Tabs */}
         <ScrollableNav dark={theme === 'dark'}>
           <nav className="flex space-x-1 sm:space-x-2 min-w-max px-1">

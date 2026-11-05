@@ -24,6 +24,7 @@ export const users = pgTable("users", {
   signupSource: text("signup_source"), // de onde veio no cadastro (utm_source, indicação, Ritus ou direto)
   leagueTier: integer("league_tier").notNull().default(0), // liga semanal: 0 Bronze ... 5 Diamante
   leagueOptOut: boolean("league_opt_out").notNull().default(false), // não aparece nas ligas
+  pushOptOut: boolean("push_opt_out").notNull().default(false), // desligou as notificações de propósito (padrão: ligadas)
   xpTotal: integer("xp_total").notNull().default(0), // Pontos de Ritmo (cópia do cálculo, para o Feed)
   level: integer("level").notNull().default(1), // nível atual (1 a 12), define a moldura da foto
   createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { requireMember, communityError } from '../lib/community-auth.js';
 import { CommunityError } from '../lib/community-db.js';
-import { getVapidKeys, removeSubscription, saveSubscription, sendTest, setPerDay, subscriptionStatus } from '../lib/push-server.js';
+import { getVapidKeys, removeSubscription, saveSubscription, sendTest, setPerDay, setPushOptOut, subscriptionStatus } from '../lib/push-server.js';
 
 // GET  → chave pública + quantos aparelhos a pessoa tem inscritos
 // POST { action: 'subscribe' | 'unsubscribe' | 'per_day' | 'test' }
@@ -13,7 +13,7 @@ export const Route = createFileRoute('/api/push')({
           const user = await requireMember(request);
           const keys = await getVapidKeys();
           if (!keys) throw new CommunityError(503, 'Notificações precisam do banco de dados configurado.');
-          return Response.json({ publicKey: keys.publicKey, ...(await subscriptionStatus(user.id)) });
+          return Response.json({ publicKey: keys.publicKey, optOut: Boolean((user as any).pushOptOut), ...(await subscriptionStatus(user.id)) });
         } catch (e) {
           return communityError(e);
         }
@@ -25,10 +25,13 @@ export const Route = createFileRoute('/api/push')({
           switch (body.action) {
             case 'subscribe':
               await saveSubscription(user.id, body.subscription, Number(body.perDay) || 3);
-              await sendTest(user.id, user.name).catch(() => 0);
+              if ((user as any).pushOptOut) await setPushOptOut(user.id, false);
+              // ativação automática (permissão já dada antes) não manda a notificação de boas-vindas
+              if (!body.auto) await sendTest(user.id, user.name).catch(() => 0);
               return Response.json({ success: true, message: 'Notificações ligadas! Você vai receber lembretes aos poucos ao longo do dia.' });
             case 'unsubscribe':
               await removeSubscription(user.id, String(body.endpoint || ''));
+              await setPushOptOut(user.id, true);
               return Response.json({ success: true, message: 'Notificações desligadas neste aparelho.' });
             case 'per_day':
               await setPerDay(user.id, Number(body.perDay));

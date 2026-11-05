@@ -44,6 +44,12 @@ export async function removeSubscription(userId: number, endpoint: string) {
   await db.delete(schema.pushSubscriptions).where(and(eq(schema.pushSubscriptions.userId, userId), eq(schema.pushSubscriptions.endpoint, endpoint)));
 }
 
+/** Notificações são ligadas por padrão; isto marca quando a pessoa desliga (ou religa) de propósito. */
+export async function setPushOptOut(userId: number, optOut: boolean) {
+  if (!(await checkDb())) return;
+  await db.update(schema.users).set({ pushOptOut: optOut }).where(eq(schema.users.id, userId));
+}
+
 export async function setPerDay(userId: number, perDay: number) {
   const n = [1, 2, 3].includes(perDay) ? perDay : 3;
   await db.update(schema.pushSubscriptions).set({ perDay: n }).where(eq(schema.pushSubscriptions.userId, userId));

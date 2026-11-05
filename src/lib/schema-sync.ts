@@ -288,6 +288,8 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
     PRIMARY KEY ("follower_id", "followee_id")
   )`,
   `CREATE INDEX IF NOT EXISTS "follows_followee_idx" ON "follows" ("followee_id")`,
+  // notificações ligadas por padrão: true só quando a pessoa desliga de propósito
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "push_opt_out" boolean NOT NULL DEFAULT false`,
 
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
