@@ -10,6 +10,22 @@ import {
 } from '../lib/server-db.js';
 import { parseWhatsAppMessage } from '../lib/whatsapp-parser.js';
 import { syncTransactionToGoogleSheet } from '../lib/sheets-sync.js';
+import { computeAccess } from '../lib/access.js';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+/**
+ * Confere se a mensagem veio mesmo da Meta (cabeçalho X-Hub-Signature-256 assinado com o
+ * App Secret do WhatsApp). Sem a variável WHATSAPP_APP_SECRET configurada, nada é aceito:
+ * sem isso qualquer pessoa poderia lançar gastos na conta de outra sabendo o telefone dela.
+ */
+function validMetaSignature(raw: string, header: string | null): boolean {
+  const secret = process.env.WHATSAPP_APP_SECRET;
+  if (!secret || !header || !header.startsWith('sha256=')) return false;
+  const expected = createHmac('sha256', secret).update(raw).digest('hex');
+  const got = header.slice(7);
+  if (got.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(got, 'hex'), Buffer.from(expected, 'hex'));
+}
 
 export const Route = createFileRoute('/api/integrations')({
   server: {
@@ -145,7 +161,11 @@ export const Route = createFileRoute('/api/integrations')({
 
         // D. OFFICIAL META WHATSAPP CLOUD API INCOMING WEBHOOK
         try {
-          const payload = await request.json();
+          const raw = await request.text();
+          if (!validMetaSignature(raw, request.headers.get('x-hub-signature-256'))) {
+            return Response.json({ error: 'Assinatura inválida.' }, { status: 401 });
+          }
+          const payload = JSON.parse(raw);
 
           // Extract message text and sender from Meta payload
           const entry = payload?.entry?.[0];
@@ -167,6 +187,12 @@ export const Route = createFileRoute('/api/integrations')({
               { status: 'unregistered_phone', message: 'Número não associado a uma conta Ritmo.' },
               { status: 200 }
             );
+          }
+
+          // conta desativada ou com teste/assinatura vencidos não lança nada pelo WhatsApp
+          const access = computeAccess({ role: matchedUser.role, subscriptionStatus: matchedUser.subscriptionStatus, trialEndsAt: matchedUser.trialEndsAt, subscriptionRenewalDate: matchedUser.subscriptionRenewalDate } as any);
+          if (matchedUser.subscriptionStatus === 'suspended' || !access.hasAccess) {
+            return Response.json({ status: 'access_expired' }, { status: 200 });
           }
 
           const parsed = parseWhatsAppMessage(textBody);

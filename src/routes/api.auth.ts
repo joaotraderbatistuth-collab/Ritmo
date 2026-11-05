@@ -12,6 +12,7 @@ import {
   updateUserPixKey,
 } from '../lib/server-db.js';
 import { createToken, extractTokenFromRequest, hashPassword, verifyPassword, verifyToken } from '../lib/auth.js';
+import { verifyActiveToken } from '../lib/session.js';
 import { sendPasswordResetEmail } from '../lib/email.js';
 import { computeAccess } from '../lib/access.js';
 import { isMasterEmail } from '../lib/admin-permissions.js';
@@ -245,7 +246,7 @@ export const Route = createFileRoute('/api/auth')({
           if (action === 'update_pix') {
             const token = extractTokenFromRequest(request);
             if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-            const payload = await verifyToken(token);
+            const payload = await verifyActiveToken(token);
             if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
             const { pixKey, pixKeyType } = body;
@@ -270,7 +271,7 @@ export const Route = createFileRoute('/api/auth')({
       PUT: async ({ request }) => {
         const token = extractTokenFromRequest(request);
         if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
-        const payload = await verifyToken(token);
+        const payload = await verifyActiveToken(token);
         if (!payload) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
 
         const body = await request.json();

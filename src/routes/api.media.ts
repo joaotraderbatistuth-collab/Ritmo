@@ -8,6 +8,7 @@ import { findUserById } from '../lib/server-db.js';
 import { requireMember, communityError } from '../lib/community-auth.js';
 import { CommunityError } from '../lib/community-db.js';
 import { effectivePermissions } from '../lib/admin-permissions.js';
+import { computeAccess } from '../lib/access.js';
 import { loadMedia, mediaUrl, saveMedia } from '../lib/media.js';
 
 // GET  /api/media?k=<chave>  → devolve a foto/comprovante (exige login)
@@ -22,6 +23,12 @@ export const Route = createFileRoute('/api/media')({
         if (!payload) return new Response('Faça login para ver este arquivo.', { status: 401 });
         const row = await loadMedia(key);
         if (!row) return new Response('Arquivo não encontrado.', { status: 404 });
+        // foto do Feed/perfil: só com teste ou assinatura em dia (o dono da foto sempre vê a própria)
+        if (row.purpose !== 'receipt' && row.ownerUserId !== payload.userId) {
+          const viewer = await findUserById(payload.userId);
+          const ok = viewer && computeAccess({ role: viewer.role, subscriptionStatus: viewer.subscriptionStatus, trialEndsAt: viewer.trialEndsAt, subscriptionRenewalDate: viewer.subscriptionRenewalDate } as any).hasAccess;
+          if (!ok) return new Response('Renove seu acesso para ver este arquivo.', { status: 402 });
+        }
 
         // Comprovante de Pix: só o administrador ou o dono do saque enxergam.
         if (row.purpose === 'receipt') {

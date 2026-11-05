@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { extractTokenFromRequest } from '../lib/auth.js';
-import { verifyActiveToken } from '../lib/session.js';
+import { authorizeData } from '../lib/session.js';
 import { requireMember, communityError } from '../lib/community-auth.js';
 import { CommunityError } from '../lib/community-db.js';
 import { mediaOwnedBy, parseMediaUrl, mediaUrl } from '../lib/media.js';
@@ -14,9 +14,9 @@ export const Route = createFileRoute('/api/xp')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const token = extractTokenFromRequest(request);
-        const payload = token ? await verifyActiveToken(token) : null;
-        if (!payload) return Response.json({ error: 'Faça login para continuar.' }, { status: 401 });
+        const auth = await authorizeData(extractTokenFromRequest(request));
+        if ('response' in auth) return auth.response;
+        const payload = auth.payload;
         try {
           const xp = await getUserXp(payload.userId);
           if (!xp) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
