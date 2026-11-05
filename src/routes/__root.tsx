@@ -77,6 +77,24 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <script
+          // Guarda o convite de instalação do Android/Chrome assim que ele chega (antes do app carregar),
+          // para o botão "App" instalar com um toque em vez de mostrar o passo a passo.
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.addEventListener('beforeinstallprompt', function (e) {
+                e.preventDefault();
+                window.__ritmoInstallPrompt = e;
+                window.dispatchEvent(new Event('ritmo:installable'));
+              });
+              window.addEventListener('appinstalled', function () {
+                window.__ritmoInstallPrompt = null;
+                try { localStorage.setItem('ritmo_app_installed', '1'); } catch (e) {}
+                window.dispatchEvent(new Event('ritmo:installable'));
+              });
+            `,
+          }}
+        />
         {children}
         <script
           // Service worker só em produção (https). No localhost ele é DESREGISTRADO e o cache é
@@ -91,9 +109,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   if (window.caches) caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
                   return;
                 }
-                window.addEventListener('load', function () {
-                  navigator.serviceWorker.register('/sw.js').catch(function () {});
-                });
+                navigator.serviceWorker.register('/sw.js').catch(function () {});
               })();
             `,
           }}
