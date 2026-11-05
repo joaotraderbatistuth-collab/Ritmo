@@ -4,15 +4,11 @@ import { useState } from 'react';
 import {
   Flame,
   CheckCircle2,
-  Calendar,
   Clock,
   Sparkles,
-  BookOpen,
   DollarSign,
   Smartphone,
-  FileSpreadsheet,
   Share2,
-  ShieldCheck,
   HelpCircle,
   ChevronDown,
   ChevronUp,
@@ -20,7 +16,6 @@ import {
   Zap,
   Target,
   Heart,
-  TrendingUp,
 } from 'lucide-react';
 
 export const Route = createFileRoute('/tutorial')({

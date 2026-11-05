@@ -3,6 +3,7 @@ import { Crown, Newspaper, Search } from 'lucide-react';
 import { FeedView } from './FeedView.js';
 import { DiscoverRitus, TeamsPanel } from './TeamsPanel.js';
 import { computeShareable } from '../lib/achievements.js';
+import type { Achievement } from '../lib/feed-rules.js';
 
 interface Props {
   referralCode: string;
@@ -13,11 +14,14 @@ interface Props {
   activeCycle: any | null;
   inviteCode?: string | null;
   onInviteHandled?: () => void;
+  /** Conquista enviada por "Compartilhar no Feed" em outra aba. */
+  prefill?: Achievement | null;
+  onPrefillUsed?: () => void;
 }
 
 type Sub = 'feed' | 'achar' | 'ritus';
 
-export const TabFeed: React.FC<Props> = ({ referralCode, habits, habitLogs, sessions, tasks, activeCycle, inviteCode, onInviteHandled }) => {
+export const TabFeed: React.FC<Props> = ({ referralCode, habits, habitLogs, sessions, tasks, activeCycle, inviteCode, onInviteHandled, prefill, onPrefillUsed }) => {
   const [sub, setSub] = useState<Sub>(inviteCode ? 'ritus' : 'feed');
   const achievements = useMemo(() => computeShareable({ habits, habitLogs, sessions, tasks, activeCycle }), [habits, habitLogs, sessions, tasks, activeCycle]);
 
@@ -25,6 +29,9 @@ export const TabFeed: React.FC<Props> = ({ referralCode, habits, habitLogs, sess
   React.useEffect(() => {
     if (inviteCode) setSub('ritus');
   }, [inviteCode]);
+  React.useEffect(() => {
+    if (prefill) setSub('feed');
+  }, [prefill]);
 
   const pill = (id: Sub, label: string, Icon: any) => (
     <button key={id} role="tab" aria-selected={sub === id} onClick={() => setSub(id)} className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition-colors whitespace-nowrap ${sub === id ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'border-[#30363d] text-[#c9d1d9] hover:bg-[#21262d]'}`}>
@@ -39,7 +46,7 @@ export const TabFeed: React.FC<Props> = ({ referralCode, habits, habitLogs, sess
         {pill('achar', 'Achar Ritus', Search)}
         {pill('ritus', 'Meus Ritus', Crown)}
       </div>
-      {sub === 'feed' && <FeedView teamId={null} canPost achievements={achievements} emptyText="Ainda não há publicações. Compartilhe sua primeira conquista!" />}
+      {sub === 'feed' && <FeedView teamId={null} canPost achievements={achievements} prefill={prefill} onPrefillUsed={onPrefillUsed} emptyText="Ainda não há publicações. Compartilhe sua primeira conquista ou uma foto!" />}
       {sub === 'achar' && <DiscoverRitus referralCode={referralCode} achievements={achievements} />}
       {sub === 'ritus' && <TeamsPanel referralCode={referralCode} achievements={achievements} inviteCode={inviteCode} onInviteHandled={onInviteHandled} />}
     </div>

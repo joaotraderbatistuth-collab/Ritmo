@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CalendarClock, CheckCircle2, AlertCircle, Wallet, KeyRound } from 'lucide-react';
+import { CalendarClock, CheckCircle2, AlertCircle, Wallet, KeyRound, FileText } from 'lucide-react';
 import { PIX_TYPES, PixKeyType, formatPix, validatePix } from '../lib/pix.js';
 import { PAYOUT_RULE_TEXT, cycleStatus, payoutCycle, payoutDatesText, shortDateBR } from '../lib/payout-schedule.js';
 import { MIN_PAYOUT_CENTS, brl } from '../lib/commission-plan.js';
+import { parseBRLToCents } from '../lib/money.js';
 
-const WITHDRAW_LABEL: Record<string, string> = { pending: 'Aguardando pagamento', approved: 'Aprovado', paid: 'Pago', rejected: 'Recusado' };
+const WITHDRAW_LABEL: Record<string, string> = { pending: 'Aguardando pagamento', approved: 'Aprovado', paid: 'Pix feito', rejected: 'Recusado' };
+
 const WITHDRAW_TONE: Record<string, string> = {
   pending: 'text-amber-300',
   approved: 'text-sky-300',
@@ -14,7 +16,7 @@ const WITHDRAW_TONE: Record<string, string> = {
 
 interface AffiliateInfo {
   stats: { availableBalanceCents: number };
-  withdrawals: { id: number; amountCents: number; status: string; requestedAt?: string; createdAt?: string }[];
+  withdrawals: { id: number; amountCents: number; status: string; requestedAt?: string; createdAt?: string; processedAt?: string | null; receiptUrl?: string | null; notes?: string | null }[];
   pixKey: string;
   pixKeyType: PixKeyType;
 }
@@ -51,8 +53,19 @@ export const AffiliatePayout: React.FC = () => {
   const status = cycleStatus(now);
   const balance = info?.stats.availableBalanceCents ?? 0;
   const hasPix = Boolean(info?.pixKey);
-  const amountCents = amount ? Math.round(Number(amount.replace(',', '.')) * 100) : balance;
-  const canRequest = hasPix && balance >= MIN_PAYOUT_CENTS && amountCents >= MIN_PAYOUT_CENTS && amountCents <= balance;
+  const typed = amount ? parseBRLToCents(amount) : balance;
+  const amountCents = typed ?? 0;
+  // mensagens na hora, antes de pedir: valor inválido, acima do saldo liberado ou abaixo do mínimo
+  const amountError = !amount
+    ? ''
+    : typed === null
+      ? 'Valor inválido. Use só números, por exemplo 50 ou 50,00.'
+      : typed > balance
+        ? `O valor de ${brl(typed)} ultrapassou o seu saldo liberado de ${brl(balance)}. Você só pode sacar até ${brl(balance)}.`
+        : typed < MIN_PAYOUT_CENTS
+          ? `O valor mínimo para saque é ${brl(MIN_PAYOUT_CENTS)}.`
+          : '';
+  const canRequest = hasPix && balance >= MIN_PAYOUT_CENTS && !amountError && amountCents >= MIN_PAYOUT_CENTS && amountCents <= balance;
 
   const post = async (body: Record<string, unknown>) => {
     setBusy(true);
@@ -81,6 +94,10 @@ export const AffiliatePayout: React.FC = () => {
   };
 
   const request = async () => {
+    if (amountCents > balance) {
+      setMsg({ ok: false, text: `O valor ultrapassou o seu saldo liberado de ${brl(balance)}.` });
+      return;
+    }
     if (await post({ action: 'request_withdrawal', amountCents })) setAmount('');
   };
 
@@ -150,12 +167,14 @@ export const AffiliatePayout: React.FC = () => {
         {hasPix && balance < MIN_PAYOUT_CENTS && <p className="text-xs text-[#8b949e] mt-2">Seu saldo ainda não chegou ao mínimo. As comissões aprovadas somam aqui automaticamente.</p>}
         <div className="mt-3 flex flex-wrap items-end gap-3">
           <label className="text-xs text-[#8b949e] w-40">Valor (R$)
-            <input className={field} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(balance / 100).toFixed(2).replace('.', ',')} />
+            <input className={`${field} ${amountError ? 'border-rose-500 focus:border-rose-500' : ''}`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(balance / 100).toFixed(2).replace('.', ',')} aria-invalid={Boolean(amountError)} aria-describedby="saque-erro" />
           </label>
+          {balance >= MIN_PAYOUT_CENTS && <button type="button" className="text-xs text-emerald-400 hover:underline pb-2.5" onClick={() => setAmount((balance / 100).toFixed(2).replace('.', ','))}>Usar todo o saldo</button>}
           <button className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm disabled:opacity-40" onClick={request} disabled={busy || !canRequest}>
             Solicitar saque
           </button>
         </div>
+        {amountError && <p id="saque-erro" role="alert" className="text-xs text-rose-300 mt-2 flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{amountError}</p>}
         <p className="text-[11px] text-[#8b949e] mt-2">Deixe o valor em branco para sacar todo o saldo. Pedido feito agora: pagamento na {payoutDatesText(payoutCycle(now))}.</p>
       </div>
 
@@ -172,10 +191,10 @@ export const AffiliatePayout: React.FC = () => {
         <div className="overflow-x-auto border border-[#30363d] rounded-2xl">
           <table className="w-full text-sm">
             <thead className="bg-[#161b22] text-[#8b949e]">
-              <tr><th className="px-4 py-3 text-left">Pedido</th><th className="px-4 py-3 text-left">Valor</th><th className="px-4 py-3 text-left">Pagamento previsto</th><th className="px-4 py-3 text-left">Situação</th></tr>
+              <tr><th className="px-4 py-3 text-left">Pedido</th><th className="px-4 py-3 text-left">Valor</th><th className="px-4 py-3 text-left">Pagamento</th><th className="px-4 py-3 text-left">Situação</th><th className="px-4 py-3 text-left">Comprovante</th></tr>
             </thead>
             <tbody>
-              {(!info || info.withdrawals.length === 0) && <tr><td colSpan={4} className="px-4 py-6 text-center text-[#6e7681]">Você ainda não pediu nenhum saque.</td></tr>}
+              {(!info || info.withdrawals.length === 0) && <tr><td colSpan={5} className="px-4 py-6 text-center text-[#6e7681]">Você ainda não pediu nenhum saque.</td></tr>}
               {info?.withdrawals.map((w) => {
                 const at = new Date(w.requestedAt || w.createdAt || Date.now());
                 const c = payoutCycle(at);
@@ -183,8 +202,9 @@ export const AffiliatePayout: React.FC = () => {
                   <tr key={w.id} className="border-t border-[#30363d]">
                     <td className="px-4 py-3 text-[#8b949e]">{at.toLocaleDateString('pt-BR')}</td>
                     <td className="px-4 py-3">{brl(w.amountCents)}</td>
-                    <td className="px-4 py-3 text-[#8b949e]">{w.status === 'rejected' ? '—' : `${shortDateBR(c.thursday)} ou ${shortDateBR(c.friday)}`}</td>
-                    <td className={`px-4 py-3 font-semibold ${WITHDRAW_TONE[w.status] || ''}`}>{WITHDRAW_LABEL[w.status] || w.status}</td>
+                    <td className="px-4 py-3 text-[#8b949e]">{w.status === 'rejected' ? '—' : w.status === 'paid' && w.processedAt ? `Pago em ${new Date(w.processedAt).toLocaleDateString('pt-BR')}` : `Previsto: ${shortDateBR(c.thursday)} ou ${shortDateBR(c.friday)}`}</td>
+                    <td className={`px-4 py-3 font-semibold ${WITHDRAW_TONE[w.status] || ''}`}>{WITHDRAW_LABEL[w.status] || w.status}{w.status === 'rejected' && w.notes ? <div className="text-[11px] font-normal text-[#8b949e]">{w.notes}</div> : null}</td>
+                    <td className="px-4 py-3">{w.receiptUrl ? <a href={w.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 hover:underline"><FileText className="w-4 h-4" /> Ver</a> : <span className="text-[#6e7681]">{w.status === 'paid' ? 'em breve' : '—'}</span>}</td>
                   </tr>
                 );
               })}

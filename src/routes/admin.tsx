@@ -1,9 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Flame, Users, CreditCard, Ticket, Wallet, LayoutDashboard, Search, X, AlertCircle, CheckCircle2,
   ShieldCheck, Download, History, Network, UserCog, Gift, Power, RotateCcw, Pencil, Flag,
+  Copy, Paperclip, FileText, Mail,
 } from 'lucide-react';
+import { uploadFile } from '../lib/upload.js';
 import { PERMISSIONS, PERMISSION_TEMPLATES } from '../lib/admin-permissions.js';
 import { payoutCycle, payoutDatesText, shortDateBR } from '../lib/payout-schedule.js';
 
@@ -100,7 +102,7 @@ function AdminPage() {
     const all: { id: Tab; label: string; icon: any; show: boolean }[] = [
       { id: 'geral', label: 'Visão geral', icon: LayoutDashboard, show: can('overview') || can('finance') },
       { id: 'usuarios', label: 'Usuários', icon: Users, show: can('users_view') || can('users_manage') },
-      { id: 'admins', label: 'Administradores', icon: ShieldCheck, show: can('admins_manage') },
+      { id: 'admins', label: 'Administradores', icon: ShieldCheck, show: can('admins_manage') || can('admins_create') },
       { id: 'vendas', label: 'Vendas', icon: CreditCard, show: can('finance') },
       { id: 'cupons', label: 'Cupons', icon: Ticket, show: can('coupons') },
       { id: 'afiliados', label: 'Afiliados', icon: Network, show: can('affiliates') },
@@ -179,11 +181,11 @@ function AdminPage() {
 
         {tab === 'geral' && <Overview data={data} />}
         {tab === 'usuarios' && <UsersTab users={data.users || []} act={act} canManage={can('users_manage')} isMaster={Boolean(data.adminUser?.isMaster)} me={data.adminUser?.id} />}
-        {tab === 'admins' && <AdminsTab admins={data.admins || []} act={act} me={data.adminUser?.id} />}
+        {tab === 'admins' && <AdminsTab admins={data.admins || []} invites={data.adminInvites || []} act={act} me={data.adminUser?.id} isMaster={Boolean(data.adminUser?.isMaster)} myPerms={perms} />}
         {tab === 'vendas' && <SalesTab finance={data.finance} teamsFinance={data.teamsFinance} payments={data.payments || []} act={act} canRefund={can('refunds')} />}
         {tab === 'cupons' && <CouponsTab coupons={data.coupons || []} act={act} />}
         {tab === 'afiliados' && <AffiliatesTab affiliates={data.affiliates || []} />}
-        {tab === 'saques' && <WithdrawalsTab withdrawals={data.withdrawals || []} act={act} />}
+        {tab === 'saques' && <WithdrawalsTab withdrawals={data.withdrawals || []} act={act} onError={setError} />}
         {tab === 'moderacao' && <ModerationTab data={data.moderation} act={act} />}
         {tab === 'planilhas' && <ExportsTab can={can} />}
         {tab === 'auditoria' && <AuditTab audit={data.audit || []} />}
@@ -490,20 +492,22 @@ function GrantModal({ user, act, onClose }: { user: any; act: Act; onClose: () =
 /* Administradores (somente master)                                    */
 /* ------------------------------------------------------------------ */
 
-function PermissionPicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+function PermissionPicker({ value, onChange, allowed }: { value: string[]; onChange: (v: string[]) => void; allowed?: string[] }) {
   const toggle = (k: string) => onChange(value.includes(k) ? value.filter((x) => x !== k) : [...value, k]);
+  const options = allowed ? PERMISSIONS.filter((p) => allowed.includes(p.key)) : PERMISSIONS;
+  const limit = (list: string[]) => (allowed ? list.filter((k) => allowed.includes(k)) : list);
   return (
     <div>
       <div className="flex flex-wrap gap-2 mb-3">
         {PERMISSION_TEMPLATES.map((t) => (
-          <button key={t.id} type="button" onClick={() => onChange([...t.permissions])} className="px-3 py-1 rounded-lg text-xs border border-[#30363d] text-slate-300 hover:bg-[#21262d]">
+          <button key={t.id} type="button" onClick={() => onChange(limit([...t.permissions]))} className="px-3 py-1 rounded-lg text-xs border border-[#30363d] text-slate-300 hover:bg-[#21262d]">
             Modelo: {t.label}
           </button>
         ))}
         <button type="button" onClick={() => onChange([])} className="px-3 py-1 rounded-lg text-xs border border-[#30363d] text-slate-500 hover:bg-[#21262d]">Limpar</button>
       </div>
       <div className="grid sm:grid-cols-2 gap-2">
-        {PERMISSIONS.map((p) => (
+        {options.map((p) => (
           <label key={p.key} className={`flex gap-3 rounded-xl border p-3 cursor-pointer ${value.includes(p.key) ? 'border-emerald-500/60 bg-emerald-500/5' : 'border-[#30363d]'}`}>
             <input type="checkbox" checked={value.includes(p.key)} onChange={() => toggle(p.key)} className="mt-1 accent-emerald-500" />
             <span>
@@ -513,14 +517,15 @@ function PermissionPicker({ value, onChange }: { value: string[]; onChange: (v: 
           </label>
         ))}
       </div>
-      <p className="text-[11px] text-slate-500 mt-2">Gerenciar administradores é exclusivo do master e não pode ser concedido.</p>
+      <p className="text-[11px] text-slate-500 mt-2">{allowed ? 'Você só pode dar as permissões que você mesmo tem.' : 'Alterar ou remover administradores é exclusivo do master e não pode ser concedido.'}</p>
     </div>
   );
 }
 
-function AdminsTab({ admins, act, me }: { admins: any[]; act: Act; me: number }) {
+function AdminsTab({ admins, invites, act, me, isMaster, myPerms }: { admins: any[]; invites: any[]; act: Act; me: number; isMaster: boolean; myPerms: string[] }) {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
-  const [perms, setPerms] = useState<string[]>(['overview', 'users_view']);
+  const allowed = isMaster ? undefined : myPerms.filter((p) => p !== 'admins_manage');
+  const [perms, setPerms] = useState<string[]>(['overview', 'users_view'].filter((p) => !allowed || allowed.includes(p)));
   const [editing, setEditing] = useState<number | null>(null);
   const [editPerms, setEditPerms] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -535,18 +540,42 @@ function AdminsTab({ admins, act, me }: { admins: any[]; act: Act; me: number })
   return (
     <div className="space-y-8">
       <section className="bg-[#161b22] border border-[#30363d] rounded-2xl p-5">
-        <h2 className="font-bold flex items-center gap-2"><UserCog className="w-4 h-4 text-emerald-400" /> Novo administrador</h2>
-        <p className="text-xs text-slate-400 mt-1 mb-4">Você escolhe exatamente o que ele vê e pode fazer. Se o e-mail já tem conta no Ritmo, a conta é promovida e a senha dela não muda.</p>
+        <h2 className="font-bold flex items-center gap-2"><UserCog className="w-4 h-4 text-emerald-400" /> Cadastrar e-mail como administrador</h2>
+        <ul className="text-xs text-slate-400 mt-2 mb-4 space-y-1 list-disc pl-4">
+          <li>Se o e-mail <strong className="text-slate-200">já tem conta</strong> no Ritmo, ela vira administradora na hora (a senha não muda).</li>
+          <li>Se <strong className="text-slate-200">ainda não tem conta</strong>, deixe a senha em branco: o e-mail fica cadastrado e a pessoa entra como administradora assim que criar a conta com ele.</li>
+          <li>Ou defina uma senha provisória (mín. 8) para criar a conta agora e enviar a ela por um canal seguro.</li>
+        </ul>
         <div className="grid sm:grid-cols-3 gap-3 mb-4">
-          <input className={inputCls} placeholder="Nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <input className={inputCls} placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <input className={inputCls} placeholder="Senha provisória (mín. 8)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="off" />
+          <input className={inputCls} placeholder="E-mail *" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <input className={inputCls} placeholder="Nome (se for criar a conta agora)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className={inputCls} placeholder="Senha provisória (opcional)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="off" />
         </div>
-        <PermissionPicker value={perms} onChange={setPerms} />
+        <PermissionPicker value={perms} onChange={setPerms} allowed={allowed} />
         <div className="flex justify-end mt-4">
-          <button className={btnPrimary} onClick={create} disabled={busy || !form.email || !form.name}>Criar administrador</button>
+          <button className={btnPrimary} onClick={create} disabled={busy || !form.email}>Cadastrar como administrador</button>
         </div>
       </section>
+
+      {invites.length > 0 && (
+        <section>
+          <h2 className="font-bold mb-3 flex items-center gap-2"><Mail className="w-4 h-4 text-amber-300" /> E-mails aguardando cadastro ({invites.length})</h2>
+          <div className="space-y-2">
+            {invites.map((iv) => (
+              <div key={iv.email} className="bg-[#161b22] border border-dashed border-amber-500/40 rounded-2xl p-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold">{iv.email}</div>
+                  <div className="text-[11px] text-slate-500">Cadastrado por {iv.invitedBy} em {dateBR(iv.createdAt)} · vira administrador ao criar a conta</div>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {iv.permissions.length === 0 ? <span className="text-[11px] text-slate-500">Sem nenhuma permissão</span> : iv.permissions.map((p: string) => <span key={p} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300">{PERM_LABEL[p] || p}</span>)}
+                  </div>
+                </div>
+                <button className="text-rose-400 hover:underline text-sm" onClick={() => confirm(`Cancelar o cadastro de ${iv.email} como administrador?`) && act({ action: 'cancel_admin_invite', email: iv.email })}>Cancelar</button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="font-bold mb-3">Administradores ({admins.length})</h2>
@@ -558,7 +587,7 @@ function AdminsTab({ admins, act, me }: { admins: any[]; act: Act; me: number })
                   <div className="font-semibold">{a.name} {a.isMaster && <span className="text-[10px] text-amber-300 ml-1">MASTER</span>} {a.suspended && <span className="text-[10px] text-rose-300 ml-1">DESATIVADO</span>}</div>
                   <div className="text-xs text-slate-500">{a.email}</div>
                 </div>
-                {!a.isMaster && (
+                {!a.isMaster && isMaster && (
                   <div className="flex flex-wrap gap-3 text-sm">
                     <button className="text-emerald-400 hover:underline" onClick={() => { setEditing(editing === a.id ? null : a.id); setEditPerms(a.permissions.filter((p: string) => p !== 'admins_manage')); }}>Permissões</button>
                     {a.suspended ? (
@@ -779,10 +808,16 @@ function AffiliatesTab({ affiliates }: { affiliates: any[] }) {
   );
 }
 
-function WithdrawalsTab({ withdrawals, act }: { withdrawals: any[]; act: Act }) {
-  const label: Record<string, string> = { pending: 'Pendente', approved: 'Aprovado', paid: 'Pago', rejected: 'Recusado' };
+function WithdrawalsTab({ withdrawals, act, onError }: { withdrawals: any[]; act: Act; onError: (m: string) => void }) {
+  const label: Record<string, string> = { pending: 'Aguardando Pix', approved: 'Aprovado', paid: 'Pago', rejected: 'Recusado' };
+  const tone: Record<string, string> = { pending: 'bg-amber-500/15 text-amber-300', approved: 'bg-sky-500/15 text-sky-300', paid: 'bg-emerald-500/15 text-emerald-300', rejected: 'bg-rose-500/15 text-rose-300' };
+  const PIX_LABEL: Record<string, string> = { cpf: 'CPF', email: 'E-mail', telefone: 'Telefone', aleatoria: 'Chave aleatória', cnpj: 'CNPJ' };
   const todayBR = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
   const current = payoutCycle(new Date());
+  const [filter, setFilter] = useState<'abertos' | 'pagos' | 'todos'>('abertos');
+  const [copied, setCopied] = useState<number | null>(null);
+  const [confirming, setConfirming] = useState<any | null>(null);
+  const [attachFor, setAttachFor] = useState<any | null>(null);
 
   // Regra: pedidos até quarta 23:59 (Brasília) são pagos na quinta e na sexta da mesma semana.
   const open = withdrawals
@@ -790,16 +825,21 @@ function WithdrawalsTab({ withdrawals, act }: { withdrawals: any[]; act: Act }) 
     .map((w) => ({ w, cycle: payoutCycle(new Date(w.requestedAt)) }));
   const dueNow = open.filter((x) => x.cycle.thursday <= current.thursday);
   const dueNowTotal = dueNow.reduce((a, x) => a + x.w.amountCents, 0);
+  const list = withdrawals.filter((w) => (filter === 'todos' ? true : filter === 'pagos' ? w.status === 'paid' : w.status === 'pending' || w.status === 'approved'));
 
-  const process = async (w: any, status: 'approved' | 'paid' | 'rejected') => {
-    let receipt: string | undefined;
-    let notes: string | undefined;
-    if (status === 'paid') receipt = prompt('ID/comprovante do Pix enviado (opcional):') || undefined;
-    if (status === 'rejected') {
-      notes = prompt('Motivo da recusa:') || undefined;
-      if (!notes) return;
+  const copyPix = async (w: any) => {
+    try {
+      await navigator.clipboard.writeText(w.pixKey);
+      setCopied(w.id);
+      setTimeout(() => setCopied(null), 1800);
+    } catch {
+      onError('Não foi possível copiar. Selecione a chave e copie manualmente.');
     }
-    await act({ action: 'process_withdrawal', withdrawalId: w.id, status, notes, receiptReference: receipt });
+  };
+  const reject = async (w: any) => {
+    const notes = prompt('Motivo da recusa (o afiliado verá):');
+    if (!notes) return;
+    await act({ action: 'process_withdrawal', withdrawalId: w.id, status: 'rejected', notes });
   };
 
   return (
@@ -808,39 +848,160 @@ function WithdrawalsTab({ withdrawals, act }: { withdrawals: any[]; act: Act }) 
         <div className="font-bold text-emerald-300">Ciclo de pagamento desta semana: {payoutDatesText(current)}</div>
         <div className="text-slate-300 mt-1">
           Para pagar agora: <strong>{dueNow.length}</strong> pedido(s), total <strong>{brl(dueNowTotal)}</strong>.
-          O prazo dos afiliados é quarta 23:59 (Brasília); a liberação é manual na quinta e na sexta.
+          Prazo dos afiliados: quarta 23:59 (Brasília). Você faz o Pix pelo seu banco, marca <strong>“Pix feito”</strong> e anexa o comprovante: o afiliado vê na hora.
         </div>
       </div>
-      <Table>
-        <Thead cols={['Solicitado', 'Afiliado', 'Valor', 'Chave Pix', 'Quando pagar', 'Status', 'Ações']} />
-        <tbody>
-          {withdrawals.length === 0 && <Empty cols={7} text="Nenhuma solicitação de saque." />}
-          {withdrawals.map((w) => {
-            const isOpen = w.status === 'pending' || w.status === 'approved';
-            const cycle = payoutCycle(new Date(w.requestedAt));
-            const overdue = isOpen && cycle.friday < todayBR;
-            return (
-              <tr key={w.id} className="border-t border-[#30363d]">
-                <td className={`${td} text-slate-400`}>{dateBR(w.requestedAt)}</td>
-                <td className={td}>{w.affiliateName}<div className="text-[11px] text-slate-500">{w.affiliateEmail}</div></td>
-                <td className={td}>{brl(w.amountCents)}</td>
-                <td className={`${td} font-mono text-xs`}>{w.pixKey}<div className="text-[10px] text-slate-500">{w.pixKeyType}</div></td>
-                <td className={`${td} text-xs ${overdue ? 'text-rose-300' : 'text-slate-400'}`}>
-                  {isOpen ? (overdue ? `Atrasado (era ${shortDateBR(cycle.thursday)}/${shortDateBR(cycle.friday)})` : payoutDatesText(cycle)) : '—'}
-                </td>
-                <td className={td}>{label[w.status] || w.status}</td>
-                <td className={`${td} space-x-3 whitespace-nowrap`}>
-                  {w.status === 'pending' && <button className="text-emerald-400 hover:underline" onClick={() => process(w, 'approved')}>Aprovar</button>}
-                  {isOpen && <button className="text-amber-300 hover:underline" onClick={() => process(w, 'paid')}>Marcar como pago</button>}
-                  {isOpen && <button className="text-rose-400 hover:underline" onClick={() => process(w, 'rejected')}>Recusar</button>}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </Table>
-      <p className="text-[11px] text-slate-500">O Pix é enviado por você, manualmente, pelo seu banco; aqui você registra o resultado. Nenhum pagamento é feito automaticamente.</p>
+
+      <div className="flex gap-2">
+        {(['abertos', 'pagos', 'todos'] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${filter === f ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'border-[#30363d] text-slate-300'}`}>
+            {f === 'abertos' ? `Para pagar (${open.length})` : f === 'pagos' ? 'Pagos' : 'Todos'}
+          </button>
+        ))}
+      </div>
+
+      {list.length === 0 && <div className="rounded-2xl border border-dashed border-[#30363d] p-8 text-center text-sm text-slate-500">Nenhuma solicitação aqui.</div>}
+
+      <div className="grid md:grid-cols-2 gap-3">
+        {list.map((w) => {
+          const isOpen = w.status === 'pending' || w.status === 'approved';
+          const cycle = payoutCycle(new Date(w.requestedAt));
+          const overdue = isOpen && cycle.friday < todayBR;
+          return (
+            <div key={w.id} className={`rounded-2xl border p-4 bg-[#161b22] ${isOpen ? (overdue ? 'border-rose-500/50' : 'border-amber-500/40') : 'border-[#30363d]'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-bold truncate">{w.affiliateName}</div>
+                  <div className="text-[11px] text-slate-500 truncate">{w.affiliateEmail} · pedido em {dateTimeBR(w.requestedAt)}</div>
+                </div>
+                <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ${tone[w.status] || ''}`}>{label[w.status] || w.status}</span>
+              </div>
+
+              <div className="mt-3 text-3xl font-extrabold tabular-nums text-emerald-300">{brl(w.amountCents)}</div>
+
+              <div className="mt-3 rounded-xl bg-[#0d1117] border border-[#30363d] p-3">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500">Chave Pix · {PIX_LABEL[w.pixKeyType] || w.pixKeyType}</div>
+                <div className="flex items-center justify-between gap-2 mt-0.5">
+                  <span className="font-mono text-sm break-all select-all">{w.pixKey}</span>
+                  <button onClick={() => copyPix(w)} className="shrink-0 inline-flex items-center gap-1 text-xs text-emerald-400 hover:underline"><Copy className="w-3.5 h-3.5" />{copied === w.id ? 'Copiada!' : 'Copiar'}</button>
+                </div>
+              </div>
+
+              <div className={`mt-2 text-xs ${overdue ? 'text-rose-300' : 'text-slate-400'}`}>
+                {isOpen ? (overdue ? `Atrasado: era para ${shortDateBR(cycle.thursday)}/${shortDateBR(cycle.friday)}` : `Pagar em ${payoutDatesText(cycle)}`) : w.status === 'paid' ? `Pago em ${dateTimeBR(w.processedAt)}` : w.notes ? `Motivo: ${w.notes}` : ''}
+              </div>
+
+              {isOpen && (
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/40 cursor-pointer text-sm font-semibold text-emerald-300">
+                    <input type="checkbox" className="w-4 h-4 accent-emerald-500" checked={false} onChange={() => setConfirming(w)} />
+                    Pix feito
+                  </label>
+                  <button className="text-rose-400 hover:underline text-sm" onClick={() => reject(w)}>Recusar</button>
+                </div>
+              )}
+
+              {w.status === 'paid' && (
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                  <span className="inline-flex items-center gap-1.5 text-emerald-300 font-semibold"><CheckCircle2 className="w-4 h-4" /> Pix feito</span>
+                  {w.receiptUrl ? (
+                    <a href={w.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 hover:underline"><FileText className="w-4 h-4" /> Ver comprovante</a>
+                  ) : (
+                    <span className="text-amber-300 text-xs">Sem comprovante</span>
+                  )}
+                  <button className="inline-flex items-center gap-1 text-slate-300 hover:underline text-xs" onClick={() => setAttachFor(w)}><Paperclip className="w-3.5 h-3.5" />{w.receiptUrl ? 'Trocar comprovante' : 'Anexar comprovante'}</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-slate-500">O Pix é enviado por você, manualmente, pelo seu banco; aqui você registra o pagamento e anexa o comprovante. Nenhum pagamento é feito automaticamente.</p>
+
+      {confirming && (
+        <ReceiptModal
+          title="Confirmar Pix feito"
+          w={confirming}
+          requireConfirm
+          onClose={() => setConfirming(null)}
+          onSubmit={async (receiptUrl, ref) => {
+            const ok = await act({ action: 'process_withdrawal', withdrawalId: confirming.id, status: 'paid', receiptUrl: receiptUrl || undefined, receiptReference: ref || undefined });
+            if (ok) setConfirming(null);
+          }}
+        />
+      )}
+      {attachFor && (
+        <ReceiptModal
+          title="Anexar comprovante do Pix"
+          w={attachFor}
+          onClose={() => setAttachFor(null)}
+          onSubmit={async (receiptUrl) => {
+            if (!receiptUrl) return onError('Escolha o arquivo do comprovante.');
+            const ok = await act({ action: 'attach_withdrawal_receipt', withdrawalId: attachFor.id, receiptUrl });
+            if (ok) setAttachFor(null);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function ReceiptModal({ title, w, requireConfirm, onClose, onSubmit }: { title: string; w: any; requireConfirm?: boolean; onClose: () => void; onSubmit: (receiptUrl: string | null, ref: string) => Promise<void> }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [fileName, setFileName] = useState('');
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [ref, setRef] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [checked, setChecked] = useState(!requireConfirm);
+
+  const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    setBusy(true);
+    setErr('');
+    const r = await uploadFile(f, 'receipt');
+    setBusy(false);
+    if (r.ok) {
+      setReceiptUrl(r.url);
+      setFileName(f.name);
+    } else setErr(r.error);
+  };
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="space-y-4 text-sm">
+        <div className="rounded-xl bg-[#0d1117] border border-[#30363d] p-3">
+          <div className="font-semibold">{w.affiliateName} · <span className="text-emerald-300">{brl(w.amountCents)}</span></div>
+          <div className="font-mono text-xs text-slate-400 break-all">Pix: {w.pixKey}</div>
+        </div>
+        <div>
+          <input ref={input} type="file" accept="image/*,application/pdf" className="hidden" onChange={pick} />
+          <button type="button" className={btnGhost} onClick={() => input.current?.click()} disabled={busy}>
+            <Paperclip className="inline w-4 h-4 mr-1" />{busy ? 'Enviando...' : receiptUrl ? 'Trocar arquivo' : 'Escolher comprovante (foto ou PDF)'}
+          </button>
+          {fileName && <div className="mt-2 text-xs text-emerald-300 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {fileName} anexado</div>}
+          {err && <div className="mt-2 text-xs text-rose-300">{err}</div>}
+        </div>
+        {requireConfirm && (
+          <>
+            <input className={inputCls} placeholder="ID da transação do Pix (opcional)" value={ref} onChange={(e) => setRef(e.target.value)} />
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" className="mt-0.5 w-4 h-4 accent-emerald-500" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
+              <span>Confirmo que fiz o Pix de <strong>{brl(w.amountCents)}</strong> para a chave acima.</span>
+            </label>
+            {!receiptUrl && <p className="text-[11px] text-amber-300">Dá para confirmar sem o comprovante e anexar depois, mas o ideal é anexar agora.</p>}
+          </>
+        )}
+        <div className="flex justify-end gap-2">
+          <button className={btnGhost} onClick={onClose}>Cancelar</button>
+          <button className={btnPrimary} disabled={busy || !checked || (!requireConfirm && !receiptUrl)} onClick={() => onSubmit(receiptUrl, ref)}>
+            {requireConfirm ? 'Marcar como pago' : 'Salvar comprovante'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

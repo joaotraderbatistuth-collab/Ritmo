@@ -13,11 +13,8 @@ import {
   X,
   Trash2,
   Copy,
-  Archive,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
-  ChevronDown,
   Tag,
   CalendarDays,
   CheckSquare,
@@ -26,7 +23,9 @@ import {
   Loader2,
   AlertTriangle,
   Pencil,
+  Share2,
 } from 'lucide-react';
+import { shareToFeed } from '../lib/share-feed.js';
 
 // -----------------------------------------------------------------------------
 // Módulo "Quadros" — organização visual estilo Kanban, persistido via /api/boards.
@@ -807,6 +806,8 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({
   const [editingTitle, setEditingTitle] = useState(false);
 
   const doneCount = checklistItems.filter((i) => i.done).length;
+  const listTitle = lists.find((l) => l.id === card.listId)?.title || '';
+  const isDoneList = /conclu|feito|pronto|done/i.test(listTitle);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
@@ -831,6 +832,14 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({
             <Pencil className="w-3.5 h-3.5 text-[#8b949e] opacity-0 group-hover:opacity-100 mt-1 shrink-0" />
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={() => { shareToFeed({ type: 'card', title: card.title.slice(0, 100) }); onClose(); }}
+          className={`mb-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${isDoneList ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400' : 'border border-[#30363d] text-[#c9d1d9] hover:bg-[#21262d]'}`}
+        >
+          <Share2 className="w-3.5 h-3.5" /> {isDoneList ? 'Card concluído! Compartilhar no Feed' : 'Compartilhar no Feed'}
+        </button>
 
         {/* Linha de metadados: prioridade / coluna / vencimento */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">

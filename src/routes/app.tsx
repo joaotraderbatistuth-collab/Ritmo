@@ -19,8 +19,11 @@ import { TabRoadmap } from '../components/TabRoadmap.js';
 import { WelcomeTour } from '../components/WelcomeTour.js';
 import { SetupGuide } from '../components/SetupGuide.js';
 import { TabFeed } from '../components/TabFeed.js';
+import { SHARE_EVENT } from '../lib/share-feed.js';
+import type { Achievement } from '../lib/feed-rules.js';
 import { NoticeBell } from '../components/NoticeBell.js';
 import { computeNotices } from '../lib/notices.js';
+import { personalize, pickNudge, slotForHour } from '../lib/nudges.js';
 import { parseGuideState, shouldAutoStartGuide } from '../lib/setup-guide.js';
 import {
   User,
@@ -68,6 +71,20 @@ function RitmoApp() {
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [teamInvite, setTeamInvite] = useState<string | null>(null);
+  const [feedPrefill, setFeedPrefill] = useState<Achievement | null>(null);
+
+  // "Compartilhar no Feed" vindo de qualquer aba (Foco, Quadros, Hábitos, Rotina...)
+  useEffect(() => {
+    const onShare = (e: Event) => {
+      const a = (e as CustomEvent<Achievement>).detail;
+      if (!a) return;
+      setFeedPrefill(a);
+      setActiveTab('feed');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    window.addEventListener(SHARE_EVENT, onShare);
+    return () => window.removeEventListener(SHARE_EVENT, onShare);
+  }, []);
   const [guideTab, setGuideTab] = useState<string | null>(null);
 
   // App State
@@ -118,6 +135,10 @@ function RitmoApp() {
         if (equipe && /^[a-z0-9-]{3,40}$/.test(equipe)) localStorage.setItem('ritmo_team_invite', equipe);
       } catch {}
 
+      // Notificação tocada (/app?tab=foco): abre direto na aba certa
+      const tabParam = urlParams.get('tab');
+      if (tabParam && /^[a-z]{3,20}$/.test(tabParam)) setActiveTab(tabParam);
+
       // Check session
       loadSessionAndData();
     }
@@ -161,7 +182,6 @@ function RitmoApp() {
       // 3. Fetch Tasks
       const tasksRes = await fetch('/api/tasks');
       const tasksData = await tasksRes.json();
-      const todayStr = localDateStr();
 
       if (tasksData.tasks && tasksData.tasks.length > 0) {
         setTasks(tasksData.tasks);
@@ -259,7 +279,7 @@ function RitmoApp() {
   const notices = useMemo(() => {
     if (!user) return [];
     const nowD = new Date();
-    return computeNotices({
+    const list = computeNotices({
       now: nowD,
       today: localDateStr(),
       hour: nowD.getHours(),
@@ -274,6 +294,13 @@ function RitmoApp() {
       journalToday: journalEntries.some((e: any) => e.date === localDateStr() && e.entryType === 'daily_checkin'),
       affiliateBalanceCents: affiliateStats.availableBalanceCents,
     });
+    // um "empurrãozinho" por período do dia (manhã, tarde, noite), girando a cada dia
+    const slot = slotForHour(nowD.getHours());
+    if (slot) {
+      const n = pickNudge(slot, localDateStr(), user.id || 0);
+      list.push({ id: `nudge-${n.id}`, level: 'info', title: personalize(n.title, user.name), detail: personalize(n.body, user.name), tab: n.tab });
+    }
+    return list;
   }, [user, tasks, transactions, habits, habitLogs, journalEntries, affiliateStats]);
 
   const closeTour = () => {
@@ -639,6 +666,8 @@ function RitmoApp() {
               tasks={tasks}
               activeCycle={activeCycle}
               inviteCode={teamInvite}
+              prefill={feedPrefill}
+              onPrefillUsed={() => setFeedPrefill(null)}
               onInviteHandled={() => {
                 setTeamInvite(null);
                 try { localStorage.removeItem('ritmo_team_invite'); } catch {}

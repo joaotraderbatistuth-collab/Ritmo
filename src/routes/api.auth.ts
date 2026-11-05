@@ -5,6 +5,7 @@ import {
   findUserById,
   updateUserRecord,
   deleteUserData,
+  consumeAdminInvite,
   recordAffiliateClick,
   createPasswordResetRequest,
   resetPasswordWithToken,
@@ -39,6 +40,14 @@ async function promoteIfAdminEmail<T extends { id: number; email: string; role?:
   if (user.role !== 'admin' && list.includes(user.email.toLowerCase())) {
     await updateUserRecord(user.id, { role: 'admin' });
     return { ...user, role: 'admin' };
+  }
+  // e-mail cadastrado como administrador no painel (convite): vira admin com as permissões escolhidas
+  if (user.role !== 'admin') {
+    const invited = await consumeAdminInvite(user.email);
+    if (invited !== null) {
+      await updateUserRecord(user.id, { role: 'admin', adminPermissions: invited, subscriptionStatus: 'active' } as any);
+      return { ...user, role: 'admin', subscriptionStatus: 'active' };
+    }
   }
   return user;
 }

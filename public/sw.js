@@ -2,7 +2,7 @@
 // Importante: nunca armazena em cache chamadas de API (/api/*), que carregam
 // dados privados e autenticados do usuário — essas sempre vão direto à rede.
 
-const CACHE_VERSION = 'ritmo-v2';
+const CACHE_VERSION = 'ritmo-v3';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 const PRECACHE_URLS = [
@@ -67,6 +67,44 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => cached);
       return cached || fetchPromise;
+    })
+  );
+});
+
+// ---------------- Notificações (Web Push) ----------------
+// O servidor manda { title, body, tab }. Tocar na notificação abre o app na aba indicada.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = { title: 'Ritmo', body: event.data ? event.data.text() : '' };
+  }
+  const title = data.title || 'Ritmo';
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: data.tag || 'ritmo',
+      renotify: false,
+      data: { url: `/app?tab=${encodeURIComponent(data.tab || 'hoje')}` },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/app';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if (new URL(c.url).pathname.startsWith('/app') && 'focus' in c) {
+          c.navigate(url).catch(() => {});
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url);
     })
   );
 });

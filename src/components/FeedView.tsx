@@ -1,12 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame } from 'lucide-react';
 import { callApi } from '../lib/client-api.js';
+import { uploadFile } from '../lib/upload.js';
 import { Achievement, FEED_LIMITS, REPORT_REASONS, achievementHeadline, timeAgo } from '../lib/feed-rules.js';
 
 export interface FeedPostData {
   id: number;
   body: string;
   achievement: Achievement | null;
+  imageUrl?: string | null;
   createdAt: string;
   author: { id: number; name: string; initials: string; isTeamOwner: boolean };
   likes: number;
@@ -16,7 +18,53 @@ export interface FeedPostData {
   canDelete: boolean;
 }
 
-const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target };
+const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2 };
+
+/* ------------------------------------------------------------------ */
+/* Foto: escolher, enviar e mostrar                                    */
+/* ------------------------------------------------------------------ */
+
+/** Botão de foto: abre a galeria/câmera, comprime e envia. Devolve a URL pronta. */
+export const PhotoPicker: React.FC<{ onUploaded: (url: string) => void; onError: (msg: string) => void; label?: string; compact?: boolean }> = ({ onUploaded, onError, label = 'Foto', compact }) => {
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    const r = await uploadFile(file, 'feed');
+    setBusy(false);
+    if (r.ok) onUploaded(r.url);
+    else onError(r.error);
+  };
+  return (
+    <>
+      <input ref={input} type="file" accept="image/*" className="hidden" onChange={pick} />
+      <button type="button" onClick={() => input.current?.click()} disabled={busy} aria-label="Colocar foto" className={`inline-flex items-center gap-1.5 rounded-lg border border-[#30363d] text-[#c9d1d9] hover:bg-[#21262d] disabled:opacity-50 ${compact ? 'px-2.5 py-2' : 'px-3 py-1.5 text-xs'}`}>
+        <ImagePlus className="w-4 h-4" />{!compact && (busy ? 'Enviando...' : label)}
+      </button>
+    </>
+  );
+};
+
+/** Foto da publicação: toque para ver em tela cheia. */
+export const PostImage: React.FC<{ src: string; small?: boolean }> = ({ src, small }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={`mt-3 block w-full overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117] ${small ? 'max-w-[220px]' : ''}`} aria-label="Ver foto em tela cheia">
+        <img src={src} alt="" loading="lazy" className={`w-full object-cover ${small ? 'max-h-40' : 'max-h-[460px]'}`} />
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-3" onClick={() => setOpen(false)} role="dialog" aria-label="Foto">
+          <button type="button" className="absolute top-3 right-3 p-2 text-white" aria-label="Fechar"><X className="w-6 h-6" /></button>
+          <img src={src} alt="" className="max-w-full max-h-full object-contain rounded-lg" />
+        </div>
+      )}
+    </>
+  );
+};
 
 export const AchievementCard: React.FC<{ a: Achievement }> = ({ a }) => {
   const Icon = ICONS[a.type];
@@ -35,34 +83,43 @@ export const AchievementCard: React.FC<{ a: Achievement }> = ({ a }) => {
 /* Composer                                                            */
 /* ------------------------------------------------------------------ */
 
-const Composer: React.FC<{ teamId: number | null; achievements: Achievement[]; prefill?: Achievement | null; onPosted: () => void }> = ({ teamId, achievements, prefill, onPosted }) => {
+const Composer: React.FC<{ teamId: number | null; achievements: Achievement[]; prefill?: Achievement | null; onPosted: () => void }> = ({ teamId, achievements: base, prefill, onPosted }) => {
   const [text, setText] = useState('');
   const [pick, setPick] = useState<number | ''>('');
+  const [image, setImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  // conquista enviada de outra aba (ex.: "Compartilhar no Feed" no Foco) entra no topo da lista
+  const achievements = React.useMemo(() => {
+    if (!prefill || base.some((a) => JSON.stringify(a) === JSON.stringify(prefill))) return base;
+    return [prefill, ...base];
+  }, [base, prefill]);
   const chosen = pick === '' ? null : achievements[pick] || null;
 
   useEffect(() => {
     if (prefill) {
       const i = achievements.findIndex((a) => JSON.stringify(a) === JSON.stringify(prefill));
       if (i >= 0) setPick(i);
+      box.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [prefill, achievements]);
 
   const publish = async () => {
     setBusy(true);
     setMsg(null);
-    const r = await callApi('/api/feed', { action: 'create_post', body: text, teamId, achievement: chosen || undefined });
+    const r = await callApi('/api/feed', { action: 'create_post', body: text, teamId, achievement: chosen || undefined, imageUrl: image || undefined });
     setBusy(false);
     if (r.ok) {
       setText('');
       setPick('');
+      setImage(null);
       onPosted();
     } else setMsg({ ok: false, text: (r.data as any).error || 'Não foi possível publicar.' });
   };
 
   return (
-    <div className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4">
+    <div ref={box} className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4">
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -72,6 +129,12 @@ const Composer: React.FC<{ teamId: number | null; achievements: Achievement[]; p
         className="w-full bg-[#0d1117] border border-[#30363d] rounded-xl px-3 py-2 text-sm text-[#f0f6fc] focus:outline-none focus:border-emerald-500 resize-y"
         aria-label="Nova publicação"
       />
+      {image && (
+        <div className="relative">
+          <PostImage src={image} />
+          <button type="button" onClick={() => setImage(null)} aria-label="Tirar a foto" className="absolute top-5 right-2 p-1.5 rounded-full bg-black/70 text-white"><X className="w-4 h-4" /></button>
+        </div>
+      )}
       {chosen && (
         <div className="relative">
           <AchievementCard a={chosen} />
@@ -79,7 +142,8 @@ const Composer: React.FC<{ teamId: number | null; achievements: Achievement[]; p
         </div>
       )}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <PhotoPicker onUploaded={setImage} onError={(t) => setMsg({ ok: false, text: t })} />
           {achievements.length > 0 ? (
             <select value={pick} onChange={(e) => setPick(e.target.value === '' ? '' : Number(e.target.value))} className="bg-[#0d1117] border border-[#30363d] rounded-lg px-2.5 py-1.5 text-xs text-[#c9d1d9] max-w-[230px]" aria-label="Compartilhar uma conquista">
               <option value="">Compartilhar uma conquista...</option>
@@ -91,7 +155,7 @@ const Composer: React.FC<{ teamId: number | null; achievements: Achievement[]; p
         </div>
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-[#6e7681]">{text.length}/{FEED_LIMITS.postMax}</span>
-          <button type="button" onClick={publish} disabled={busy || (!text.trim() && !chosen)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm disabled:opacity-40">
+          <button type="button" onClick={publish} disabled={busy || (!text.trim() && !chosen && !image)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm disabled:opacity-40">
             <Send className="w-4 h-4" /> Publicar
           </button>
         </div>
@@ -117,6 +181,7 @@ const PostCard: React.FC<{ post: FeedPostData; onChanged: () => void; onNotice: 
   const [comments, setComments] = useState<any[] | null>(null);
   const [count, setCount] = useState(post.comments);
   const [draft, setDraft] = useState('');
+  const [draftImage, setDraftImage] = useState<string | null>(null);
   const [reporting, setReporting] = useState<{ type: 'post' | 'comment'; id: number } | null>(null);
 
   const loadComments = useCallback(async () => {
@@ -136,9 +201,10 @@ const PostCard: React.FC<{ post: FeedPostData; onChanged: () => void; onNotice: 
     if (!open && comments === null) loadComments();
   };
   const send = async () => {
-    const r = await callApi('/api/feed', { action: 'add_comment', postId: post.id, body: draft });
+    const r = await callApi('/api/feed', { action: 'add_comment', postId: post.id, body: draft, imageUrl: draftImage || undefined });
     if (r.ok) {
       setDraft('');
+      setDraftImage(null);
       setCount((n) => n + 1);
       loadComments();
     } else onNotice((r.data as any).error || 'Não foi possível comentar.', false);
@@ -176,6 +242,7 @@ const PostCard: React.FC<{ post: FeedPostData; onChanged: () => void; onNotice: 
       </header>
 
       {post.body && <p className="mt-3 text-sm text-[#e6edf3] whitespace-pre-wrap break-words">{post.body}</p>}
+      {post.imageUrl && <PostImage src={post.imageUrl} />}
       {post.achievement && <AchievementCard a={post.achievement} />}
 
       <footer className="mt-3 flex items-center gap-5 text-sm text-[#8b949e]">
@@ -196,13 +263,21 @@ const PostCard: React.FC<{ post: FeedPostData; onChanged: () => void; onNotice: 
                     {!c.mine && <button type="button" onClick={() => setReporting({ type: 'comment', id: c.id })} aria-label="Denunciar comentário" className="text-[#6e7681] hover:text-amber-300"><Flag className="w-3.5 h-3.5" /></button>}
                   </span>
                 </div>
-                <p className="text-sm text-[#c9d1d9] whitespace-pre-wrap break-words">{c.body}</p>
+                {c.body && <p className="text-sm text-[#c9d1d9] whitespace-pre-wrap break-words">{c.body}</p>}
+                {c.imageUrl && <PostImage src={c.imageUrl} small />}
               </div>
             </div>
           ))}
+          {draftImage && (
+            <div className="relative inline-block">
+              <PostImage src={draftImage} small />
+              <button type="button" onClick={() => setDraftImage(null)} aria-label="Tirar a foto" className="absolute top-5 right-2 p-1 rounded-full bg-black/70 text-white"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          )}
           <div className="flex gap-2">
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={FEED_LIMITS.commentMax} onKeyDown={(e) => e.key === 'Enter' && draft.trim() && send()} placeholder="Escreva um comentário..." className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#f0f6fc] focus:outline-none focus:border-emerald-500" aria-label="Comentário" />
-            <button type="button" onClick={send} disabled={!draft.trim()} className="px-3 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-sm disabled:opacity-40">Enviar</button>
+            <PhotoPicker compact onUploaded={setDraftImage} onError={(t) => onNotice(t, false)} />
+            <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={FEED_LIMITS.commentMax} onKeyDown={(e) => e.key === 'Enter' && (draft.trim() || draftImage) && send()} placeholder="Escreva um comentário..." className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#f0f6fc] focus:outline-none focus:border-emerald-500" aria-label="Comentário" />
+            <button type="button" onClick={send} disabled={!draft.trim() && !draftImage} className="px-3 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold text-sm disabled:opacity-40">Enviar</button>
           </div>
         </div>
       )}
@@ -227,7 +302,7 @@ const PostCard: React.FC<{ post: FeedPostData; onChanged: () => void; onNotice: 
 /* Lista do feed (geral ou de uma equipe)                              */
 /* ------------------------------------------------------------------ */
 
-export const FeedView: React.FC<{ teamId: number | null; canPost: boolean; achievements: Achievement[]; prefill?: Achievement | null; emptyText: string }> = ({ teamId, canPost, achievements, prefill, emptyText }) => {
+export const FeedView: React.FC<{ teamId: number | null; canPost: boolean; achievements: Achievement[]; prefill?: Achievement | null; onPrefillUsed?: () => void; emptyText: string }> = ({ teamId, canPost, achievements, prefill, onPrefillUsed, emptyText }) => {
   const [posts, setPosts] = useState<FeedPostData[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -257,7 +332,7 @@ export const FeedView: React.FC<{ teamId: number | null; canPost: boolean; achie
 
   return (
     <div className="space-y-4">
-      {canPost && <Composer teamId={teamId} achievements={achievements} prefill={prefill} onPosted={() => load()} />}
+      {canPost && <Composer teamId={teamId} achievements={achievements} prefill={prefill} onPosted={() => { onPrefillUsed?.(); load(); }} />}
       {notice && <div role="status" className={`text-sm rounded-lg p-3 border ${notice.ok ? 'text-emerald-300 bg-emerald-950/40 border-emerald-800/60' : 'text-rose-300 bg-rose-950/40 border-rose-800/60'}`}>{notice.text}</div>}
       {error && <div role="alert" className="text-sm text-rose-300 bg-rose-950/40 border border-rose-800/60 rounded-lg p-3">{error}</div>}
       {!loading && !error && posts.length === 0 && <div className="rounded-2xl border border-dashed border-[#30363d] p-8 text-center text-sm text-[#8b949e]">{emptyText}</div>}

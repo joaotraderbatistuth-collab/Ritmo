@@ -15,6 +15,8 @@ import {
   validateTeamInput,
 } from './teams-plan.js';
 import { FEED_LIMITS, displayName, initials, normalizeText, parsePayload, sanitizeAchievement } from './feed-rules.js';
+import { mediaOwnedBy } from './media.js';
+import { isBundledImage } from './media-url.js';
 
 export class CommunityError extends Error {
   constructor(public status: number, message: string) {
@@ -72,7 +74,8 @@ export async function teamAccess(userId: number, teamId: number) {
   if (isOwner) return { team, isOwner, ok: true, membership: null as any };
   if (!team.active) return { team, isOwner, ok: false, membership: null as any };
   const membership = await getMembership(teamId, userId);
-  return { team, isOwner, ok: membershipActive(membership, todayBR()), membership };
+  // Ritus gratuito: qualquer pessoa do Ritmo lê e comenta (entrar só serve para segui-lo)
+  return { team, isOwner, ok: team.priceCents === 0 || membershipActive(membership, todayBR()), membership };
 }
 
 export async function createTeam(ownerId: number, raw: Record<string, unknown>) {
@@ -80,7 +83,8 @@ export async function createTeam(ownerId: number, raw: Record<string, unknown>) 
   const v = validateTeamInput(raw as any);
   if (!v.ok || !v.value) throw new CommunityError(400, v.error || 'Dados do Ritus inválidos.');
   const [{ n }] = await db.select({ n: count }).from(schema.teams).where(eq(schema.teams.ownerUserId, ownerId));
-  if (n >= MAX_TEAMS_PER_USER) throw new CommunityError(400, `Você pode ter até ${MAX_TEAMS_PER_USER} Ritus.`);
+  const owner = await findUserById(ownerId);
+  if (n >= MAX_TEAMS_PER_USER && owner?.role !== 'admin') throw new CommunityError(400, `Você pode ter até ${MAX_TEAMS_PER_USER} Ritus.`);
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = teamCodeFrom(v.value.name);
@@ -105,7 +109,7 @@ export async function updateTeam(ownerId: number, teamId: number, raw: Record<st
   return updated;
 }
 
-export async function getTeamPreview(code: string, viewerId: number) {
+export async function getTeamPreview(code: string, viewerId: number, countView = false) {
   await need();
   const team = await loadTeamByCode(code);
   const viewer = await findUserById(viewerId);
@@ -116,7 +120,7 @@ export async function getTeamPreview(code: string, viewerId: number) {
   const isMember = isOwner || membershipActive(membership, todayBR());
   const free = team.priceCents === 0 || qualifiesForFreeAccess(team, owner?.referralCode || '', viewer?.referredBy);
   // conta um acesso (o criador abrindo o próprio Ritus não conta)
-  if (!isOwner) {
+  if (!isOwner && countView) {
     try {
       await db.update(schema.teams).set({ viewCount: sql`${schema.teams.viewCount} + 1` }).where(eq(schema.teams.id, team.id));
     } catch {
@@ -138,7 +142,7 @@ export async function getTeamPreview(code: string, viewerId: number) {
     membersCanPost: team.membersCanPost,
     active: team.active,
     listed: team.listed,
-    viewCount: (team.viewCount || 0) + (isOwner ? 0 : 1),
+    viewCount: (team.viewCount || 0) + (!isOwner && countView ? 1 : 0),
     postsCount: posts?.n || 0,
     ownerName: displayName(owner?.name),
     ownerReferralCode: isOwner ? owner?.referralCode : undefined,
@@ -148,6 +152,7 @@ export async function getTeamPreview(code: string, viewerId: number) {
       isMember,
       expiresAt: membership?.expiresAt || null,
       expired: Boolean(membership && membership.status === 'active' && !isMember),
+      canRead: isMember || (team.priceCents === 0 && team.active),
       canJoinFree: !isMember && free,
       mustPay: !isMember && !free,
     },
@@ -187,7 +192,7 @@ export async function listMyTeams(userId: number) {
  * Vitrine "Achar Ritus": Ritus ativos e públicos, do mais acessado para o menos acessado.
  * Com `query`, pesquisa no nome, na descrição e no nome do criador.
  */
-export async function discoverTeams(viewerId: number, query: string) {
+export async function discoverTeams(viewerId: number, query: string, onlyFree = false) {
   await need();
   const q = String(query || '').replace(/[%_\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
   const like = `%${q}%`;
@@ -209,10 +214,11 @@ export async function discoverTeams(viewerId: number, query: string) {
       and(
         eq(schema.teams.active, true),
         eq(schema.teams.listed, true),
+        onlyFree ? eq(schema.teams.priceCents, 0) : undefined,
         q ? sql`(${schema.teams.name} ILIKE ${like} OR ${schema.teams.description} ILIKE ${like} OR ${schema.users.name} ILIKE ${like})` : undefined
       )
     )
-    .orderBy(desc(schema.teams.viewCount), desc(schema.teams.id))
+    .orderBy(desc(schema.teams.viewCount), schema.teams.id) // empate: o mais antigo primeiro (Clube do Livro abre a lista)
     .limit(30);
   if (rows.length === 0) return { ritus: [] };
 
@@ -448,7 +454,13 @@ async function recentCount(table: any, userCol: any, createdCol: any, userId: nu
   return r?.n || 0;
 }
 
-export async function createPost(userId: number, input: { body?: unknown; teamId?: unknown; achievement?: unknown }) {
+async function cleanImage(userId: number, raw: unknown): Promise<string | null> {
+  if (!raw) return null;
+  if (await mediaOwnedBy(raw, userId)) return String(raw);
+  throw new CommunityError(400, 'Foto inválida. Envie a foto de novo.');
+}
+
+export async function createPost(userId: number, input: { body?: unknown; teamId?: unknown; achievement?: unknown; imageUrl?: unknown }) {
   await need();
   await assertCanWrite(userId);
   const teamId = input.teamId ? Number(input.teamId) : null;
@@ -461,13 +473,14 @@ export async function createPost(userId: number, input: { body?: unknown; teamId
   const body = normalizeText(input.body, FEED_LIMITS.postMax);
   const achievement = input.achievement ? sanitizeAchievement(input.achievement) : null;
   if (input.achievement && !achievement) throw new CommunityError(400, 'Conquista inválida.');
-  if (!body && !achievement) throw new CommunityError(400, 'Escreva algo ou escolha uma conquista para compartilhar.');
+  const imageUrl = await cleanImage(userId, input.imageUrl);
+  if (!body && !achievement && !imageUrl) throw new CommunityError(400, 'Escreva algo, coloque uma foto ou escolha uma conquista para compartilhar.');
   if ((await recentCount(schema.feedPosts, schema.feedPosts.userId, schema.feedPosts.createdAt, userId, 3600000)) >= FEED_LIMITS.postsPerHour) {
     throw new CommunityError(429, 'Você publicou muitas vezes seguidas. Tente de novo daqui a pouco.');
   }
   const [post] = await db
     .insert(schema.feedPosts)
-    .values({ userId, teamId, kind: achievement ? 'achievement' : 'text', body, payload: achievement ? JSON.stringify(achievement) : null })
+    .values({ userId, teamId, kind: achievement ? 'achievement' : imageUrl ? 'photo' : 'text', body, payload: achievement ? JSON.stringify(achievement) : null, imageUrl })
     .returning();
   return post;
 }
@@ -512,6 +525,7 @@ export async function listPosts(viewerId: number, opts: { teamId?: number | null
       kind: p.kind,
       body: p.body,
       achievement: parsePayload(p.payload),
+      imageUrl: p.imageUrl && (isBundledImage(p.imageUrl) || p.imageUrl.startsWith('/api/media?k=')) ? p.imageUrl : null,
       createdAt: iso(p.createdAt),
       teamId: p.teamId,
       author: { id: p.userId, name: displayName(nameMap.get(p.userId)), initials: initials(nameMap.get(p.userId)), isTeamOwner: ownerOf === p.userId },
@@ -554,16 +568,17 @@ export async function toggleLike(userId: number, postId: number) {
   return { liked: removed.length === 0, likes: r?.n || 0 };
 }
 
-export async function addComment(userId: number, postId: number, rawBody: unknown) {
+export async function addComment(userId: number, postId: number, rawBody: unknown, rawImage?: unknown) {
   await need();
   await assertCanWrite(userId);
   await loadVisiblePost(userId, postId);
   const body = normalizeText(rawBody, FEED_LIMITS.commentMax);
-  if (!body) throw new CommunityError(400, 'Escreva o comentário.');
+  const imageUrl = await cleanImage(userId, rawImage);
+  if (!body && !imageUrl) throw new CommunityError(400, 'Escreva o comentário ou coloque uma foto.');
   if ((await recentCount(schema.feedComments, schema.feedComments.userId, schema.feedComments.createdAt, userId, 3600000)) >= FEED_LIMITS.commentsPerHour) {
     throw new CommunityError(429, 'Muitos comentários seguidos. Tente de novo daqui a pouco.');
   }
-  const [c] = await db.insert(schema.feedComments).values({ postId, userId, body }).returning();
+  const [c] = await db.insert(schema.feedComments).values({ postId, userId, body, imageUrl }).returning();
   return c;
 }
 
@@ -576,6 +591,7 @@ export async function listComments(viewerId: number, postId: number) {
   return rows.map((c) => ({
     id: c.id,
     body: c.body,
+    imageUrl: c.imageUrl || null,
     createdAt: iso(c.createdAt),
     author: { id: c.userId, name: displayName(nameMap.get(c.userId)), initials: initials(nameMap.get(c.userId)), isTeamOwner: teamOwnerId === c.userId },
     mine: c.userId === viewerId,

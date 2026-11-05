@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Flame, ArrowRight, Check, X, ChevronDown, Link2, Timer, ShieldCheck, Clock, Quote, Sparkles, Wallet, Share2, BadgeCheck, Banknote,
   Heart, MessageCircle, Search, Eye, Users, Lock, Crown, Trophy, Newspaper, Megaphone,
+  Bell, Smartphone, BookOpen, Gift,
 } from 'lucide-react';
+import { InstallPwaButton } from '../components/InstallPwaButton.js';
 import { TEAM_PLATFORM_FEE_PERCENT, splitTeamPayment } from '../lib/teams-plan.js';
 import {
   COMMISSION_DIRECT_PERCENT, COMMISSION_NETWORK_PERCENT, COMMISSION_TOTAL_PERCENT, MAX_COMMISSION_LEVELS,
@@ -594,6 +596,32 @@ function CreatorSimulator() {
   );
 }
 
+/** Moldura de celular para as imagens ilustrativas das telas. */
+function Phone({ src, alt, className = '' }: { src: string; alt: string; className?: string }) {
+  return (
+    <div className={`relative mx-auto w-[260px] sm:w-[280px] rounded-[2.6rem] border-[10px] border-[#1f2630] bg-black shadow-2xl shadow-black/60 overflow-hidden ${className}`}>
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-5 rounded-full bg-black z-10" />
+      <img src={src} alt={alt} loading="lazy" className="block w-full aspect-[390/844] object-cover object-top" />
+    </div>
+  );
+}
+
+const SCREENS = [
+  { src: '/vendas/feed.webp', title: 'Feed', text: 'Fotos, conquistas e comentários de quem está em movimento.' },
+  { src: '/vendas/ritus.webp', title: 'Achar Ritus', text: 'Os mais acessados no topo, pesquisa e filtro de gratuitos.' },
+  { src: '/vendas/clube.webp', title: 'Dentro de um Ritus', text: 'Conteúdo exclusivo, imagens e conversa nos comentários.' },
+  { src: '/vendas/notificacoes.webp', title: 'Lembretes', text: 'Um empurrãozinho por vez, na hora certa do dia.' },
+];
+
+const FREE_RITUS = ['Clube do Livro', 'Cozinha Prática', 'Treino em Casa 20 min', 'Caminhada e Corrida', 'Foco Profundo', 'Finanças do Mês', 'Desafio 21 Dias', 'Inglês 15 min por dia', 'Manhãs com Ritmo', 'Casa Organizada'];
+
+const NUDGE_SAMPLES = [
+  { when: '8:00', title: 'Bom dia! Que tal criar um card?', body: 'Tem algo rodando na cabeça? Vira um card em 10 segundos.' },
+  { when: '13:00', title: 'Hora de um ciclo de foco?', body: 'O pós-almoço é traiçoeiro. 25 minutos agora salvam a tarde.' },
+  { when: '19:00', title: 'Que tal um treino hoje?', body: 'Uma caminhada de 20 minutos já conta. Marque no hábito!' },
+  { when: '21:00', title: 'Compartilhe uma conquista 🏆', body: 'Fechou um card, focou, treinou? Mostre no Feed.' },
+];
+
 const RITUS_STEPS = [
   { icon: Crown, title: 'Crie o seu Ritus', text: 'Dê um nome, defina o preço e escreva a descrição do serviço: o que o assinante recebe.' },
   { icon: Lock, title: 'Publique o exclusivo', text: 'Treinos, aulas, desafios, planilhas e avisos que só quem assina enxerga.' },
@@ -641,6 +669,9 @@ const FAQ = [
   { q: 'O que é o Feed?', a: 'É a rede social dentro do Ritmo, e a primeira tela quando você entra. Você compartilha conquistas (semanas de corrente, horas de foco, metas batidas), curte e comenta o progresso de outras pessoas. Nada é publicado sozinho: você escolhe o que mostrar.' },
   { q: 'O que é um Ritus?', a: `É um espaço de conteúdo por assinatura que qualquer usuário pode criar: um personal com treinos, um professor com aulas, um mentor com desafios. O criador define o preço, descreve o serviço e publica conteúdo exclusivo para quem assinar. O pagamento é por Pix, o acesso é liberado na hora e o criador fica com ${100 - TEAM_PLATFORM_FEE_PERCENT}% de cada venda.` },
   { q: 'Como encontro um Ritus para assinar?', a: 'Na aba Achar Ritus, dentro do Feed. Ela mostra os Ritus mais acessados e tem pesquisa por tema, nome ou criador. Antes de assinar, você vê a descrição do serviço, o preço, quantos assinantes e quantos conteúdos exclusivos ele tem.' },
+  { q: 'Tem aplicativo para celular?', a: 'Tem. O Ritmo se instala direto pelo navegador, sem loja: no Android, toque em “Instalar app”; no iPhone, use Compartilhar → Adicionar à Tela de Início. Fica com ícone, abre em tela cheia e recebe lembretes.' },
+  { q: 'Como funcionam as notificações?', a: 'Você liga no sino do app e escolhe receber 1, 2 ou 3 por dia. São mais de 60 lembretes diferentes que mudam a cada dia: criar um card, fazer um ciclo de foco, um treino, marcar os hábitos, compartilhar uma conquista. Dá para desligar quando quiser.' },
+  { q: 'Os Ritus gratuitos são pagos depois?', a: 'Não. Os 10 Ritus gratuitos (como o Clube do Livro) continuam grátis para quem usa o Ritmo. Ritus pagos são criados por outros usuários, que definem o próprio preço.' },
   { q: 'O Ritmo me garante resultado?', a: 'Não, e desconfie de quem garante. Ele é uma ferramenta: mostra o que você fez, o que falta e para onde o seu dinheiro e o seu tempo estão indo. O resultado depende de você abrir o app e agir.' },
 ];
 
@@ -843,6 +874,27 @@ function SalesPage() {
         </div>
       </section>
 
+      {/* POR DENTRO: IMAGENS DAS TELAS */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+        <Reveal>
+          <p className="text-center text-sm font-bold text-emerald-400 uppercase tracking-wider">Novo · Veja por dentro</p>
+          <h2 className="mt-2 text-3xl sm:text-5xl font-extrabold text-center leading-tight">Uma rede social inteira feita para você <span className="bg-gradient-to-r from-emerald-400 to-amber-300 bg-clip-text text-transparent">cumprir o que promete.</span></h2>
+          <p className="mt-4 text-center text-slate-400 max-w-2xl mx-auto">Feed com fotos, Ritus com conteúdo exclusivo, Clube do Livro e lembretes que chegam aos poucos. Tudo no mesmo app, no seu celular.</p>
+        </Reveal>
+        <div className="mt-12 flex gap-6 overflow-x-auto snap-x snap-mandatory pb-4 lg:grid lg:grid-cols-4 lg:overflow-visible">
+          {SCREENS.map((sc, i) => (
+            <Reveal key={sc.src} delay={i * 90} className="snap-center shrink-0 w-[280px] lg:w-auto">
+              <Phone src={sc.src} alt={`Tela ${sc.title} do Ritmo`} />
+              <div className="mt-4 text-center">
+                <div className="font-bold">{sc.title}</div>
+                <p className="text-sm text-slate-400">{sc.text}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+        <p className="mt-2 text-center text-[11px] text-slate-600">Imagens ilustrativas das telas, com dados de exemplo.</p>
+      </section>
+
       {/* FEED: A REDE SOCIAL */}
       <section className="border-y border-emerald-500/20 bg-gradient-to-b from-emerald-500/[0.07] to-transparent">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
@@ -861,7 +913,8 @@ function SalesPage() {
             <Reveal>
               <ul className="space-y-4">
                 {[
-                  ['Compartilhe conquistas com um toque', 'Semanas de corrente, horas de foco, metas batidas. O app monta o card; você decide se publica.'],
+                  ['Poste fotos do seu dia', 'O treino, a marmita, a mesa arrumada. Foto no post e até nos comentários.'],
+                  ['Compartilhe conquistas com um toque', 'Terminou um ciclo de foco, fechou um card, cumpriu o hábito? Aparece o botão “Compartilhar no Feed”. Você decide se publica.'],
                   ['Curta, comente, puxe o outro para cima', 'Um “bora!” na hora certa vale mais do que mil frases motivacionais.'],
                   ['Sem algoritmo de fofoca', 'Aqui o assunto é progresso. Conteúdo ofensivo é denunciado e removido pela moderação.'],
                   ['Você no controle', 'Os outros veem só seu primeiro nome e a inicial. Nada é publicado sozinho.'],
@@ -922,6 +975,27 @@ function SalesPage() {
         </div>
 
         <Reveal className="mt-14">
+          <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-transparent p-6 sm:p-8 grid lg:grid-cols-[1fr_auto] gap-8 items-center">
+            <div>
+              <p className="text-sm font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-2"><Gift className="w-4 h-4" /> Já incluso no seu teste grátis</p>
+              <h3 className="mt-2 text-2xl sm:text-3xl font-extrabold">10 Ritus gratuitos para você começar hoje</h3>
+              <p className="mt-3 text-slate-300">
+                Entre, leia, comente e poste fotos. O <strong className="text-white">Clube do Livro</strong> já abre com 10 resenhas de livros sobre risco, acaso, dinheiro e hábitos:
+                Taleb, Max Gunther, Kahneman, Housel e mais.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {FREE_RITUS.map((r) => (
+                  <span key={r} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#30363d] bg-[#161b22] text-sm">
+                    {r === 'Clube do Livro' ? <BookOpen className="w-4 h-4 text-emerald-300" /> : <Check className="w-4 h-4 text-emerald-400" />} {r}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <Phone src="/vendas/clube.webp" alt="Clube do Livro dentro do Ritmo" className="hidden lg:block w-[240px]" />
+          </div>
+        </Reveal>
+
+        <Reveal className="mt-14">
           <CreatorSimulator />
         </Reveal>
 
@@ -944,6 +1018,56 @@ function SalesPage() {
               {loggedIn ? 'Criar meu Ritus agora' : 'Testar grátis e criar meu Ritus'} <ArrowRight className="w-5 h-5" />
             </a>
             <p className="mt-3 text-xs text-slate-500">Criar um Ritus não tem custo extra: a plataforma só retém {TEAM_PLATFORM_FEE_PERCENT}% quando você vende.</p>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* NOTIFICAÇÕES */}
+      <section className="border-y border-[#30363d] bg-[#0b0f14]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 grid lg:grid-cols-2 gap-12 items-center">
+          <Reveal>
+            <p className="text-sm font-bold text-amber-300 uppercase tracking-wider flex items-center gap-2"><Bell className="w-4 h-4" /> Lembretes que puxam você para frente</p>
+            <h2 className="mt-2 text-3xl sm:text-5xl font-extrabold leading-tight">O Ritmo lembra por você.<br /><span className="text-slate-400">Você só precisa agir.</span></h2>
+            <p className="mt-5 text-lg text-slate-300">
+              Mais de 60 lembretes diferentes, enviados <strong className="text-white">aos poucos</strong>: no máximo 1, 2 ou 3 por dia, você escolhe. De manhã, um convite para planejar e criar um card. À tarde, um ciclo de foco. À noite, marcar os hábitos e compartilhar a conquista.
+            </p>
+            <div className="mt-6 space-y-3">
+              {NUDGE_SAMPLES.map((n) => (
+                <div key={n.when} className="flex gap-3 rounded-2xl border border-[#30363d] bg-[#161b22] p-3">
+                  <span className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-amber-500 flex items-center justify-center shrink-0"><Flame className="w-5 h-5 text-white" /></span>
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-slate-500">RITMO · {n.when}</div>
+                    <div className="font-semibold text-sm">{n.title}</div>
+                    <div className="text-sm text-slate-400">{n.body}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-slate-500">Você liga e desliga quando quiser. Nada de spam: a ordem muda todo dia, para não ficar repetitivo.</p>
+          </Reveal>
+          <Reveal delay={120}>
+            <Phone src="/vendas/notificacoes.webp" alt="Lembretes do Ritmo na tela de bloqueio" />
+          </Reveal>
+        </div>
+      </section>
+
+      {/* APP NO CELULAR */}
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 py-16">
+        <Reveal>
+          <div className="rounded-3xl border border-[#30363d] bg-[#161b22] p-6 sm:p-10 text-center">
+            <Smartphone className="w-10 h-10 text-emerald-400 mx-auto" />
+            <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold">Baixe o Ritmo no seu celular em 10 segundos</h2>
+            <p className="mt-3 text-slate-300 max-w-2xl mx-auto">
+              Sem loja de aplicativos e sem ocupar espaço: um toque e o Ritmo vira um app na sua tela inicial, abre em tela cheia e recebe lembretes. Funciona no Android, no iPhone e no computador.
+            </p>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center items-center">
+              <InstallPwaButton label="Instalar o app agora" className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-emerald-500/50 bg-emerald-500/10 text-emerald-300 font-bold" />
+              <a href={cta} className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold">{ctaLabel} <ArrowRight className="w-4 h-4" /></a>
+            </div>
+            <div className="mt-6 grid sm:grid-cols-2 gap-3 text-left text-sm">
+              <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-4"><div className="font-bold">iPhone</div><p className="text-slate-400 mt-1">No Safari, toque em Compartilhar e depois em <strong className="text-slate-200">Adicionar à Tela de Início</strong>.</p></div>
+              <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-4"><div className="font-bold">Android</div><p className="text-slate-400 mt-1">No Chrome, toque em <strong className="text-slate-200">Instalar app</strong> (ou no menu ⋮ → Instalar app).</p></div>
+            </div>
           </div>
         </Reveal>
       </section>
@@ -1067,7 +1191,10 @@ function SalesPage() {
             <ul className="mt-6 text-left max-w-sm mx-auto space-y-2 text-sm text-slate-300">
               {[
                 '7 dias grátis, sem cartão',
-                'Feed: a rede social de quem está em movimento',
+                'Feed com fotos: a rede social de quem está em movimento',
+                '10 Ritus gratuitos, incluindo o Clube do Livro',
+                'Mais de 60 lembretes no celular, aos poucos (1 a 3 por dia)',
+                'App no celular: instala em 10 segundos, sem loja',
                 `Ritus: assine conteúdo exclusivo ou crie o seu e fique com ${100 - TEAM_PLATFORM_FEE_PERCENT}% de cada venda`,
                 'Metas, rotina, quadros, hábitos, foco, diário e finanças',
                 'Celular e computador',

@@ -13,7 +13,9 @@ import {
   PhoneOff,
   Info,
   Flame,
+  Share2,
 } from 'lucide-react';
+import { shareToFeed } from '../lib/share-feed.js';
 
 interface TabHabitsProps {
   habits: HabitItem[];
@@ -172,6 +174,11 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
                             {meta.icon}
                           </span>
                           <span>{habit.name}</span>
+                          {logLookup.get(`${habit.id}_${localDateStr()}`) && (
+                            <button type="button" title="Compartilhar no Feed" aria-label={`Compartilhar ${habit.name} no Feed`} onClick={() => shareToFeed({ type: 'habito', habit: habit.name.slice(0, 60) })} className="ml-1 p-1 rounded-md text-[#8b949e] hover:text-emerald-400 hover:bg-emerald-500/10">
+                              <Share2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                         {habit.notes && (
                           <p className="text-[11px] text-[#8b949e] ml-7 mt-0.5">

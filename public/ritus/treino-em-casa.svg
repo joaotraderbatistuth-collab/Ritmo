@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#be123c"/><stop offset="1" stop-color="#7f1d1d"/></linearGradient>
+<radialGradient id="r" cx="0.22" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient></defs>
+<rect width="1200" height="675" fill="url(#g)"/>
+<rect width="1200" height="675" fill="url(#r)"/>
+<circle cx="1110" cy="80" r="160" fill="#ffffff" fill-opacity="0.06"/>
+<circle cx="1050" cy="640" r="110" fill="#000000" fill-opacity="0.10"/>
+<circle cx="270" cy="337" r="190" fill="#000000" fill-opacity="0.18"/>
+<circle cx="270" cy="337" r="150" fill="#ffffff" fill-opacity="0.12"/>
+<g transform="translate(150 217) scale(10)" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.4 14.4 9.6 9.6" />
+  <path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z" />
+  <path d="m21.5 21.5-1.4-1.4" />
+  <path d="M3.9 3.9 2.5 2.5" />
+  <path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z" /></g>
+<text x="560" y="180" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" letter-spacing="4" fill="#ffffff" fill-opacity="0.75">RITUS GRATUITO</text>
+<text x="560" y="270" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="60" font-weight="800" fill="#ffffff">Treino em Casa</text><text x="560" y="348" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="60" font-weight="800" fill="#ffffff">20 min</text><text x="560" y="436" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="30" fill="#ffffff" fill-opacity="0.82">3 vezes por semana, sem equipamento</text>
+<text x="1160" y="645" text-anchor="end" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#ffffff" fill-opacity="0.6">Ritus · Ritmo</text>
+</svg>

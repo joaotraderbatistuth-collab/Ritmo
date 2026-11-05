@@ -15,7 +15,9 @@ import {
   RotateCcw,
   ChevronRight,
   ChevronLeft,
+  Share2,
 } from 'lucide-react';
+import { shareToFeed } from '../lib/share-feed.js';
 
 interface TabTasksProps {
   tasks: TaskItem[];
@@ -330,6 +332,16 @@ export const TabTasks: React.FC<TabTasksProps> = ({
                           </div>
 
                           <div className="flex flex-col gap-1 shrink-0">
+                            {t.completed && (
+                              <button
+                                onClick={() => shareToFeed({ type: 'tarefa', title: t.title.slice(0, 100) })}
+                                title="Compartilhar no Feed"
+                                aria-label="Compartilhar no Feed"
+                                className="text-emerald-500 hover:text-emerald-300 p-1"
+                              >
+                                <Share2 className="w-3 h-3" />
+                              </button>
+                            )}
                             <button
                               onClick={() => openEditModal(t)}
                               className="text-[#6e7681] hover:text-[#f0f6fc] p-1"

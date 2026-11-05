@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Copy, Check, Crown, Eye, Flame, Lock, Plus, Search, Settings2, Users, QrCode } from 'lucide-react';
+import { ritusCover } from '../lib/ritus-covers.js';
 import { callApi } from '../lib/client-api.js';
 import { FeedView } from './FeedView.js';
 import { Achievement } from '../lib/feed-rules.js';
@@ -191,13 +192,14 @@ const TeamDetail: React.FC<{ code: string; referralCode: string; achievements: A
   const [msg, setMsg] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const load = useCallback(async () => {
-    const r = await callApi(`/api/teams?code=${encodeURIComponent(code)}`);
+  // o acesso só é contado na primeira abertura (recarregar depois de entrar ou pagar não conta de novo)
+  const load = useCallback(async (countView = false) => {
+    const r = await callApi(`/api/teams?code=${encodeURIComponent(code)}${countView ? '&view=1' : ''}`);
     if (r.ok) setTeam((r.data as any).team);
     else setError((r.data as any).error || 'Ritus não encontrado.');
   }, [code]);
   useEffect(() => {
-    load();
+    load(true);
   }, [load]);
 
   const joinFree = async () => {
@@ -233,6 +235,7 @@ const TeamDetail: React.FC<{ code: string; referralCode: string; achievements: A
     <div className="space-y-4">
       <button type="button" className="inline-flex items-center gap-1 text-sm text-[#8b949e] hover:text-white" onClick={onBack}><ArrowLeft className="w-4 h-4" /> Voltar</button>
       <div className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5">
+        {ritusCover(team.code) && <img src={ritusCover(team.code)!} alt="" className="-mx-5 -mt-5 mb-4 w-[calc(100%+2.5rem)] max-w-none aspect-[16/9] object-cover rounded-t-2xl" />}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-xl font-extrabold text-[#f0f6fc]">{team.name}</h3>
@@ -276,8 +279,8 @@ const TeamDetail: React.FC<{ code: string; referralCode: string; achievements: A
         </div>
       )}
 
-      {v.isMember ? (
-        <FeedView teamId={team.id} canPost={v.isOwner || team.membersCanPost} achievements={achievements} emptyText={v.isOwner ? 'Publique o primeiro conteúdo exclusivo para os seus assinantes.' : 'O criador ainda não publicou nada. Volte em breve!'} />
+      {v.isMember || v.canRead ? (
+        <FeedView teamId={team.id} canPost={v.isOwner || (team.membersCanPost && v.isMember)} achievements={achievements} emptyText={v.isOwner ? 'Publique o primeiro conteúdo exclusivo para os seus assinantes.' : 'O criador ainda não publicou nada. Volte em breve!'} />
       ) : (
         <div className="rounded-2xl border border-dashed border-emerald-700/50 bg-emerald-950/10 p-8 text-center">
           <Lock className="w-7 h-7 mx-auto mb-2 text-emerald-300" />
@@ -379,17 +382,18 @@ export const DiscoverRitus: React.FC<{ referralCode: string; achievements: Achie
   const [list, setList] = useState<any[] | null>(null);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  const [onlyFree, setOnlyFree] = useState(false);
   const seq = useRef(0);
 
   const load = useCallback(async (q: string) => {
     const my = ++seq.current;
-    const r = await callApi(`/api/teams?discover=1&q=${encodeURIComponent(q)}`);
+    const r = await callApi(`/api/teams?discover=1&q=${encodeURIComponent(q)}${onlyFree ? '&free=1' : ''}`);
     if (my !== seq.current) return; // resposta de uma busca antiga
     if (r.ok) {
       setList((r.data as any).ritus || []);
       setError('');
     } else setError((r.data as any).error || 'Não foi possível carregar os Ritus.');
-  }, []);
+  }, [onlyFree]);
 
   // pesquisa enquanto digita (espera a pessoa parar por um instante)
   useEffect(() => {
@@ -410,6 +414,10 @@ export const DiscoverRitus: React.FC<{ referralCode: string; achievements: Achie
           <Search className="w-4 h-4 text-[#6e7681] absolute left-3 top-1/2 -translate-y-1/2" />
           <input className={`${field} pl-9`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Pesquisar por tema, nome ou criador" aria-label="Pesquisar Ritus" />
         </div>
+        <div className="mt-3 flex gap-2">
+          <button type="button" onClick={() => setOnlyFree(false)} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${!onlyFree ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'border-[#30363d] text-[#c9d1d9]'}`}>Todos</button>
+          <button type="button" onClick={() => setOnlyFree(true)} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${onlyFree ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'border-[#30363d] text-[#c9d1d9]'}`}>Só gratuitos</button>
+        </div>
       </div>
       {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
 
@@ -422,6 +430,7 @@ export const DiscoverRitus: React.FC<{ referralCode: string; achievements: Achie
         <div className="grid sm:grid-cols-2 gap-3">
           {list?.map((t) => (
             <button key={t.id} type="button" onClick={() => setOpen(t.code)} className="text-left rounded-2xl border border-[#30363d] bg-[#161b22] hover:border-emerald-500/60 p-4 flex flex-col">
+              {ritusCover(t.code) && <img src={ritusCover(t.code)!} alt="" loading="lazy" className="-mx-4 -mt-4 mb-3 w-[calc(100%+2rem)] max-w-none aspect-[16/9] object-cover rounded-t-2xl" />}
               <div className="flex items-start justify-between gap-2">
                 <div className="font-bold text-[#f0f6fc] flex items-center gap-2">
                   {t.rank && t.rank <= 3 ? <span className="text-xs font-black text-amber-300">#{t.rank}</span> : null}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c2410c"/><stop offset="1" stop-color="#9a3412"/></linearGradient>
+<radialGradient id="r" cx="0.22" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient></defs>
+<rect width="1200" height="675" fill="url(#g)"/>
+<rect width="1200" height="675" fill="url(#r)"/>
+<circle cx="1110" cy="80" r="160" fill="#ffffff" fill-opacity="0.06"/>
+<circle cx="1050" cy="640" r="110" fill="#000000" fill-opacity="0.10"/>
+<circle cx="270" cy="337" r="190" fill="#000000" fill-opacity="0.18"/>
+<circle cx="270" cy="337" r="150" fill="#ffffff" fill-opacity="0.12"/>
+<g transform="translate(150 217) scale(10)" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z" />
+  <path d="M6 17h12" /></g>
+<text x="560" y="180" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" letter-spacing="4" fill="#ffffff" fill-opacity="0.75">RITUS GRATUITO</text>
+<text x="560" y="270" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="60" font-weight="800" fill="#ffffff">Cozinha Prática</text><text x="560" y="348" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="60" font-weight="800" fill="#ffffff">da Semana</text><text x="560" y="436" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="30" fill="#ffffff" fill-opacity="0.82">Marmitas, receitas base e mercado sem</text><text x="560" y="476" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="30" fill="#ffffff" fill-opacity="0.82">desperdício</text>
+<text x="1160" y="645" text-anchor="end" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#ffffff" fill-opacity="0.6">Ritus · Ritmo</text>
+</svg>

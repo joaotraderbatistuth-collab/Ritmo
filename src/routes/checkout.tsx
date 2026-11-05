@@ -11,7 +11,6 @@ import {
   Copy,
   Check,
   Clock,
-  ArrowRight,
   AlertCircle,
   Receipt,
   Tag,
@@ -328,6 +327,9 @@ function CheckoutPage() {
           </div>
         </div>
       </header>
+      {loading && (
+        <div role="status" className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 text-xs text-slate-400">Carregando os dados da sua assinatura...</div>
+      )}
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
         {/* Status Alert Banner */}

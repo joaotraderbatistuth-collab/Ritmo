@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Bell, AlertTriangle, Info, X } from 'lucide-react';
 import { Notice } from '../lib/notices.js';
+import { PushToggle } from './PushToggle.js';
 
 const TONE = { urgent: 'border-rose-500/50 bg-rose-500/10 text-rose-300', warn: 'border-amber-500/50 bg-amber-500/10 text-amber-300', info: 'border-[#30363d] bg-[#161b22] text-[#8b949e]' } as const;
 
@@ -63,6 +64,9 @@ export const NoticeBell: React.FC<{ notices: Notice[]; onOpenTab: (tab: string) 
               ))}
             </ul>
           )}
+          <div className="px-3 pb-3">
+            <PushToggle compact />
+          </div>
         </div>
       )}
     </div>

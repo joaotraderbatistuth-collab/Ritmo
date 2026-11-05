@@ -26,7 +26,7 @@ export const Route = createFileRoute('/api/feed')({
           const body = await request.json();
           switch (body.action) {
             case 'create_post': {
-              const post = await createPost(user.id, { body: body.body, teamId: body.teamId, achievement: body.achievement });
+              const post = await createPost(user.id, { body: body.body, teamId: body.teamId, achievement: body.achievement, imageUrl: body.imageUrl });
               return Response.json({ success: true, message: 'Publicado!', postId: post.id });
             }
             case 'delete_post':
@@ -35,7 +35,7 @@ export const Route = createFileRoute('/api/feed')({
             case 'toggle_like':
               return Response.json({ success: true, ...(await toggleLike(user.id, Number(body.postId))) });
             case 'add_comment': {
-              const c = await addComment(user.id, Number(body.postId), body.body);
+              const c = await addComment(user.id, Number(body.postId), body.body, body.imageUrl);
               return Response.json({ success: true, commentId: c.id });
             }
             case 'delete_comment':

@@ -11,6 +11,8 @@
 const TERMS =
   'Comissão total de 35% sobre pagamentos recorrentes elegíveis: 25% para quem indica diretamente (nível 1) e 10% distribuídos até o quarto nível da rede (5% no nível 2, 3% no nível 3 e 2% no nível 4). Resgate via chave PIX.';
 
+import { seedRitusStatements } from './ritus-seed.js';
+
 // Conta master. Só o hash bcrypt da senha fica no código, nunca a senha em texto.
 const MASTER_EMAIL = 'batistuth@live.com';
 const MASTER_PASSWORD_HASH = '$2a$10$fADPSg9B43me/ywXyP8H7O/8855XOE6lXcUnm4BjVM/ci585x58WC';
@@ -137,6 +139,45 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   `ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "view_count" integer NOT NULL DEFAULT 0`,
   `CREATE INDEX IF NOT EXISTS "teams_listed_views_idx" ON "teams" ("active","listed","view_count")`,
 
+  // ---- fotos no Feed, comprovantes de Pix, convites de admin e notificações (atualização de 05/11/2026)
+  `ALTER TABLE "feed_posts" ADD COLUMN IF NOT EXISTS "image_url" text`,
+  `ALTER TABLE "feed_comments" ADD COLUMN IF NOT EXISTS "image_url" text`,
+  `ALTER TABLE "affiliate_withdrawals" ADD COLUMN IF NOT EXISTS "receipt_url" text`,
+  `CREATE TABLE IF NOT EXISTS "media" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "key" text NOT NULL UNIQUE,
+    "owner_user_id" integer REFERENCES "users"("id") ON DELETE CASCADE,
+    "purpose" text DEFAULT 'feed' NOT NULL,
+    "mime" text NOT NULL,
+    "data" text NOT NULL,
+    "size_bytes" integer NOT NULL,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "media_owner_created_idx" ON "media" ("owner_user_id","created_at")`,
+  `CREATE TABLE IF NOT EXISTS "admin_invites" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "email" text NOT NULL UNIQUE,
+    "permissions" text,
+    "invited_by" text NOT NULL,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS "push_subscriptions" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "endpoint" text NOT NULL UNIQUE,
+    "p256dh" text NOT NULL,
+    "auth" text NOT NULL,
+    "per_day" integer DEFAULT 3 NOT NULL,
+    "last_sent_at" timestamp,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "push_subscriptions_user_idx" ON "push_subscriptions" ("user_id")`,
+  `CREATE TABLE IF NOT EXISTS "app_settings" (
+    "key" text PRIMARY KEY NOT NULL,
+    "value" text NOT NULL,
+    "updated_at" timestamp DEFAULT now() NOT NULL
+  )`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")
@@ -154,6 +195,9 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   `UPDATE "users" SET "role" = 'admin', "subscription_status" = 'active', "trial_ends_at" = NULL, "updated_at" = now()
    WHERE "email" = '${MASTER_EMAIL}'
      AND ("role" <> 'admin' OR "subscription_status" <> 'active' OR "trial_ends_at" IS NOT NULL)`,
+
+  // ---- 10 Ritus gratuitos iniciais (Clube do Livro e outros), uma única vez
+  ...seedRitusStatements(MASTER_EMAIL),
 ];
 
 export interface SchemaSyncResult {

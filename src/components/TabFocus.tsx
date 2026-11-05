@@ -9,7 +9,10 @@ import {
   Volume2,
   VolumeX,
   Target,
+  Share2,
 } from 'lucide-react';
+import { shareToFeed } from '../lib/share-feed.js';
+import { localDateStr } from '../lib/chain.js';
 
 interface TabFocusProps {
   sessions: FocusSessionItem[];
@@ -28,6 +31,7 @@ export const TabFocus: React.FC<TabFocusProps> = ({
   const [totalMinutes, setTotalMinutes] = useState<number>(initialDuration);
   const [secondsLeft, setSecondsLeft] = useState<number>(initialDuration * 60);
   const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [justDone, setJustDone] = useState<{ minutes: number; goal: string } | null>(null);
   const [focusTopic, setFocusTopic] = useState<string>(initialTopic);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const timerRef = useRef<any>(null);
@@ -72,6 +76,7 @@ export const TabFocus: React.FC<TabFocusProps> = ({
             setIsRunning(false);
             playAlertSound();
             // Automatically record completed session
+            setJustDone({ minutes: totalMinutes, goal: focusTopic });
             onRecordSession({
               durationMinutes: totalMinutes,
               sessionType,
@@ -104,6 +109,7 @@ export const TabFocus: React.FC<TabFocusProps> = ({
   const handleFinishEarly = () => {
     setIsRunning(false);
     const elapsedMinutes = Math.max(1, Math.round((totalMinutes * 60 - secondsLeft) / 60));
+    setJustDone({ minutes: elapsedMinutes, goal: focusTopic });
     onRecordSession({
       durationMinutes: elapsedMinutes,
       sessionType,
@@ -114,7 +120,7 @@ export const TabFocus: React.FC<TabFocusProps> = ({
   };
 
   // Stats
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr(); // data no fuso do aparelho (toISOString usava UTC e virava o dia às 21h)
   const todayMinutes = sessions
     .filter((s) => s.date === todayStr)
     .reduce((acc, s) => acc + s.durationMinutes, 0);
@@ -130,6 +136,19 @@ export const TabFocus: React.FC<TabFocusProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
+      {justDone && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/50 bg-emerald-500/10 p-4">
+          <div className="text-sm text-emerald-200">
+            <strong className="text-emerald-300">Sessão concluída: {justDone.minutes} min de foco!</strong> Que tal mostrar para a comunidade?
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => { shareToFeed({ type: 'sessao', minutes: justDone.minutes, ...(justDone.goal ? { goal: justDone.goal.slice(0, 80) } : {}) }); setJustDone(null); }} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm">
+              <Share2 className="w-4 h-4" /> Compartilhar no Feed
+            </button>
+            <button type="button" onClick={() => setJustDone(null)} className="px-3 py-2 rounded-lg border border-[#30363d] text-sm text-[#c9d1d9]">Agora não</button>
+          </div>
+        </div>
+      )}
       {/* Timer Card */}
       <div className="bg-[#161b22] border border-[#30363d] rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden text-center">
         {/* Background glow when active */}
@@ -314,8 +333,13 @@ export const TabFocus: React.FC<TabFocusProps> = ({
                     </span>
                     <span className="text-[10px] text-[#6e7681]">{s.date}</span>
                   </div>
-                  <span className="font-mono font-bold text-emerald-400 px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-800/40">
-                    +{s.durationMinutes} min
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-emerald-400 px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-800/40">
+                      +{s.durationMinutes} min
+                    </span>
+                    <button type="button" title="Compartilhar no Feed" aria-label="Compartilhar no Feed" onClick={() => shareToFeed({ type: 'sessao', minutes: Math.max(1, Math.round(s.durationMinutes)), ...(s.focusTopic && s.focusTopic !== 'Sessão de Foco' ? { goal: s.focusTopic.slice(0, 80) } : {}) })} className="p-1 text-[#8b949e] hover:text-emerald-400">
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
                   </span>
                 </div>
               ))}

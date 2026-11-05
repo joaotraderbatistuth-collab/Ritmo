@@ -338,6 +338,7 @@ export const affiliateWithdrawals = pgTable("affiliate_withdrawals", {
   status: text("status").notNull().default("pending"), // pending, approved, paid, rejected
   notes: text("notes"),
   receiptReference: text("receipt_reference"),
+  receiptUrl: text("receipt_url"), // comprovante do Pix anexado pelo admin (/api/media?k=...)
   requestedAt: timestamp("requested_at").defaultNow().notNull(),
   processedAt: timestamp("processed_at"),
 });
@@ -405,6 +406,7 @@ export const feedPosts = pgTable("feed_posts", {
   kind: text("kind").notNull().default("text"), // text | achievement
   body: text("body").notNull().default(""),
   payload: text("payload"), // JSON da conquista (validado no servidor)
+  imageUrl: text("image_url"), // foto da publicação (/api/media?k=... ou /ritus/... das publicações iniciais)
   status: text("status").notNull().default("visible"), // visible | hidden
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -421,6 +423,7 @@ export const feedComments = pgTable("feed_comments", {
   postId: integer("post_id").notNull().references(() => feedPosts.id, { onDelete: "cascade" }),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   body: text("body").notNull(),
+  imageUrl: text("image_url"), // foto opcional no comentário
   status: text("status").notNull().default("visible"), // visible | hidden
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -433,4 +436,43 @@ export const feedReports = pgTable("feed_reports", {
   reason: text("reason").notNull().default(""),
   status: text("status").notNull().default("open"), // open | dismissed | actioned
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// ARQUIVOS (fotos do Feed e comprovantes de Pix), CONVITES DE ADMIN E NOTIFICAÇÕES
+// ---------------------------------------------------------------------------
+export const media = pgTable("media", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(), // 32 caracteres hex, impossível de adivinhar
+  ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: "cascade" }),
+  purpose: text("purpose").notNull().default("feed"), // feed | receipt
+  mime: text("mime").notNull(),
+  data: text("data").notNull(), // base64
+  sizeBytes: integer("size_bytes").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const adminInvites = pgTable("admin_invites", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  permissions: text("permissions"),
+  invitedBy: text("invited_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  perDay: integer("per_day").notNull().default(3), // 1, 2 ou 3 notificações por dia
+  lastSentAt: timestamp("last_sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

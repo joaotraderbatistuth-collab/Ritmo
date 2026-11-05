@@ -42,7 +42,11 @@ export type Achievement =
   | { type: 'corrente'; habit: string; weeks: number }
   | { type: 'foco'; minutes: number }
   | { type: 'tarefas'; done: number; total: number }
-  | { type: 'meta'; title: string; day: number; totalDays: number };
+  | { type: 'meta'; title: string; day: number; totalDays: number }
+  | { type: 'sessao'; minutes: number; goal?: string }
+  | { type: 'card'; title: string; board?: string }
+  | { type: 'habito'; habit: string }
+  | { type: 'tarefa'; title: string };
 
 const int = (v: unknown, min: number, max: number): number | null => {
   const n = Number(v);
@@ -74,6 +78,24 @@ export function sanitizeAchievement(raw: unknown): Achievement | null {
       const day = int(r.day, 1, 3650);
       return title && totalDays && day && day <= totalDays ? { type: 'meta', title, day, totalDays } : null;
     }
+    case 'sessao': {
+      const minutes = int(r.minutes, 1, 1440);
+      const goal = normalizeText(r.goal, 80);
+      return minutes ? { type: 'sessao', minutes, ...(goal ? { goal } : {}) } : null;
+    }
+    case 'card': {
+      const title = normalizeText(r.title, 100);
+      const board = normalizeText(r.board, 60);
+      return title ? { type: 'card', title, ...(board ? { board } : {}) } : null;
+    }
+    case 'habito': {
+      const habit = normalizeText(r.habit, 60);
+      return habit ? { type: 'habito', habit } : null;
+    }
+    case 'tarefa': {
+      const title = normalizeText(r.title, 100);
+      return title ? { type: 'tarefa', title } : null;
+    }
     default:
       return null;
   }
@@ -89,6 +111,14 @@ export function achievementHeadline(a: Achievement): string {
       return `${a.done} de ${a.total} tarefas concluídas nesta semana`;
     case 'meta':
       return `Dia ${a.day} de ${a.totalDays} da meta “${a.title}”`;
+    case 'sessao':
+      return `Sessão de foco de ${a.minutes} minutos concluída${a.goal ? `: “${a.goal}”` : ''}`;
+    case 'card':
+      return `Card concluído: “${a.title}”${a.board ? ` (${a.board})` : ''}`;
+    case 'habito':
+      return `Hábito de hoje cumprido: “${a.habit}”`;
+    case 'tarefa':
+      return `Tarefa concluída: “${a.title}”`;
   }
 }
 

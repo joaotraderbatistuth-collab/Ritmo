@@ -23,8 +23,8 @@ export const Route = createFileRoute('/api/teams')({
         try {
           const user = await requireMember(request);
           const q = new URL(request.url).searchParams;
-          if (q.get('discover') !== null) return Response.json(await discoverTeams(user.id, String(q.get('q') || '')));
-          if (q.get('code')) return Response.json({ team: await getTeamPreview(String(q.get('code')), user.id) });
+          if (q.get('discover') !== null) return Response.json(await discoverTeams(user.id, String(q.get('q') || ''), q.get('free') === '1'));
+          if (q.get('code')) return Response.json({ team: await getTeamPreview(String(q.get('code')), user.id, q.get('view') === '1') });
           if (q.get('members')) return Response.json({ members: await listTeamMembers(user.id, Number(q.get('members'))) });
           return Response.json(await listMyTeams(user.id));
         } catch (e) {

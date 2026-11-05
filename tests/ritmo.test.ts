@@ -6,7 +6,7 @@ import { computeAccess, nextRenewalDate } from '../src/lib/access.js';
 import { computeChain, weekStartKey, targetPerWeek } from '../src/lib/chain.js';
 import { DEFAULT_VISIBLE, normalizeVisible, moveCard, moveBefore, hideCard, showCard, hiddenCards, CARD_IDS } from '../src/lib/home-layout.js';
 import { calculateCommissionChain, COMMISSION_TOTAL_PERCENT, COMMISSION_DIRECT_PERCENT, COMMISSION_NETWORK_PERCENT, MAX_COMMISSION_LEVELS, levelPercent } from '../src/lib/commission-plan.js';
-import { PERMISSIONS, ALL_PERMISSION_KEYS, normalizePermissions, serializePermissions, isMasterEmail, isMasterAdmin, effectivePermissions, can, ACTION_PERMISSION, EXPORT_PERMISSION, filterDashboardByPermissions } from '../src/lib/admin-permissions.js';
+import { PERMISSIONS, ALL_PERMISSION_KEYS, normalizePermissions, serializePermissions, isMasterEmail, effectivePermissions, can, ACTION_PERMISSION, EXPORT_PERMISSION, filterDashboardByPermissions } from '../src/lib/admin-permissions.js';
 import { payoutCycle, cycleStatus, describeCountdown, shortDateBR, payoutDatesText } from '../src/lib/payout-schedule.js';
 import { validatePix, formatPix } from '../src/lib/pix.js';
 import { STORY_MODELS, COURSE_LESSONS, courseWordCount } from '../src/lib/affiliate-content.js';
@@ -27,6 +27,15 @@ function assert(condition: boolean, message: string) {
     throw new Error(`Assertion failed: ${message}`);
   }
 }
+
+import { NUDGES, PUSH_HOURS, personalize, pickNudge, slotForHour } from '../src/lib/nudges.js';
+import { parseBRLToCents } from '../src/lib/money.js';
+import { isBundledImage, parseMediaUrl } from '../src/lib/media-url.js';
+import { SEED_RITUS, seedRitusStatements } from '../src/lib/ritus-seed.js';
+import { sanitizeAchievement as sanitizeAchievementT } from '../src/lib/feed-rules.js';
+import { isValidTeamCode as isValidTeamCodeT } from '../src/lib/teams-plan.js';
+
+const addDaysTest = (ymd: string, n: number) => new Date(new Date(`${ymd}T12:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10);
 
 export function runTests() {
   console.log('--- Iniciando Testes do Ritmo ---');
@@ -257,7 +266,7 @@ export function runTests() {
   assert(normalizePermissions('texto quebrado').length === 0 && normalizePermissions(['coupons', 'coupons']).length === 1, 'normalização aguenta lixo e repetição');
   assert(JSON.parse(serializePermissions(['finance', 'x'])).join() === 'finance', 'serializar remove inválidos');
   assert(Object.values(ACTION_PERMISSION).every((p) => p === 'admins_manage' || ALL_PERMISSION_KEYS.includes(p as any)), 'toda ação mapeia para uma permissão existente');
-  assert(ACTION_PERMISSION['create_admin'] === 'admins_manage' && ACTION_PERMISSION['refund_order'] === 'refunds', 'criar admin só master; estorno exige permissão própria');
+  assert(ACTION_PERMISSION['create_admin'] === 'admins_create' && ACTION_PERMISSION['set_admin_permissions'] === 'admins_manage' && ACTION_PERMISSION['refund_order'] === 'refunds', 'cadastrar admin exige permissão própria; alterar admins só master; estorno exige permissão própria');
   assert(Object.values(EXPORT_PERMISSION).every((p) => ALL_PERMISSION_KEYS.includes(p as any)), 'toda planilha mapeia para uma permissão existente');
   assert(PERMISSIONS.length === ALL_PERMISSION_KEYS.length, 'catálogo de permissões consistente');
   const fakeData = { metrics: { a: 1 }, signupsByDay: [], finance: { r: 1 }, payments: [1], users: [1], coupons: [1], affiliates: [1], withdrawals: [1], audit: [1], admins: [1] };
@@ -405,6 +414,26 @@ export function runTests() {
   assert(computeNotices({ ...baseN, now: new Date('2026-11-04T14:00:00Z'), today: '2026-11-04', affiliateBalanceCents: 1000 }).every((n) => n.id !== 'payout'), 'sem saldo mínimo não avisa saque');
   assert(computeNotices({ ...baseN, access: { effectiveStatus: 'trial', daysLeft: 1, hasAccess: true }, transactions: [{ type: 'expense', description: 'x', amountCents: 1, date: '2026-10-20', dueDate: '2026-10-25', status: 'pending' }, { type: 'income', description: 'y', amountCents: 1, date: '2026-10-20', dueDate: '2026-10-29', status: 'pending' }] }).map((n) => n.level).join() === 'urgent,urgent,info', 'avisos ordenados: urgentes primeiro');
   console.log('✓ Todos os testes de avisos passaram com sucesso!');
+
+  console.log('14. Testando lembretes, valores, fotos e Ritus gratuitos...');
+  assert(NUDGES.length >= 60 && new Set(NUDGES.map((n) => n.id)).size === NUDGES.length, 'mais de 60 lembretes, sem id repetido');
+  assert((['manha', 'tarde', 'noite'] as const).every((sl) => NUDGES.filter((n) => n.slot === sl).length >= 20), 'pelo menos 20 lembretes por período');
+  assert(slotForHour(7) === 'manha' && slotForHour(13) === 'tarde' && slotForHour(20) === 'noite' && slotForHour(3) === null, 'períodos do dia (madrugada sem lembrete)');
+  assert(pickNudge('manha', '2026-11-05', 1).id !== pickNudge('manha', '2026-11-06', 1).id, 'lembrete muda de um dia para o outro');
+  const seen = new Set(Array.from({ length: 20 }, (_, d) => pickNudge('tarde', addDaysTest('2026-11-01', d), 42).id));
+  assert(seen.size === 20, '20 dias seguidos sem repetir o lembrete da tarde');
+  assert(personalize('Bom dia, {nome}!', 'João Batista') === 'Bom dia, João!' && personalize('Bom dia, {nome}!', '') === 'Bom dia!', 'personaliza com o primeiro nome');
+  assert(PUSH_HOURS[1].length === 1 && PUSH_HOURS[3].length === 3, 'notificações: 1 a 3 por dia');
+  assert(parseBRLToCents('50') === 5000 && parseBRLToCents('1.234,56') === 123456 && parseBRLToCents('12,5') === 1250 && parseBRLToCents('R$ 30,00') === 3000, 'valores em reais viram centavos');
+  assert(parseBRLToCents('abc') === null && parseBRLToCents('') === null && parseBRLToCents('10,999') === null, 'valor inválido é recusado');
+  assert(parseMediaUrl('/api/media?k=0123456789abcdef0123456789abcdef') === '0123456789abcdef0123456789abcdef' && parseMediaUrl('https://x.com/a.png') === null && parseMediaUrl('/api/media?k=../../etc') === null, 'só aceita foto enviada pelo próprio app');
+  assert(isBundledImage('/ritus/clube-do-livro.svg') && !isBundledImage('/ritus/../x.svg'), 'imagens dos Ritus iniciais');
+  assert(sanitizeAchievementT({ type: 'sessao', minutes: 25, goal: 'Relatório' })?.type === 'sessao' && sanitizeAchievementT({ type: 'card', title: 'Fechar proposta' })?.type === 'card' && sanitizeAchievementT({ type: 'habito', habit: 'Leitura' })?.type === 'habito' && sanitizeAchievementT({ type: 'tarefa', title: 'Ligar pro banco' })?.type === 'tarefa', 'novas conquistas: foco, card, hábito e tarefa');
+  assert(sanitizeAchievementT({ type: 'sessao', minutes: 0 }) === null && sanitizeAchievementT({ type: 'card', title: '' }) === null, 'conquista inválida é recusada');
+  assert(SEED_RITUS.length === 10 && SEED_RITUS[0].code === 'clube-do-livro' && SEED_RITUS[0].posts.length === 11, '10 Ritus gratuitos e Clube do Livro com 10 resenhas + boas-vindas');
+  assert(SEED_RITUS.every((r) => isValidTeamCodeT(r.code) && r.name.length <= 60 && r.description.length <= 600 && r.posts.every((p) => p.body.length <= 2000)), 'Ritus iniciais respeitam os limites do app');
+  assert(seedRitusStatements('a@b.com').at(-1)!.includes('seed_ritus_v1'), 'seed grava o marcador por último');
+  console.log('✓ Todos os testes de lembretes, valores, fotos e Ritus gratuitos passaram com sucesso!');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

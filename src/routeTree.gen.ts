@@ -20,7 +20,9 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTeamsRouteImport } from './routes/api.teams'
 import { Route as ApiTasksRouteImport } from './routes/api.tasks'
+import { Route as ApiPushRouteImport } from './routes/api.push'
 import { Route as ApiMilestonesRouteImport } from './routes/api.milestones'
+import { Route as ApiMediaRouteImport } from './routes/api.media'
 import { Route as ApiJournalRouteImport } from './routes/api.journal'
 import { Route as ApiIntegrationsRouteImport } from './routes/api.integrations'
 import { Route as ApiHabitsRouteImport } from './routes/api.habits'
@@ -34,6 +36,7 @@ import { Route as ApiAuthRouteImport } from './routes/api.auth'
 import { Route as ApiAffiliatesRouteImport } from './routes/api.affiliates'
 import { Route as ApiAdminRouteImport } from './routes/api.admin'
 import { Route as ApiWebhooksMercadopagoRouteImport } from './routes/api.webhooks.mercadopago'
+import { Route as ApiCronNotificacoesRouteImport } from './routes/api.cron.notificacoes'
 import { Route as ApiCronLembretesRouteImport } from './routes/api.cron.lembretes'
 
 const VendasRoute = VendasRouteImport.update({
@@ -91,9 +94,19 @@ const ApiTasksRoute = ApiTasksRouteImport.update({
   path: '/api/tasks',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPushRoute = ApiPushRouteImport.update({
+  id: '/api/push',
+  path: '/api/push',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMilestonesRoute = ApiMilestonesRouteImport.update({
   id: '/api/milestones',
   path: '/api/milestones',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMediaRoute = ApiMediaRouteImport.update({
+  id: '/api/media',
+  path: '/api/media',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiJournalRoute = ApiJournalRouteImport.update({
@@ -161,6 +174,11 @@ const ApiWebhooksMercadopagoRoute = ApiWebhooksMercadopagoRouteImport.update({
   path: '/api/webhooks/mercadopago',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronNotificacoesRoute = ApiCronNotificacoesRouteImport.update({
+  id: '/api/cron/notificacoes',
+  path: '/api/cron/notificacoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronLembretesRoute = ApiCronLembretesRouteImport.update({
   id: '/api/cron/lembretes',
   path: '/api/cron/lembretes',
@@ -189,10 +207,13 @@ export interface FileRoutesByFullPath {
   '/api/habits': typeof ApiHabitsRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/journal': typeof ApiJournalRoute
+  '/api/media': typeof ApiMediaRoute
   '/api/milestones': typeof ApiMilestonesRoute
+  '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
+  '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
 }
 export interface FileRoutesByTo {
@@ -217,10 +238,13 @@ export interface FileRoutesByTo {
   '/api/habits': typeof ApiHabitsRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/journal': typeof ApiJournalRoute
+  '/api/media': typeof ApiMediaRoute
   '/api/milestones': typeof ApiMilestonesRoute
+  '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
+  '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
 }
 export interface FileRoutesById {
@@ -246,10 +270,13 @@ export interface FileRoutesById {
   '/api/habits': typeof ApiHabitsRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/journal': typeof ApiJournalRoute
+  '/api/media': typeof ApiMediaRoute
   '/api/milestones': typeof ApiMilestonesRoute
+  '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
+  '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
 }
 export interface FileRouteTypes {
@@ -276,10 +303,13 @@ export interface FileRouteTypes {
     | '/api/habits'
     | '/api/integrations'
     | '/api/journal'
+    | '/api/media'
     | '/api/milestones'
+    | '/api/push'
     | '/api/tasks'
     | '/api/teams'
     | '/api/cron/lembretes'
+    | '/api/cron/notificacoes'
     | '/api/webhooks/mercadopago'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -304,10 +334,13 @@ export interface FileRouteTypes {
     | '/api/habits'
     | '/api/integrations'
     | '/api/journal'
+    | '/api/media'
     | '/api/milestones'
+    | '/api/push'
     | '/api/tasks'
     | '/api/teams'
     | '/api/cron/lembretes'
+    | '/api/cron/notificacoes'
     | '/api/webhooks/mercadopago'
   id:
     | '__root__'
@@ -332,10 +365,13 @@ export interface FileRouteTypes {
     | '/api/habits'
     | '/api/integrations'
     | '/api/journal'
+    | '/api/media'
     | '/api/milestones'
+    | '/api/push'
     | '/api/tasks'
     | '/api/teams'
     | '/api/cron/lembretes'
+    | '/api/cron/notificacoes'
     | '/api/webhooks/mercadopago'
   fileRoutesById: FileRoutesById
 }
@@ -361,10 +397,13 @@ export interface RootRouteChildren {
   ApiHabitsRoute: typeof ApiHabitsRoute
   ApiIntegrationsRoute: typeof ApiIntegrationsRoute
   ApiJournalRoute: typeof ApiJournalRoute
+  ApiMediaRoute: typeof ApiMediaRoute
   ApiMilestonesRoute: typeof ApiMilestonesRoute
+  ApiPushRoute: typeof ApiPushRoute
   ApiTasksRoute: typeof ApiTasksRoute
   ApiTeamsRoute: typeof ApiTeamsRoute
   ApiCronLembretesRoute: typeof ApiCronLembretesRoute
+  ApiCronNotificacoesRoute: typeof ApiCronNotificacoesRoute
   ApiWebhooksMercadopagoRoute: typeof ApiWebhooksMercadopagoRoute
 }
 
@@ -447,11 +486,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTasksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/push': {
+      id: '/api/push'
+      path: '/api/push'
+      fullPath: '/api/push'
+      preLoaderRoute: typeof ApiPushRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/milestones': {
       id: '/api/milestones'
       path: '/api/milestones'
       fullPath: '/api/milestones'
       preLoaderRoute: typeof ApiMilestonesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/media': {
+      id: '/api/media'
+      path: '/api/media'
+      fullPath: '/api/media'
+      preLoaderRoute: typeof ApiMediaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/journal': {
@@ -545,6 +598,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksMercadopagoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/notificacoes': {
+      id: '/api/cron/notificacoes'
+      path: '/api/cron/notificacoes'
+      fullPath: '/api/cron/notificacoes'
+      preLoaderRoute: typeof ApiCronNotificacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/lembretes': {
       id: '/api/cron/lembretes'
       path: '/api/cron/lembretes'
@@ -577,10 +637,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHabitsRoute: ApiHabitsRoute,
   ApiIntegrationsRoute: ApiIntegrationsRoute,
   ApiJournalRoute: ApiJournalRoute,
+  ApiMediaRoute: ApiMediaRoute,
   ApiMilestonesRoute: ApiMilestonesRoute,
+  ApiPushRoute: ApiPushRoute,
   ApiTasksRoute: ApiTasksRoute,
   ApiTeamsRoute: ApiTeamsRoute,
   ApiCronLembretesRoute: ApiCronLembretesRoute,
+  ApiCronNotificacoesRoute: ApiCronNotificacoesRoute,
   ApiWebhooksMercadopagoRoute: ApiWebhooksMercadopagoRoute,
 }
 export const routeTree = rootRouteImport

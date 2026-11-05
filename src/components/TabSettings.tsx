@@ -7,6 +7,8 @@ import {
   Sun,
   CheckCircle2,
 } from 'lucide-react';
+import { PushToggle } from './PushToggle.js';
+import { InstallAppCard } from './InstallPwaButton.js';
 
 interface TabSettingsProps {
   user: User | null;
@@ -173,6 +175,8 @@ export const TabSettings: React.FC<TabSettingsProps> = ({
 
         {/* Reminders & Notifications Card */}
         <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-6 space-y-4">
+          <PushToggle />
+          <InstallAppCard />
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-[#f0f6fc] flex items-center gap-2">
               <Bell className="w-4 h-4 text-emerald-400" />

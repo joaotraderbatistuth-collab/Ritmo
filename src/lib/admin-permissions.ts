@@ -20,6 +20,7 @@ export const PERMISSIONS = [
   { key: 'exports', label: 'Planilhas', description: 'Baixar planilhas de dados (usuários, vendas, comissões...).' },
   { key: 'moderation', label: 'Moderação do Feed', description: 'Analisar denúncias do Feed, esconder conteúdo, silenciar usuários e suspender Ritus.' },
   { key: 'audit', label: 'Auditoria', description: 'Ver o histórico de tudo o que os administradores fizeram.' },
+  { key: 'admins_create', label: 'Cadastrar administradores', description: 'Adicionar novos e-mails como administrador, só com as permissões que ele mesmo tem.' },
 ] as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[number]['key'];
@@ -108,7 +109,9 @@ export const ACTION_PERMISSION: Record<string, AdminPermission> = {
   moderate_content: 'moderation',
   set_user_muted: 'moderation',
   set_team_active: 'moderation',
-  create_admin: 'admins_manage',
+  create_admin: 'admins_create',
+  cancel_admin_invite: 'admins_create',
+  attach_withdrawal_receipt: 'withdrawals',
   set_admin_permissions: 'admins_manage',
   remove_admin: 'admins_manage',
 };
@@ -142,6 +145,6 @@ export function filterDashboardByPermissions<T extends Record<string, any>>(data
   if (can(perms, 'withdrawals')) out.withdrawals = data.withdrawals;
   if (can(perms, 'audit')) out.audit = data.audit;
   if (can(perms, 'moderation')) out.moderation = data.moderation;
-  if (can(perms, 'admins_manage')) out.admins = data.admins;
+  if (can(perms, 'admins_manage') || can(perms, 'admins_create')) out.admins = data.admins;
   return out;
 }

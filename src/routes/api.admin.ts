@@ -28,7 +28,12 @@ import {
   adminToggleCoupon,
   adminDeleteCoupon,
   adminProcessWithdrawal,
+  adminAttachWithdrawalReceipt,
+  adminInviteAdmin,
+  listAdminInvites,
+  cancelAdminInvite,
 } from '../lib/server-db.js';
+import { parseMediaUrl } from '../lib/media-url.js';
 
 const masterConfigured = () => process.env.MASTER_ADMIN_EMAIL || null;
 const fail = (error: string, status: number) => Response.json({ error }, { status });
@@ -84,6 +89,7 @@ export const Route = createFileRoute('/api/admin')({
           adminUser: { id: user.id, name: user.name, email: user.email, role: user.role, isMaster },
           ...filterDashboardByPermissions(data, permissions),
           ...(can(permissions, 'finance') ? { teamsFinance: await getTeamsFinance() } : {}),
+          ...(can(permissions, 'admins_create') || can(permissions, 'admins_manage') ? { adminInvites: await listAdminInvites() } : {}),
         });
       },
 
@@ -197,12 +203,22 @@ export const Route = createFileRoute('/api/admin')({
             if (!withdrawalId || !['approved', 'paid', 'rejected'].includes(status)) {
               return fail('ID da solicitação e status válido são obrigatórios.', 400);
             }
-            await adminProcessWithdrawal(Number(withdrawalId), status, notes, receiptReference);
-            await logAdminAction(user, `saque_${status}`, { type: 'saque', id: withdrawalId }, { comprovante: receiptReference || undefined });
+            const receiptUrl = body.receiptUrl ? (parseMediaUrl(body.receiptUrl) ? String(body.receiptUrl) : null) : undefined;
+            if (receiptUrl === null) return fail('Comprovante inválido. Envie o arquivo de novo.', 400);
+            await adminProcessWithdrawal(Number(withdrawalId), status, notes, receiptReference, receiptUrl);
+            await logAdminAction(user, `saque_${status}`, { type: 'saque', id: withdrawalId }, { comprovante: receiptReference || undefined, arquivo: receiptUrl ? 'anexado' : undefined });
             return Response.json({
               success: true,
               message: `Saque ${status === 'paid' ? 'marcado como pago' : status === 'approved' ? 'aprovado' : 'recusado'}.`,
             });
+          }
+
+          if (action === 'attach_withdrawal_receipt') {
+            const receiptUrl = parseMediaUrl(body.receiptUrl) ? String(body.receiptUrl) : null;
+            if (!body.withdrawalId || !receiptUrl) return fail('Envie o comprovante (foto ou PDF).', 400);
+            await adminAttachWithdrawalReceipt(Number(body.withdrawalId), receiptUrl);
+            await logAdminAction(user, 'saque_comprovante', { type: 'saque', id: body.withdrawalId });
+            return Response.json({ success: true, message: 'Comprovante anexado. O afiliado já consegue ver.' });
           }
 
           // 6. Estorno de pedido
@@ -241,18 +257,25 @@ export const Route = createFileRoute('/api/admin')({
             return Response.json({ success: true, message: body.active ? 'Ritus reativado.' : 'Ritus suspenso.' });
           }
 
-          // 8. Administradores (somente master)
+          // 8. Administradores: cadastrar exige "Cadastrar administradores"; alterar/remover só o master
           if (action === 'create_admin') {
-            const { name, email, password, permissions: perms } = body;
-            if (!email || !EMAIL_RE.test(email)) return fail('Informe um e-mail válido.', 400);
-            if (!name || String(name).trim().length < 2) return fail('Informe o nome do administrador.', 400);
-            const existing = await findUserByEmail(email);
-            if (!existing && (!password || String(password).length < 8)) {
-              return fail('A senha provisória deve ter ao menos 8 caracteres.', 400);
+            const { name, email, password } = body;
+            if (!email || !EMAIL_RE.test(String(email).trim())) return fail('Informe um e-mail válido.', 400);
+            // ninguém dá permissão que não tem (só o master pode dar tudo)
+            const requested: string[] = Array.isArray(body.permissions) ? body.permissions : [];
+            const perms = isMaster ? requested : requested.filter((p) => permissions.includes(p as any));
+            const existing = await findUserByEmail(String(email).trim());
+            if (!existing && !password) {
+              // sem conta e sem senha: fica como convite; vira admin quando a pessoa se cadastrar com este e-mail
+              await adminInviteAdmin(String(email), perms, user.email);
+              await logAdminAction(user, 'convidar_admin', { type: 'convite', id: String(email).toLowerCase() }, { permissoes: perms });
+              return Response.json({ success: true, message: 'E-mail cadastrado como administrador. Assim que a pessoa criar a conta no Ritmo com este e-mail, ela já entra como administradora.' });
             }
+            if (!existing && String(password).length < 8) return fail('A senha provisória deve ter ao menos 8 caracteres (ou deixe em branco para a pessoa criar a própria).', 400);
+            if (!existing && (!name || String(name).trim().length < 2)) return fail('Informe o nome do administrador.', 400);
             const r = await adminCreateAdmin({
-              name: String(name),
-              email,
+              name: String(name || existing?.name || ''),
+              email: String(email).trim(),
               passwordHash: existing ? existing.passwordHash : await hashPassword(String(password)),
               permissions: perms,
             });
@@ -261,6 +284,11 @@ export const Route = createFileRoute('/api/admin')({
               success: true,
               message: r.promoted ? 'Conta existente promovida a administrador.' : 'Administrador criado. Envie a senha provisória a ele por um canal seguro.',
             });
+          }
+          if (action === 'cancel_admin_invite') {
+            await cancelAdminInvite(String(body.email || ''));
+            await logAdminAction(user, 'cancelar_convite_admin', { type: 'convite', id: String(body.email || '').toLowerCase() });
+            return Response.json({ success: true, message: 'Convite cancelado.' });
           }
           if (action === 'set_admin_permissions') {
             await adminSetAdminPermissions(Number(body.targetUserId), body.permissions, masterConfigured());

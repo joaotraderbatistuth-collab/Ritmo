@@ -25,7 +25,7 @@ import { generateRoadmap } from './roadmap.js';
 import { validatePix } from './pix.js';
 import { runSchemaSync } from './schema-sync.js';
 import { invalidateSessionCache } from './session-cache.js';
-import { effectivePermissions, isMasterAdmin, isMasterEmail, serializePermissions } from './admin-permissions.js';
+import { effectivePermissions, isMasterAdmin, isMasterEmail, normalizePermissions, serializePermissions } from './admin-permissions.js';
 import {
   COMMISSION_DIRECT_PERCENT,
   COMMISSION_TOTAL_PERCENT,
@@ -2226,9 +2226,7 @@ export async function requestAffiliateWithdrawal(userId: number, amountCents: nu
   if (affData.stats.availableBalanceCents < amountCents) {
     return {
       success: false,
-      error: `Saldo insuficiente. Saldo disponível para saque: R$ ${(
-        affData.stats.availableBalanceCents / 100
-      ).toFixed(2).replace('.', ',')}.`,
+      error: `O valor de ${brl(amountCents)} ultrapassou o seu saldo liberado de ${brl(affData.stats.availableBalanceCents)}. Você só pode sacar até esse valor.`,
     };
   }
 
@@ -2770,6 +2768,43 @@ export async function adminCreateAdmin(data: { name: string; email: string; pass
   return { user: updated, promoted: false };
 }
 
+/* ---- Convites de administrador: e-mail que ainda não tem conta vira admin assim que se cadastrar ---- */
+
+export async function adminInviteAdmin(email: string, permissions: unknown, invitedBy: string) {
+  if (!(await checkDb())) throw new Error('Convite de administrador precisa do banco de dados configurado.');
+  const clean = email.trim().toLowerCase();
+  await db
+    .insert(schema.adminInvites)
+    .values({ email: clean, permissions: serializePermissions(permissions), invitedBy })
+    .onConflictDoUpdate({ target: schema.adminInvites.email, set: { permissions: serializePermissions(permissions), invitedBy, createdAt: new Date() } });
+}
+
+export async function listAdminInvites() {
+  if (!(await checkDb())) return [];
+  try {
+    const rows = await db.select().from(schema.adminInvites).orderBy(desc(schema.adminInvites.id));
+    return rows.map((r) => ({ email: r.email, permissions: normalizePermissions(r.permissions), invitedBy: r.invitedBy, createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt }));
+  } catch {
+    return [];
+  }
+}
+
+export async function cancelAdminInvite(email: string) {
+  if (!(await checkDb())) return;
+  await db.delete(schema.adminInvites).where(eq(schema.adminInvites.email, email.trim().toLowerCase()));
+}
+
+/** Se o e-mail tem convite pendente, devolve as permissões e apaga o convite. */
+export async function consumeAdminInvite(email: string): Promise<string | null> {
+  if (!(await checkDb())) return null;
+  try {
+    const [row] = await db.delete(schema.adminInvites).where(eq(schema.adminInvites.email, email.trim().toLowerCase())).returning();
+    return row ? row.permissions || '[]' : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function adminSetAdminPermissions(userId: number, permissions: unknown, masterConfigured?: string | null) {
   const user = await findUserById(userId);
   if (!user || user.role !== 'admin') throw new Error('Administrador não encontrado.');
@@ -2865,23 +2900,28 @@ export async function adminProcessWithdrawal(
   withdrawalId: number,
   status: 'approved' | 'paid' | 'rejected',
   notes?: string,
-  receiptReference?: string
+  receiptReference?: string,
+  receiptUrl?: string
 ) {
   const isDb = await checkDb();
   const processedAt = new Date();
 
   if (isDb) {
-    try {
-      await db
-        .update(schema.affiliateWithdrawals)
-        .set({
-          status,
-          notes: notes || undefined,
-          receiptReference: receiptReference || undefined,
-          processedAt,
-        })
-        .where(eq(schema.affiliateWithdrawals.id, withdrawalId));
-    } catch {}
+    const [current] = await db.select().from(schema.affiliateWithdrawals).where(eq(schema.affiliateWithdrawals.id, withdrawalId));
+    if (!current) throw new Error('Solicitação de saque não encontrada.');
+    if (current.status === 'paid' && status !== 'paid') throw new Error('Este saque já foi pago e não pode mudar de situação.');
+    if (current.status === 'rejected') throw new Error('Este saque já foi recusado.');
+    await db
+      .update(schema.affiliateWithdrawals)
+      .set({
+        status,
+        notes: notes || undefined,
+        receiptReference: receiptReference || undefined,
+        receiptUrl: receiptUrl || undefined,
+        processedAt,
+      })
+      .where(eq(schema.affiliateWithdrawals.id, withdrawalId));
+    return true;
   }
 
   const w = memStore.affiliateWithdrawals.find((x) => x.id === withdrawalId);
@@ -2894,6 +2934,14 @@ export async function adminProcessWithdrawal(
   return true;
 }
 
+
+/** Anexa (ou troca) o comprovante do Pix de um saque já pago. */
+export async function adminAttachWithdrawalReceipt(withdrawalId: number, receiptUrl: string) {
+  if (!(await checkDb())) throw new Error('Comprovante precisa do banco de dados configurado.');
+  const [current] = await db.select().from(schema.affiliateWithdrawals).where(eq(schema.affiliateWithdrawals.id, withdrawalId));
+  if (!current) throw new Error('Solicitação de saque não encontrada.');
+  await db.update(schema.affiliateWithdrawals).set({ receiptUrl }).where(eq(schema.affiliateWithdrawals.id, withdrawalId));
+}
 
 // ===============================================================
 // KANBAN BOARDS ("Quadros") — CRUD completo com isolamento por usuário
@@ -3117,7 +3165,6 @@ export async function deleteBoard(boardId: number, userId: number): Promise<bool
       // fallback
     }
   }
-  const listIds = memStore.boardLists.filter((l) => l.boardId === boardId && l.userId === userId).map((l) => l.id);
   const cardIds = memStore.boardCards.filter((c) => c.boardId === boardId && c.userId === userId).map((c) => c.id);
   memStore.boardCardComments = memStore.boardCardComments.filter((c) => !cardIds.includes(c.cardId));
   memStore.boardChecklistItems = memStore.boardChecklistItems.filter((i) => !cardIds.includes(i.cardId));
@@ -3229,7 +3276,8 @@ export async function updateList(
   return mapList(l);
 }
 
-export async function reorderLists(boardId: number, userId: number, orderedListIds: number[]): Promise<boolean> {
+export async function reorderLists(_boardId: number, userId: number, orderedListIds: number[]): Promise<boolean> {
+  // a dona de cada lista é conferida em updateList (userId); o boardId só identifica o quadro na chamada
   for (let i = 0; i < orderedListIds.length; i++) {
     await updateList(orderedListIds[i], userId, { position: i });
   }
