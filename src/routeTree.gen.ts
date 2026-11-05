@@ -19,6 +19,7 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiXpRouteImport } from './routes/api.xp'
+import { Route as ApiWorkoutsRouteImport } from './routes/api.workouts'
 import { Route as ApiTeamsRouteImport } from './routes/api.teams'
 import { Route as ApiTasksRouteImport } from './routes/api.tasks'
 import { Route as ApiPushRouteImport } from './routes/api.push'
@@ -89,6 +90,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiXpRoute = ApiXpRouteImport.update({
   id: '/api/xp',
   path: '/api/xp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWorkoutsRoute = ApiWorkoutsRouteImport.update({
+  id: '/api/workouts',
+  path: '/api/workouts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTeamsRoute = ApiTeamsRouteImport.update({
@@ -225,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
+  '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
@@ -258,6 +265,7 @@ export interface FileRoutesByTo {
   '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
+  '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
@@ -292,6 +300,7 @@ export interface FileRoutesById {
   '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
+  '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
@@ -327,6 +336,7 @@ export interface FileRouteTypes {
     | '/api/push'
     | '/api/tasks'
     | '/api/teams'
+    | '/api/workouts'
     | '/api/xp'
     | '/api/cron/lembretes'
     | '/api/cron/notificacoes'
@@ -360,6 +370,7 @@ export interface FileRouteTypes {
     | '/api/push'
     | '/api/tasks'
     | '/api/teams'
+    | '/api/workouts'
     | '/api/xp'
     | '/api/cron/lembretes'
     | '/api/cron/notificacoes'
@@ -393,6 +404,7 @@ export interface FileRouteTypes {
     | '/api/push'
     | '/api/tasks'
     | '/api/teams'
+    | '/api/workouts'
     | '/api/xp'
     | '/api/cron/lembretes'
     | '/api/cron/notificacoes'
@@ -427,6 +439,7 @@ export interface RootRouteChildren {
   ApiPushRoute: typeof ApiPushRoute
   ApiTasksRoute: typeof ApiTasksRoute
   ApiTeamsRoute: typeof ApiTeamsRoute
+  ApiWorkoutsRoute: typeof ApiWorkoutsRoute
   ApiXpRoute: typeof ApiXpRoute
   ApiCronLembretesRoute: typeof ApiCronLembretesRoute
   ApiCronNotificacoesRoute: typeof ApiCronNotificacoesRoute
@@ -503,6 +516,13 @@ declare module '@tanstack/react-router' {
       path: '/api/xp'
       fullPath: '/api/xp'
       preLoaderRoute: typeof ApiXpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workouts': {
+      id: '/api/workouts'
+      path: '/api/workouts'
+      fullPath: '/api/workouts'
+      preLoaderRoute: typeof ApiWorkoutsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/teams': {
@@ -683,6 +703,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPushRoute: ApiPushRoute,
   ApiTasksRoute: ApiTasksRoute,
   ApiTeamsRoute: ApiTeamsRoute,
+  ApiWorkoutsRoute: ApiWorkoutsRoute,
   ApiXpRoute: ApiXpRoute,
   ApiCronLembretesRoute: ApiCronLembretesRoute,
   ApiCronNotificacoesRoute: ApiCronNotificacoesRoute,

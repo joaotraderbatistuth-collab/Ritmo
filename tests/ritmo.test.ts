@@ -28,6 +28,7 @@ function assert(condition: boolean, message: string) {
   }
 }
 
+import { haversine, classifyPoint, trackStats, currentPace, formatDuration, formatPace, formatKm, encodePolyline, decodePolyline, simplify, simplifyTo, trimRoute, validateWorkout, autoTitle, totals as workoutTotals, SPORTS } from '../src/lib/workout.js';
 import { computeXp, levelInfo, LEVELS, XP_RULES, XP_DAILY_MAX, frameForLevel, MAX_LEVEL } from '../src/lib/levels.js';
 import { NUDGES, PUSH_HOURS, personalize, pickNudge, slotForHour } from '../src/lib/nudges.js';
 import { parseBRLToCents } from '../src/lib/money.js';
@@ -458,6 +459,75 @@ export function runTests() {
   assert(sanitizeAchievementT({ type: 'nivel', level: 1 }) === null && sanitizeAchievementT({ type: 'nivel', level: 99 }) === null, 'nível inválido para compartilhar é recusado');
   assert(achievementHeadline({ type: 'nivel', level: 5, name: 'Focado' }) === 'Subiu para o nível 5: Focado', 'texto da conquista de nível');
   console.log('✓ Todos os testes de pontos, níveis e molduras passaram com sucesso!');
+
+  console.log('16. Testando treinos com GPS...');
+  // 1 grau de latitude ≈ 111,2 km
+  const d1 = haversine({ lat: 0, lng: 0 }, { lat: 1, lng: 0 });
+  assert(Math.abs(d1 - 111195) < 100, 'haversine: 1 grau de latitude');
+  // linha reta para o norte, 1 ponto a cada 10 m e 3 s (≈ 5:00 /km)
+  const step = 10 / 111195;
+  const line = (n: number, t0 = 0, lat0 = -22.47) => Array.from({ length: n }, (_, i) => ({ lat: lat0 + i * step, lng: -44.6, t: t0 + i * 3000, alt: 400 + (i % 50 < 25 ? i % 50 : 50 - (i % 50)), acc: 5 }));
+  const run = line(501); // 5.000 m em 1.500 s
+  const st = trackStats([run]);
+  assert(Math.abs(st.distanceM - 5000) <= 5 && st.movingS === 1500, 'distância e tempo de 5 km');
+  assert(st.splits.length === 5 && st.splits.every((sp) => Math.abs(sp.seconds - 300) <= 1 && sp.meters === 1000), '5 parciais de 5:00');
+  assert(st.elevationGainM !== null && st.elevationGainM > 0, 'subida acumulada calculada');
+  const paused = trackStats([line(101), line(101, 10_000_000, -22.47 + 200 * step)]);
+  assert(Math.abs(paused.distanceM - 2000) <= 5 && paused.movingS === 600, 'pausa não soma distância nem tempo');
+  assert(Math.abs((currentPace(run) || 0) - 300) < 2, 'ritmo atual nos últimos 200 m');
+  assert(trackStats([line(31)]).splits.length === 1 && trackStats([line(31)]).splits[0].meters === 300, 'parcial final parcial');
+  assert(trackStats([line(3)]).splits.length === 0, 'menos de 50 m não vira parcial');
+  // filtro do GPS
+  const p0 = { lat: -22.47, lng: -44.6, t: 0, acc: 5 };
+  assert(classifyPoint(null, p0, 'corrida') === 'add', 'primeiro ponto entra');
+  assert(classifyPoint(p0, { ...p0, lat: p0.lat + step, t: 3000, acc: 80 }, 'corrida') === 'skip', 'ponto impreciso é ignorado');
+  assert(classifyPoint(p0, { ...p0, lat: p0.lat + step * 0.1, t: 3000 }, 'corrida') === 'still', 'tremida parada não soma');
+  assert(classifyPoint(p0, { ...p0, lat: p0.lat + step * 100, t: 3000 }, 'corrida') === 'skip', 'pulo de 1 km em 3 s é erro do GPS');
+  assert(classifyPoint(p0, { ...p0, lat: p0.lat + step * 5, t: 3000 }, 'bike') === 'add', 'pedal rápido é aceito');
+  // formatos
+  assert(formatDuration(0) === '0:00' && formatDuration(65) === '1:05' && formatDuration(3725) === '1:02:05', 'cronômetro');
+  assert(formatPace(332) === '5:32' && formatPace(null) === '--:--' && formatPace(0) === '--:--', 'ritmo min/km');
+  assert(formatKm(5234) === '5,23' && formatKm(-1) === '0,00', 'km com vírgula');
+  // polyline (exemplo oficial do Google)
+  assert(encodePolyline([{ lat: 38.5, lng: -120.2 }, { lat: 40.7, lng: -120.95 }, { lat: 43.252, lng: -126.453 }]) === '_p~iF~ps|U_ulLnnqC_mqNvxq`@', 'polyline codifica');
+  const back = decodePolyline('_p~iF~ps|U_ulLnnqC_mqNvxq`@');
+  assert(back.length === 3 && Math.abs(back[2].lng + 126.453) < 1e-6, 'polyline decodifica');
+  assert(decodePolyline('').length === 0 && decodePolyline('~~~~').length === 0, 'polyline quebrada não trava');
+  // simplificar e privacidade
+  assert(simplify(run, 2).length === 2, 'reta vira 2 pontos');
+  const zig = Array.from({ length: 1000 }, (_, i) => ({ lat: -22.47 + i * step, lng: -44.6 + (i % 2) * step * 3 }));
+  assert(simplifyTo(zig, 100).length <= 100, 'simplifica até o limite');
+  const trimmed = trimRoute(run, 200);
+  assert(trimmed.length > 0 && haversine(run[0], trimmed[0]) >= 199 && haversine(run[run.length - 1], trimmed[trimmed.length - 1]) >= 199, 'esconde 200 m do começo e do fim');
+  assert(trimRoute(line(30), 200).length === 0, 'rota curta não é mostrada');
+  // rota com poucos pontos (só as esquinas): o corte acontece no meio do trecho, não pula a esquina
+  const corners = [{ lat: -22.47, lng: -44.6 }, { lat: -22.47 + 600 * step, lng: -44.6 }, { lat: -22.47 + 600 * step, lng: -44.6 + 600 * step }];
+  const tc = trimRoute(corners, 200);
+  assert(tc.length === 3 && Math.abs(haversine(corners[0], tc[0]) - 200) < 1 && Math.abs(haversine(corners[2], tc[2]) - 200) < 2, 'corte exato em 200 m mantendo a esquina');
+  // validação do servidor
+  const nowW = new Date('2026-11-05T15:00:00Z');
+  const ok = validateWorkout({ sport: 'corrida', title: ' Corrida ', startedAt: '2026-11-05T10:00:00Z', movingS: 1500, elapsedS: 1600, distanceM: 5000, route: encodePolyline(run), splits: st.splits }, nowW);
+  assert(ok.ok && ok.value.title === 'Corrida' && ok.value.splits.length === 5 && ok.value.source === 'gps', 'treino válido');
+  assert(!validateWorkout({ sport: 'corrida', startedAt: '2026-11-05T10:00:00Z', movingS: 600, distanceM: 20000 }, nowW).ok, 'corrida a 120 km/h é recusada');
+  assert(validateWorkout({ sport: 'bike', startedAt: '2026-11-05T10:00:00Z', movingS: 3600, distanceM: 30000 }, nowW).ok, 'pedal de 30 km/h é aceito');
+  assert(!validateWorkout({ sport: 'natacao', startedAt: '2026-11-05T10:00:00Z', movingS: 600, distanceM: 1000 }, nowW).ok, 'modalidade desconhecida');
+  assert(!validateWorkout({ sport: 'corrida', startedAt: '2026-11-05T10:00:00Z', movingS: 30, distanceM: 50 }, nowW).ok, 'treino de menos de 1 minuto');
+  assert(!validateWorkout({ sport: 'corrida', startedAt: '2027-01-01T10:00:00Z', movingS: 600, distanceM: 1000 }, nowW).ok, 'treino no futuro');
+  assert(!validateWorkout({ sport: 'corrida', startedAt: '2026-11-05T10:00:00Z', movingS: 600, distanceM: 1000, route: '<script>' }, nowW).ok, 'rota com caracteres inválidos');
+  const man = validateWorkout({ sport: 'caminhada', startedAt: '2026-11-05T10:00:00Z', movingS: 1800, distanceM: 2500, route: 'abc', source: 'manual' }, nowW);
+  assert(man.ok && man.value.route === '' && man.value.title.startsWith('Caminhada'), 'treino sem GPS não guarda rota e ganha título');
+  assert(autoTitle('bike', new Date(2026, 10, 5, 7)) === 'Pedal da manhã' && autoTitle('corrida', new Date(2026, 10, 5, 20)) === 'Corrida da noite', 'título automático');
+  assert(workoutTotals([{ distanceM: 1000, movingS: 300 }, { distanceM: 2000, movingS: 600 }]).distanceM === 3000, 'total da semana');
+  assert(SPORTS.bike.usesPace === false && SPORTS.corrida.usesPace === true, 'pedal mostra km/h');
+  // conquista no Feed e pontos
+  const tr = sanitizeAchievementT({ type: 'treino', sport: 'corrida', distanceM: 5234, durationS: 1692, route: encodePolyline(simplifyTo(run, 50)) });
+  assert(tr?.type === 'treino' && Boolean((tr as any).route), 'treino compartilhável no Feed');
+  assert(achievementHeadline(tr!) === 'Corrida: 5,23 km em 28:12 (5:23 /km)', 'texto do treino no Feed');
+  assert((sanitizeAchievementT({ type: 'treino', sport: 'corrida', distanceM: 1000, durationS: 600, route: 'x'.repeat(5000) }) as any)?.route === undefined, 'rota grande demais fica de fora');
+  assert(sanitizeAchievementT({ type: 'treino', sport: 'voo', distanceM: 1000, durationS: 600 }) === null, 'modalidade inválida no Feed');
+  const xpW = computeXp({ ...emptyXp, workouts: [{ date: '2026-11-05' }, { date: '2026-11-05' }, { date: '2026-11-05' }] });
+  assert(xpW.breakdown.treino.count === 2 && xpW.total === 40, 'treino vale 20 pontos, até 2 por dia');
+  console.log('✓ Todos os testes de treinos passaram com sucesso!');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

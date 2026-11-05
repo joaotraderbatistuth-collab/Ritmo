@@ -185,6 +185,25 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   // ---- bio do perfil público
   `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text`,
 
+  // ---- treinos com GPS (aba Treino)
+  `CREATE TABLE IF NOT EXISTS "workouts" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "sport" text NOT NULL,
+    "title" text NOT NULL,
+    "notes" text DEFAULT '' NOT NULL,
+    "started_at" timestamp NOT NULL,
+    "moving_s" integer NOT NULL,
+    "elapsed_s" integer NOT NULL,
+    "distance_m" integer NOT NULL,
+    "elevation_gain_m" integer,
+    "route" text DEFAULT '' NOT NULL,
+    "splits" text DEFAULT '[]' NOT NULL,
+    "source" text DEFAULT 'gps' NOT NULL,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "workouts_user_started_idx" ON "workouts" ("user_id","started_at")`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

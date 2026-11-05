@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame, Trophy } from 'lucide-react';
+import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame, Trophy, Activity } from 'lucide-react';
+import { RouteSvg } from './RouteSvg.js';
+import { SPORTS, formatDuration, formatKm, formatPace, paceSPerKm, speedKmh } from '../lib/workout.js';
 import { LevelAvatar } from './LevelAvatar.js';
 import { frameForLevel, levelInfo } from '../lib/levels.js';
 import { openProfile } from '../lib/share-feed.js';
@@ -31,7 +33,7 @@ export interface FeedPostData {
   canDelete: boolean;
 }
 
-const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2, nivel: Trophy };
+const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2, nivel: Trophy, treino: Activity };
 
 /* ------------------------------------------------------------------ */
 /* Foto: escolher, enviar e mostrar                                    */
@@ -79,7 +81,30 @@ export const PostImage: React.FC<{ src: string; small?: boolean }> = ({ src, sma
   );
 };
 
+/** Treino no Feed: rota desenhada + distância, tempo e ritmo. */
+const WorkoutAchievement: React.FC<{ a: Extract<Achievement, { type: 'treino' }> }> = ({ a }) => {
+  const sp = SPORTS[a.sport];
+  const rate = sp.usesPace ? { label: 'Ritmo', value: formatPace(paceSPerKm(a.distanceM, a.durationS)), unit: '/km' } : { label: 'Velocidade', value: speedKmh(a.distanceM, a.durationS).toFixed(1).replace('.', ','), unit: 'km/h' };
+  const cells: [string, string, string?][] = [['Distância', formatKm(a.distanceM), 'km'], ['Tempo', formatDuration(a.durationS)], [rate.label, rate.value, rate.unit]];
+  if (a.elevationGainM) cells.push(['Subida', String(a.elevationGainM), 'm']);
+  return (
+    <div className="mt-3 rounded-xl border border-emerald-500/40 bg-[#0d1117] overflow-hidden">
+      <div className="px-4 pt-3 text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1"><Activity className="w-3.5 h-3.5" /> {sp.label}</div>
+      <div className={`px-4 py-3 grid gap-2 ${cells.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        {cells.map(([label, value, unit]) => (
+          <div key={label}>
+            <div className="text-[11px] text-[#8b949e]">{label}</div>
+            <div className="text-lg font-extrabold text-[#f0f6fc] tabular-nums leading-tight">{value}{unit && <span className="text-xs font-semibold text-[#8b949e] ml-0.5">{unit}</span>}</div>
+          </div>
+        ))}
+      </div>
+      {a.route && <RouteSvg route={a.route} className="w-full h-48 border-t border-[#21262d]" />}
+    </div>
+  );
+};
+
 export const AchievementCard: React.FC<{ a: Achievement }> = ({ a }) => {
+  if (a.type === 'treino') return <WorkoutAchievement a={a} />;
   const Icon = ICONS[a.type];
   return (
     <div className="mt-3 flex items-center gap-3 rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 to-teal-500/5 p-4">

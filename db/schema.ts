@@ -480,3 +480,21 @@ export const appSettings = pgTable("app_settings", {
   value: text("value").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Treinos com GPS (corrida, caminhada, pedal, trilha) ou lançados à mão.
+export const workouts = pgTable("workouts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sport: text("sport").notNull(), // corrida, caminhada, bike, trilha
+  title: text("title").notNull(),
+  notes: text("notes").notNull().default(""),
+  startedAt: timestamp("started_at").notNull(),
+  movingS: integer("moving_s").notNull(), // tempo em movimento (sem as pausas)
+  elapsedS: integer("elapsed_s").notNull(), // tempo total do início ao fim
+  distanceM: integer("distance_m").notNull(),
+  elevationGainM: integer("elevation_gain_m"),
+  route: text("route").notNull().default(""), // rota completa (polyline do Google, 5 casas)
+  splits: text("splits").notNull().default("[]"), // JSON: parciais por km
+  source: text("source").notNull().default("gps"), // gps | manual
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

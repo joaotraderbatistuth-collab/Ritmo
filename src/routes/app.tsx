@@ -55,12 +55,14 @@ import {
   Lightbulb,
   ListChecks,
   Users as UsersIcon,
+  Activity,
 } from 'lucide-react';
 
 import { localDateStr } from '../lib/chain.js';
 import { ScrollableNav } from '../components/ScrollableNav.js';
 import { LevelCard, LevelUpModal, XpToast, useXp } from '../components/LevelUp.js';
 import { ProfilePhotoCard } from '../components/ProfilePhotoCard.js';
+import { TabWorkout, WorkoutLiveBar } from '../components/TabWorkout.js';
 import { initials as initialsOf } from '../lib/feed-rules.js';
 
 export const Route = createFileRoute('/app')({
@@ -523,6 +525,7 @@ function RitmoApp() {
     { id: 'rotina', label: 'Rotina & Tarefas', icon: <Calendar className="w-4 h-4" /> },
     { id: 'quadros', label: 'Quadros', icon: <LayoutGrid className="w-4 h-4" /> },
     { id: 'habitos', label: 'Hábitos & Saúde', icon: <Sparkles className="w-4 h-4" /> },
+    { id: 'treino', label: 'Treino', icon: <Activity className="w-4 h-4" /> },
     { id: 'foco', label: 'Sessões de Foco', icon: <Clock className="w-4 h-4" /> },
     { id: 'diario', label: 'Diário & Revisões', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'financas', label: 'Finanças Pessoais', icon: <DollarSign className="w-4 h-4" /> },
@@ -654,6 +657,8 @@ function RitmoApp() {
             />
           )}
 
+          {activeTab === 'treino' && <TabWorkout onSaved={() => xp.refresh()} />}
+
           {activeTab === 'foco' && (
             <TabFocus
               sessions={sessions}
@@ -765,6 +770,14 @@ function RitmoApp() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       />
+      {activeTab !== 'treino' && (
+        <WorkoutLiveBar
+          onOpen={() => {
+            setActiveTab('treino');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+      )}
       <XpToast gain={xp.gain} />
       <LevelUpModal info={xp.levelUp} initials={userInitials} avatarUrl={xp.data?.avatarUrl} onClose={xp.closeLevelUp} />
 

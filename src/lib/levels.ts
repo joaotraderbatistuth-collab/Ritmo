@@ -6,12 +6,13 @@
 // Cada tipo de ação tem um LIMITE POR DIA. Isso segue a proposta do Ritmo (constância sem
 // extremismos): fazer 40 tarefas num dia não vale mais do que manter o ritmo vários dias seguidos.
 
-export type XpSource = 'habito' | 'tarefa' | 'foco' | 'diario' | 'revisao' | 'financas' | 'post' | 'comentario';
+export type XpSource = 'habito' | 'tarefa' | 'foco' | 'treino' | 'diario' | 'revisao' | 'financas' | 'post' | 'comentario';
 
 export const XP_RULES: Record<XpSource, { xp: number; dailyCap: number; label: string }> = {
   habito: { xp: 10, dailyCap: 6, label: 'Hábito marcado' },
   tarefa: { xp: 5, dailyCap: 10, label: 'Tarefa concluída' },
   foco: { xp: 15, dailyCap: 6, label: 'Sessão de foco concluída' },
+  treino: { xp: 20, dailyCap: 2, label: 'Treino registrado' },
   diario: { xp: 15, dailyCap: 1, label: 'Check-in no diário' },
   revisao: { xp: 30, dailyCap: 1, label: 'Revisão semanal' },
   financas: { xp: 3, dailyCap: 5, label: 'Lançamento nas finanças' },
@@ -123,6 +124,8 @@ export interface XpInput {
   sessions: { date: string; status: string }[];
   journal: { date: string; entryType: string }[];
   transactions: { date: string; createdAt?: string | null }[];
+  /** Dia (YYYY-MM-DD) de cada treino. */
+  workouts?: { date: string }[];
   posts: { createdAt: string }[];
   comments: { createdAt: string }[];
   /** Data de criação da conta (YYYY-MM-DD). Nada antes dela conta, para não "inventar" passado. */
@@ -160,6 +163,7 @@ export function computeXp(input: XpInput): XpResult {
   for (const s of input.sessions) if (s.status === 'completed') add('foco', s.date);
   for (const j of input.journal) add(j.entryType === 'weekly_review' ? 'revisao' : 'diario', j.date);
   for (const tx of input.transactions) add('financas', tx.createdAt || tx.date);
+  for (const w of input.workouts || []) add('treino', w.date);
   for (const p of input.posts) add('post', p.createdAt);
   for (const c of input.comments) add('comentario', c.createdAt);
 

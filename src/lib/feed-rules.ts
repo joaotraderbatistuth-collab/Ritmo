@@ -1,5 +1,9 @@
 // Regras PURAS do Feed (texto, conquistas, limites e datas), testadas em tests/.
 import { levelDef, MAX_LEVEL } from './levels.js';
+import { POLYLINE_RE, SPORTS, formatDuration, formatKm, formatPace, isSport, paceSPerKm, speedKmh, type SportId } from './workout.js';
+
+/** Tamanho máximo da rota (já simplificada) que vai junto com o treino no Feed. */
+export const FEED_ROUTE_MAX = 4000;
 
 export const FEED_LIMITS = {
   postMax: 2000,
@@ -49,7 +53,8 @@ export type Achievement =
   | { type: 'card'; title: string; board?: string }
   | { type: 'habito'; habit: string }
   | { type: 'tarefa'; title: string }
-  | { type: 'nivel'; level: number; name: string };
+  | { type: 'nivel'; level: number; name: string }
+  | { type: 'treino'; sport: SportId; distanceM: number; durationS: number; elevationGainM?: number; route?: string };
 
 const int = (v: unknown, min: number, max: number): number | null => {
   const n = Number(v);
@@ -99,6 +104,15 @@ export function sanitizeAchievement(raw: unknown): Achievement | null {
       const title = normalizeText(r.title, 100);
       return title ? { type: 'tarefa', title } : null;
     }
+    case 'treino': {
+      if (!isSport(r.sport)) return null;
+      const distanceM = int(r.distanceM, 0, 500000);
+      const durationS = int(r.durationS, 60, 86400);
+      if (distanceM === null || !durationS) return null;
+      const elev = int(r.elevationGainM, 0, 20000);
+      const route = typeof r.route === 'string' && r.route.length <= FEED_ROUTE_MAX && POLYLINE_RE.test(r.route) ? r.route : '';
+      return { type: 'treino', sport: r.sport, distanceM, durationS, ...(elev ? { elevationGainM: elev } : {}), ...(route ? { route } : {}) };
+    }
     case 'nivel': {
       // o nome vem sempre da tabela de níveis, nunca do navegador
       const level = int(r.level, 2, MAX_LEVEL);
@@ -129,6 +143,11 @@ export function achievementHeadline(a: Achievement): string {
       return `Tarefa concluída: “${a.title}”`;
     case 'nivel':
       return `Subiu para o nível ${a.level}: ${a.name}`;
+    case 'treino': {
+      const sp = SPORTS[a.sport];
+      const rate = sp.usesPace ? `${formatPace(paceSPerKm(a.distanceM, a.durationS))} /km` : `${speedKmh(a.distanceM, a.durationS).toFixed(1).replace('.', ',')} km/h`;
+      return `${sp.label}: ${formatKm(a.distanceM)} km em ${formatDuration(a.durationS)} (${rate})`;
+    }
   }
 }
 

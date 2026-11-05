@@ -133,6 +133,7 @@ const SOURCE_HINT: Record<XpSource, string> = {
   habito: 'Hábitos & Saúde',
   tarefa: 'Rotina & Tarefas',
   foco: 'Sessões de Foco',
+  treino: 'Treino',
   diario: 'Diário',
   revisao: 'Diário (revisão da semana)',
   financas: 'Finanças Pessoais',

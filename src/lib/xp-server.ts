@@ -14,6 +14,7 @@ import {
   getTasks,
   updateUserRecord,
 } from './server-db.js';
+import { listWorkouts } from './workouts-db.js';
 
 /** Dia (YYYY-MM-DD) de um instante no fuso da pessoa. */
 export function dayIn(timezone: string | null | undefined, when: Date | string = new Date()): string {
@@ -38,12 +39,13 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
   const tz = (user as any).timezone || 'America/Sao_Paulo';
   const toDay = (v: unknown) => (v ? dayIn(tz, v as any) : '');
 
-  const [{ logs }, tasks, sessions, journal, transactions] = await Promise.all([
+  const [{ logs }, tasks, sessions, journal, transactions, workouts] = await Promise.all([
     getHabits(userId),
     getTasks(userId),
     getFocusSessions(userId),
     getJournalEntries(userId),
     getFinanceTransactions(userId),
+    listWorkouts(userId, 2000),
   ]);
 
   let posts: { createdAt: string }[] = [];
@@ -65,6 +67,7 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     sessions: sessions.map((s) => ({ date: s.date, status: s.status })),
     journal: journal.map((j) => ({ date: j.date, entryType: j.entryType })),
     transactions: transactions.map((t) => ({ date: t.date, createdAt: t.createdAt ? toDay(t.createdAt) : null })),
+    workouts: workouts.map((w) => ({ date: toDay(w.startedAt) })),
     posts,
     comments,
     since: (user as any).createdAt ? toDay((user as any).createdAt) : null,
