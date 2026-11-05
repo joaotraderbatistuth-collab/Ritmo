@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Send, X, Settings2, Volume2, VolumeX, Bell, Check, Undo2, Sparkles } from 'lucide-react';
+import { Mic, MicOff, Send, X, Settings2, Volume2, VolumeX, Bell, Check, Undo2, Sparkles, MessageSquareText } from 'lucide-react';
+import { PushToggle } from './PushToggle.js';
 import { callApi } from '../lib/client-api.js';
 import {
   AssistantTab,
@@ -110,6 +111,12 @@ export const Assistant: React.FC<{
   const [settings, setSettings] = useState(false);
   const [alert, setAlert] = useState<Reminder | null>(null);
   const [busy, setBusy] = useState(false);
+  const [toasts, setToasts] = useState<{ id: number; heard: string; text: string; undo?: Msg['undo'] }[]>([]);
+  const lastHeard = useRef('');
+  const openRef = useRef(false);
+  openRef.current = open;
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
   const pending = useRef<Intent | null>(null);
   const recRef = useRef<any>(null);
   const msgId = useRef(0);
@@ -137,7 +144,15 @@ export const Assistant: React.FC<{
 
   const say = useCallback(
     (text: string, undo?: Msg['undo']) => {
-      setMsgs((m) => [...m.slice(-40), { id: ++msgId.current, from: 'bot', text, undo }]);
+      const id = ++msgId.current;
+      setMsgs((m) => [...m.slice(-40), { id, from: 'bot', text, undo }]);
+      // com a conversa fechada, a resposta aparece como notificação no topo da tela
+      if (!openRef.current) {
+        const heard = lastHeard.current;
+        lastHeard.current = '';
+        setToasts((t) => [...t.slice(-2), { id, heard, text, undo }]);
+        setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), undo ? 15000 : 9000);
+      }
       if (voiceOn) speak(text);
     },
     [voiceOn]
@@ -402,6 +417,7 @@ export const Assistant: React.FC<{
     const text = raw.trim();
     if (!text || busy) return;
     setMsgs((m) => [...m.slice(-40), { id: ++msgId.current, from: 'me', text }]);
+    lastHeard.current = text;
     setInput('');
     setInterim('');
     setBusy(true);
@@ -479,12 +495,13 @@ export const Assistant: React.FC<{
     const r = await callApi<{ name?: string; error?: string }>('/api/assistant', { action: 'set_name', name: n });
     if (!r.ok) return;
     const nn = r.data.name || n;
+    const wasNaming = naming;
     setName(nn);
     setNaming(false);
     setSettings(false);
-    const text = `Prazer${firstName ? `, ${firstName}` : ''}! Agora eu sou ${nn}. Posso lançar gastos, agendar compromissos, criar lembretes e te contar como está o seu dia. É só tocar no microfone e falar.`;
-    setMsgs((m) => [...m, { id: ++msgId.current, from: 'bot', text }]);
-    if (voiceOn) speak(text);
+    if (wasNaming) setOpen(false);
+    openRef.current = wasNaming ? false : openRef.current;
+    say(`Prazer${firstName ? `, ${firstName}` : ''}! Agora eu sou ${nn}. É só tocar no meu botão e falar: eu lanço gastos, agendo compromissos, crio lembretes e te conto como está o seu dia.`);
   };
 
   const upcoming = reminders.filter((r) => new Date(r.remindAt).getTime() > Date.now()).slice(0, 3);
@@ -508,18 +525,84 @@ export const Assistant: React.FC<{
         </div>
       )}
 
-      {/* botão flutuante */}
+      {/* notificações com as respostas (conversa fechada) */}
+      {!open && toasts.length > 0 && (
+        <div className="fixed z-[70] top-3 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md space-y-2" aria-live="polite">
+          {toasts.map((t) => (
+            <div key={t.id} className="rounded-2xl border border-emerald-500/40 bg-[#161b22]/95 backdrop-blur shadow-2xl shadow-black/50 p-3.5 ritmo-level-pop">
+              <div className="flex items-start gap-3">
+                <span className="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-[#0d1117] flex items-center justify-center font-extrabold shrink-0">{(name || 'S')[0].toUpperCase()}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold text-emerald-400">{botName}</p>
+                  {t.heard && <p className="text-xs text-[#8b949e] italic truncate">“{t.heard}”</p>}
+                  <p className="text-sm text-[#f0f6fc] break-words">{t.text}</p>
+                  {t.undo && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const u = t.undo!;
+                        setToasts((list) => list.filter((x) => x.id !== t.id));
+                        await u.run();
+                      }}
+                      className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:underline"
+                    >
+                      <Undo2 className="w-3.5 h-3.5" /> {t.undo.label}
+                    </button>
+                  )}
+                </div>
+                <button type="button" onClick={() => setToasts((list) => list.filter((x) => x.id !== t.id))} aria-label="Fechar notificação" className="p-1 text-[#6e7681] hover:text-white"><X className="w-4 h-4" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* botão flutuante: toque = falar · segurar = abrir a conversa */}
       {!open && (
-        <button
-          type="button"
-          onClick={openPanel}
-          aria-label={`Falar com ${botName}`}
-          className="fixed z-50 bottom-5 left-5 h-14 pl-3 pr-4 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-[#0d1117] font-bold shadow-xl shadow-emerald-500/25 inline-flex items-center gap-2 hover:scale-105 transition-transform"
-        >
-          <span className="w-9 h-9 rounded-full bg-[#0d1117]/15 flex items-center justify-center"><Mic className="w-5 h-5" /></span>
-          <span className="hidden sm:inline text-sm">{name || 'Secretário'}</span>
-          {upcoming.length > 0 && <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-amber-400 text-[10px] font-extrabold flex items-center justify-center border-2 border-[#0d1117]">{upcoming.length}</span>}
-        </button>
+        <div className="fixed z-50 bottom-5 left-5 flex items-end gap-2">
+          {(listening || busy) && (
+            <div className="absolute bottom-16 left-0 w-[min(80vw,320px)] rounded-2xl rounded-bl-md border border-[#30363d] bg-[#161b22]/95 backdrop-blur px-3.5 py-2.5 shadow-xl text-sm">
+              <p className="text-[11px] font-bold text-rose-300">{listening ? 'Ouvindo... fale agora' : 'Entendendo...'}</p>
+              <p className="text-[#f0f6fc] italic break-words">{interim || (listening ? 'Ex.: “gastei 30 reais no almoço”' : '')}</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onPointerDown={() => {
+              longPressed.current = false;
+              pressTimer.current = setTimeout(() => {
+                longPressed.current = true;
+                openPanel();
+              }, 650);
+            }}
+            onPointerUp={() => {
+              if (pressTimer.current) clearTimeout(pressTimer.current);
+              if (longPressed.current) return;
+              if (name === '' || !supportsVoice) openPanel();
+              else toggleMic();
+            }}
+            onPointerLeave={() => pressTimer.current && clearTimeout(pressTimer.current)}
+            onContextMenu={(e) => e.preventDefault()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (name === '' || !supportsVoice) openPanel();
+                else toggleMic();
+              }
+            }}
+            aria-label={listening ? 'Parar e enviar' : `Falar com ${botName}`}
+            className={`relative h-16 w-16 sm:w-auto sm:pl-3 sm:pr-5 rounded-full font-bold shadow-xl inline-flex items-center justify-center gap-2 select-none touch-manipulation transition-transform active:scale-95 ${
+              listening ? 'bg-rose-500 text-white shadow-rose-500/30 animate-pulse' : 'bg-gradient-to-tr from-emerald-600 to-teal-400 text-[#0d1117] shadow-emerald-500/25'
+            }`}
+          >
+            <span className="w-10 h-10 rounded-full bg-black/10 flex items-center justify-center">{listening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}</span>
+            <span className="hidden sm:inline text-sm">{listening ? 'Ouvindo...' : name || 'Secretário'}</span>
+            {upcoming.length > 0 && !listening && <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-amber-400 text-[#0d1117] text-[10px] font-extrabold flex items-center justify-center border-2 border-[#0d1117]">{upcoming.length}</span>}
+          </button>
+          <button type="button" onClick={openPanel} aria-label={`Abrir conversa com ${botName}`} title="Conversa, lembretes e ajustes" className="mb-1 w-9 h-9 rounded-full bg-[#161b22] border border-[#30363d] text-[#8b949e] hover:text-white flex items-center justify-center shadow-lg">
+            <MessageSquareText className="w-4 h-4" />
+          </button>
+        </div>
       )}
 
       {/* painel */}
@@ -549,6 +632,10 @@ export const Assistant: React.FC<{
               <div className="flex gap-2">
                 <input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} maxLength={ASSISTANT_NAME_MAX} placeholder="Ou escreva um nome" className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#f0f6fc] focus:outline-none focus:border-emerald-500" />
                 <button type="button" disabled={!nameDraft.trim()} onClick={() => saveName(nameDraft)} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-semibold">Salvar</button>
+              </div>
+              <div className="pt-1">
+                <p className="text-xs text-[#8b949e] mb-1.5">Notificações: ligue para eu te avisar dos lembretes mesmo com o app fechado.</p>
+                <PushToggle compact />
               </div>
               {settings && reminders.length > 0 && (
                 <div>
