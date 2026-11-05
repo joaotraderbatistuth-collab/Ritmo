@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Sparkles, Share2, X, Lock, Check, Zap } from 'lucide-react';
+import { Sparkles, Share2, X, Lock, Check, Zap, Flame } from 'lucide-react';
 import { LevelAvatar } from './LevelAvatar.js';
 import { FRAMES, LEVELS, LevelInfo, XP_RULES, XP_SOURCES, XpSource, levelDef } from '../lib/levels.js';
 import { shareToFeed } from '../lib/share-feed.js';
+import type { GameData } from './Missions.js';
 
-export interface XpData {
+export interface XpData extends GameData {
   xp: number;
   todayXp: number;
   activeDays: number;
@@ -12,6 +13,7 @@ export interface XpData {
   level: LevelInfo;
   avatarUrl: string | null;
   bio?: string;
+  bonusXp?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -113,7 +115,15 @@ export const LevelChip: React.FC<{ data: XpData | null; initials: string; name: 
       title={info ? `Nível ${info.level} · ${info.name} — ${info.xp} pontos` : 'Seu nível'}
       className="flex items-center gap-2 p-0.5 sm:pl-1 sm:pr-3 sm:py-1 rounded-full sm:bg-[#161b22] sm:border border-[#30363d] hover:border-emerald-500/50 transition-colors"
     >
-      <LevelAvatar initials={initials} avatarUrl={data?.avatarUrl} level={info?.level || 1} size="sm" />
+      <span className="relative inline-flex">
+        <LevelAvatar initials={initials} avatarUrl={data?.avatarUrl} level={info?.level || 1} size="sm" />
+        {data?.chest?.ready && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-[#0d1117] animate-pulse" title="Baú pronto para abrir" />}
+      </span>
+      {data?.streak && data.streak.days > 0 && (
+        <span className={`hidden sm:inline-flex items-center gap-0.5 text-xs font-extrabold ${data.streak.todayDone ? 'text-orange-400' : 'text-[#8b949e]'}`} title={`Ofensiva: ${data.streak.days} dias`}>
+          <Flame className={`w-3.5 h-3.5 ${data.streak.todayDone ? 'fill-orange-400' : ''}`} />{data.streak.days}
+        </span>
+      )}
       <span className="hidden sm:flex flex-col items-start leading-tight">
         <span className="text-xs font-semibold text-[#f0f6fc] max-w-[110px] truncate">{name}</span>
         <span className="text-[10px] font-bold text-emerald-400">{info ? `Nv ${info.level} · ${info.name}` : 'Nível...'}</span>
@@ -187,6 +197,7 @@ export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEdit
             </div>
           ))}
         </div>
+        {(data.bonusXp || 0) > 0 && <p className="mt-2 text-xs text-amber-300">+{data.bonusXp} pontos vieram dos baús das missões do dia.</p>}
         <p className="mt-2 text-[11px] text-[#6e7681]">Cada atividade tem um limite por dia: manter o ritmo vários dias vale mais do que exagerar num dia só.</p>
       </div>
 
@@ -260,6 +271,24 @@ export function useXp(userId: number | null, signature: string) {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, signature]);
+
+  // Outras partes do app avisam que algo mudou (Feed, secretário, treino)
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const h = () => {
+      clearTimeout(t);
+      t = setTimeout(() => refreshRef.current(), 600);
+    };
+    window.addEventListener('ritmo:xp-refresh', h);
+    window.addEventListener('focus', h);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('ritmo:xp-refresh', h);
+      window.removeEventListener('focus', h);
+    };
+  }, []);
 
   return { data, setData, gain, levelUp, closeLevelUp: () => setLevelUp(null), refresh };
 }

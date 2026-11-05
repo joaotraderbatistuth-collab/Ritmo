@@ -33,6 +33,7 @@ import { Route as ApiHabitsRouteImport } from './routes/api.habits'
 import { Route as ApiFocusRouteImport } from './routes/api.focus'
 import { Route as ApiFinanceRouteImport } from './routes/api.finance'
 import { Route as ApiFeedRouteImport } from './routes/api.feed'
+import { Route as ApiErrosRouteImport } from './routes/api.erros'
 import { Route as ApiCyclesRouteImport } from './routes/api.cycles'
 import { Route as ApiConsentsRouteImport } from './routes/api.consents'
 import { Route as ApiCheckoutRouteImport } from './routes/api.checkout'
@@ -40,6 +41,7 @@ import { Route as ApiBoardsRouteImport } from './routes/api.boards'
 import { Route as ApiAuthRouteImport } from './routes/api.auth'
 import { Route as ApiAssistantRouteImport } from './routes/api.assistant'
 import { Route as ApiAffiliatesRouteImport } from './routes/api.affiliates'
+import { Route as ApiAdminNumerosRouteImport } from './routes/api.admin-numeros'
 import { Route as ApiAdminRouteImport } from './routes/api.admin'
 import { Route as ApiWebhooksMercadopagoRouteImport } from './routes/api.webhooks.mercadopago'
 import { Route as ApiCronNotificacoesRouteImport } from './routes/api.cron.notificacoes'
@@ -166,6 +168,11 @@ const ApiFeedRoute = ApiFeedRouteImport.update({
   path: '/api/feed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiErrosRoute = ApiErrosRouteImport.update({
+  id: '/api/erros',
+  path: '/api/erros',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCyclesRoute = ApiCyclesRouteImport.update({
   id: '/api/cycles',
   path: '/api/cycles',
@@ -199,6 +206,11 @@ const ApiAssistantRoute = ApiAssistantRouteImport.update({
 const ApiAffiliatesRoute = ApiAffiliatesRouteImport.update({
   id: '/api/affiliates',
   path: '/api/affiliates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminNumerosRoute = ApiAdminNumerosRouteImport.update({
+  id: '/api/admin-numeros',
+  path: '/api/admin-numeros',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminRoute = ApiAdminRouteImport.update({
@@ -239,6 +251,7 @@ export interface FileRoutesByFullPath {
   '/tutorial': typeof TutorialRoute
   '/vendas': typeof VendasRoute
   '/api/admin': typeof ApiAdminRoute
+  '/api/admin-numeros': typeof ApiAdminNumerosRoute
   '/api/affiliates': typeof ApiAffiliatesRoute
   '/api/assistant': typeof ApiAssistantRoute
   '/api/auth': typeof ApiAuthRoute
@@ -246,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/consents': typeof ApiConsentsRoute
   '/api/cycles': typeof ApiCyclesRoute
+  '/api/erros': typeof ApiErrosRoute
   '/api/feed': typeof ApiFeedRoute
   '/api/finance': typeof ApiFinanceRoute
   '/api/focus': typeof ApiFocusRoute
@@ -277,6 +291,7 @@ export interface FileRoutesByTo {
   '/tutorial': typeof TutorialRoute
   '/vendas': typeof VendasRoute
   '/api/admin': typeof ApiAdminRoute
+  '/api/admin-numeros': typeof ApiAdminNumerosRoute
   '/api/affiliates': typeof ApiAffiliatesRoute
   '/api/assistant': typeof ApiAssistantRoute
   '/api/auth': typeof ApiAuthRoute
@@ -284,6 +299,7 @@ export interface FileRoutesByTo {
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/consents': typeof ApiConsentsRoute
   '/api/cycles': typeof ApiCyclesRoute
+  '/api/erros': typeof ApiErrosRoute
   '/api/feed': typeof ApiFeedRoute
   '/api/finance': typeof ApiFinanceRoute
   '/api/focus': typeof ApiFocusRoute
@@ -316,6 +332,7 @@ export interface FileRoutesById {
   '/tutorial': typeof TutorialRoute
   '/vendas': typeof VendasRoute
   '/api/admin': typeof ApiAdminRoute
+  '/api/admin-numeros': typeof ApiAdminNumerosRoute
   '/api/affiliates': typeof ApiAffiliatesRoute
   '/api/assistant': typeof ApiAssistantRoute
   '/api/auth': typeof ApiAuthRoute
@@ -323,6 +340,7 @@ export interface FileRoutesById {
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/consents': typeof ApiConsentsRoute
   '/api/cycles': typeof ApiCyclesRoute
+  '/api/erros': typeof ApiErrosRoute
   '/api/feed': typeof ApiFeedRoute
   '/api/finance': typeof ApiFinanceRoute
   '/api/focus': typeof ApiFocusRoute
@@ -356,6 +374,7 @@ export interface FileRouteTypes {
     | '/tutorial'
     | '/vendas'
     | '/api/admin'
+    | '/api/admin-numeros'
     | '/api/affiliates'
     | '/api/assistant'
     | '/api/auth'
@@ -363,6 +382,7 @@ export interface FileRouteTypes {
     | '/api/checkout'
     | '/api/consents'
     | '/api/cycles'
+    | '/api/erros'
     | '/api/feed'
     | '/api/finance'
     | '/api/focus'
@@ -394,6 +414,7 @@ export interface FileRouteTypes {
     | '/tutorial'
     | '/vendas'
     | '/api/admin'
+    | '/api/admin-numeros'
     | '/api/affiliates'
     | '/api/assistant'
     | '/api/auth'
@@ -401,6 +422,7 @@ export interface FileRouteTypes {
     | '/api/checkout'
     | '/api/consents'
     | '/api/cycles'
+    | '/api/erros'
     | '/api/feed'
     | '/api/finance'
     | '/api/focus'
@@ -432,6 +454,7 @@ export interface FileRouteTypes {
     | '/tutorial'
     | '/vendas'
     | '/api/admin'
+    | '/api/admin-numeros'
     | '/api/affiliates'
     | '/api/assistant'
     | '/api/auth'
@@ -439,6 +462,7 @@ export interface FileRouteTypes {
     | '/api/checkout'
     | '/api/consents'
     | '/api/cycles'
+    | '/api/erros'
     | '/api/feed'
     | '/api/finance'
     | '/api/focus'
@@ -471,6 +495,7 @@ export interface RootRouteChildren {
   TutorialRoute: typeof TutorialRoute
   VendasRoute: typeof VendasRoute
   ApiAdminRoute: typeof ApiAdminRoute
+  ApiAdminNumerosRoute: typeof ApiAdminNumerosRoute
   ApiAffiliatesRoute: typeof ApiAffiliatesRoute
   ApiAssistantRoute: typeof ApiAssistantRoute
   ApiAuthRoute: typeof ApiAuthRoute
@@ -478,6 +503,7 @@ export interface RootRouteChildren {
   ApiCheckoutRoute: typeof ApiCheckoutRoute
   ApiConsentsRoute: typeof ApiConsentsRoute
   ApiCyclesRoute: typeof ApiCyclesRoute
+  ApiErrosRoute: typeof ApiErrosRoute
   ApiFeedRoute: typeof ApiFeedRoute
   ApiFinanceRoute: typeof ApiFinanceRoute
   ApiFocusRoute: typeof ApiFocusRoute
@@ -669,6 +695,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFeedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/erros': {
+      id: '/api/erros'
+      path: '/api/erros'
+      fullPath: '/api/erros'
+      preLoaderRoute: typeof ApiErrosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cycles': {
       id: '/api/cycles'
       path: '/api/cycles'
@@ -716,6 +749,13 @@ declare module '@tanstack/react-router' {
       path: '/api/affiliates'
       fullPath: '/api/affiliates'
       preLoaderRoute: typeof ApiAffiliatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin-numeros': {
+      id: '/api/admin-numeros'
+      path: '/api/admin-numeros'
+      fullPath: '/api/admin-numeros'
+      preLoaderRoute: typeof ApiAdminNumerosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin': {
@@ -767,6 +807,7 @@ const rootRouteChildren: RootRouteChildren = {
   TutorialRoute: TutorialRoute,
   VendasRoute: VendasRoute,
   ApiAdminRoute: ApiAdminRoute,
+  ApiAdminNumerosRoute: ApiAdminNumerosRoute,
   ApiAffiliatesRoute: ApiAffiliatesRoute,
   ApiAssistantRoute: ApiAssistantRoute,
   ApiAuthRoute: ApiAuthRoute,
@@ -774,6 +815,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCheckoutRoute: ApiCheckoutRoute,
   ApiConsentsRoute: ApiConsentsRoute,
   ApiCyclesRoute: ApiCyclesRoute,
+  ApiErrosRoute: ApiErrosRoute,
   ApiFeedRoute: ApiFeedRoute,
   ApiFinanceRoute: ApiFinanceRoute,
   ApiFocusRoute: ApiFocusRoute,

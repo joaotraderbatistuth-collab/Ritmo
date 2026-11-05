@@ -21,6 +21,9 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"), // foto de perfil (/api/media?k=...)
   bio: text("bio"), // frase curta do perfil (até 160 caracteres), visível para outros membros
   assistantName: text("assistant_name"), // nome que a pessoa deu ao secretário (vazio = ainda não batizou)
+  signupSource: text("signup_source"), // de onde veio no cadastro (utm_source, indicação, Ritus ou direto)
+  leagueTier: integer("league_tier").notNull().default(0), // liga semanal: 0 Bronze ... 5 Diamante
+  leagueOptOut: boolean("league_opt_out").notNull().default(false), // não aparece nas ligas
   xpTotal: integer("xp_total").notNull().default(0), // Pontos de Ritmo (cópia do cálculo, para o Feed)
   level: integer("level").notNull().default(1), // nível atual (1 a 12), define a moldura da foto
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -507,6 +510,7 @@ export const reminders = pgTable("reminders", {
   text: text("text").notNull(),
   remindAt: timestamp("remind_at").notNull(),
   taskId: integer("task_id"), // compromisso da agenda ligado ao lembrete (opcional)
+  repeat: text("repeat"), // 'daily' | 'weekly:1,3' | 'monthly:10' (null = uma vez só)
   sentAt: timestamp("sent_at"),
   doneAt: timestamp("done_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -520,4 +524,53 @@ export const consents = pgTable("consents", {
   version: text("version").notNull(),
   grantedAt: timestamp("granted_at").defaultNow().notNull(),
   revokedAt: timestamp("revoked_at"),
+});
+
+// Dias em que cada pessoa usou o app (um registro por pessoa por dia). Base da retenção no painel.
+export const userActivity = pgTable("user_activity", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  day: text("day").notNull(), // YYYY-MM-DD no horário de Brasília
+});
+
+// Erros capturados no navegador e no servidor (aba Erros do painel).
+export const errorLogs = pgTable("error_logs", {
+  id: serial("id").primaryKey(),
+  fingerprint: text("fingerprint").notNull(), // agrupa erros iguais
+  source: text("source").notNull(), // navegador | servidor
+  message: text("message").notNull(),
+  stack: text("stack").notNull().default(""),
+  url: text("url").notNull().default(""),
+  userAgent: text("user_agent").notNull().default(""),
+  userId: integer("user_id"),
+  count: integer("count").notNull().default(1),
+  firstSeen: timestamp("first_seen").defaultNow().notNull(),
+  lastSeen: timestamp("last_seen").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+  notifiedAt: timestamp("notified_at"),
+});
+
+// Baú das missões: um por pessoa por dia, aberto quando as 3 missões do dia são cumpridas.
+export const missionDays = pgTable("mission_days", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  day: text("day").notNull(),
+  reward: text("reward").notNull(), // xp | descanso
+  xp: integer("xp").notNull().default(0),
+  openedAt: timestamp("opened_at").defaultNow().notNull(),
+});
+
+// Ligas semanais: pontos da semana de cada pessoa no seu grupo (até 20 pessoas da mesma liga).
+export const leagueWeeks = pgTable("league_weeks", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  week: text("week").notNull(), // segunda-feira da semana (YYYY-MM-DD)
+  tier: integer("tier").notNull(),
+  groupNo: integer("group_no").notNull(),
+  xp: integer("xp").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Seguir pessoas no Feed: quem segue (follower) → quem é seguido (followee).
+export const follows = pgTable("follows", {
+  followerId: integer("follower_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  followeeId: integer("followee_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });

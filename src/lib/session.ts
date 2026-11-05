@@ -1,6 +1,10 @@
 import { verifyToken, TokenPayload } from './auth.js';
 import { findUserById } from './server-db.js';
 import { computeAccess } from './access.js';
+import { trackActivity } from './activity.js';
+import { installServerErrorHook } from './error-log.js';
+
+installServerErrorHook();
 import { getCachedSession, setCachedSession, invalidateSessionCache } from './session-cache.js';
 
 export { invalidateSessionCache };
@@ -56,5 +60,6 @@ export async function authorizeData(token: string | null | undefined): Promise<D
       ),
     };
   }
+  trackActivity(payload.userId);
   return { payload };
 }

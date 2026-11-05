@@ -123,7 +123,7 @@ export const TabProgress: React.FC<TabProgressProps> = ({
             Progresso & Histórico dos Ciclos
           </h2>
           <p className="text-xs sm:text-sm text-[#8b949e] mt-1 max-w-2xl">
-            Visualize seu ritmo ao longo das semanas. Sem rankings competitivos ou obsessão por métricas: o objetivo é a autonomia e a paz de espírito.
+            Visualize seu ritmo ao longo das semanas. Sem obsessão por métricas (as ligas são opcionais): o objetivo é a autonomia e a paz de espírito.
           </p>
         </div>
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { Activity, Bike, Footprints, Mountain, Play, Pause, Square, Trash2, X, Share2, Download, Satellite, Plus, Timer, Route as RouteIcon, TrendingUp, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Activity, Bike, Footprints, Mountain, Play, Pause, Square, Trash2, X, Share2, Download, Satellite, Plus, Timer, Route as RouteIcon, TrendingUp, ChevronRight, ShieldCheck, Trophy, PauseCircle } from 'lucide-react';
 import { RouteMap } from './RouteMap.js';
 import { RouteSvg } from './RouteSvg.js';
 import { callApi } from '../lib/client-api.js';
@@ -25,7 +25,9 @@ import {
   totals,
   trackStats,
   trimRoute,
+  recordValueLabel,
 } from '../lib/workout.js';
+import type { RecordEntry } from '../lib/workout.js';
 import { workoutImage } from '../lib/workout-share-image.js';
 import { ConsentPrompt, useConsents } from './Consents.js';
 
@@ -133,13 +135,16 @@ const LiveView: React.FC<{ onFinished: (t: FinishedTrack) => void }> = ({ onFini
           {s.status === 'recording' ? (
             <span className="ml-1 inline-flex items-center gap-1.5 text-xs text-rose-300"><span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> Gravando</span>
           ) : (
-            <span className="ml-1 text-xs text-amber-300">Pausado</span>
+            <span className="ml-1 text-xs text-amber-300">{s.autoPaused ? 'Pausa automática' : 'Pausado'}</span>
           )}
         </div>
         <GpsBadge acc={s.fix?.acc ?? null} error={s.gpsError} />
       </div>
 
-      {s.recovered && <p className="text-xs text-amber-300 bg-amber-950/30 border border-amber-800/50 rounded-lg p-2.5">Recuperamos o treino que estava em andamento. Toque em Retomar para continuar.</p>}
+      {s.autoPaused && (
+        <p className="text-xs text-amber-200 bg-amber-950/30 border border-amber-800/50 rounded-lg p-2.5 flex items-center gap-2"><PauseCircle className="w-4 h-4 shrink-0" /> Você parou, então pausei o cronômetro. Ele volta sozinho quando você voltar a se mexer.</p>
+      )}
+            {s.recovered && <p className="text-xs text-amber-300 bg-amber-950/30 border border-amber-800/50 rounded-lg p-2.5">Recuperamos o treino que estava em andamento. Toque em Retomar para continuar.</p>}
 
       <RouteMap segments={s.segments} current={s.fix} live className="h-[42vh] min-h-[260px]" />
 
@@ -193,10 +198,18 @@ const LiveView: React.FC<{ onFinished: (t: FinishedTrack) => void }> = ({ onFini
           )}
         </div>
       )}
+      <AutoPauseToggle on={s.autoPauseOn} />
       <p className="text-center text-[11px] text-[#6e7681]">Mantenha o Ritmo aberto e a tela ligada: no celular, o navegador pausa o GPS quando a tela apaga ou você troca de app.</p>
     </div>
   );
 };
+
+const AutoPauseToggle: React.FC<{ on: boolean }> = ({ on }) => (
+  <label className="flex items-center justify-center gap-2 text-xs text-[#8b949e] cursor-pointer select-none">
+    <input type="checkbox" checked={on} onChange={(e) => rec.setAutoPause(e.target.checked)} className="accent-emerald-500" />
+    Pausa automática quando eu parar (semáforo, descanso)
+  </label>
+);
 
 const GpsBadge: React.FC<{ acc: number | null; error: string | null }> = ({ acc, error }) => {
   if (error) return <span className="text-xs text-rose-300 text-right max-w-[60%]">{error}</span>;
@@ -214,7 +227,7 @@ const GpsBadge: React.FC<{ acc: number | null; error: string | null }> = ({ acc,
 /* Resumo antes de salvar                                              */
 /* ------------------------------------------------------------------ */
 
-const SummaryView: React.FC<{ track: FinishedTrack; onSaved: (w: SavedWorkout) => void; onDiscard: () => void }> = ({ track, onSaved, onDiscard }) => {
+const SummaryView: React.FC<{ track: FinishedTrack; onSaved: (w: SavedWorkout, recs?: RecordEntry[]) => void; onDiscard: () => void }> = ({ track, onSaved, onDiscard }) => {
   const stats = useMemo(() => trackStats(track.segments), [track]);
   const [title, setTitle] = useState(autoTitle(track.sport, new Date(track.startedAt)));
   const [notes, setNotes] = useState('');
@@ -228,12 +241,12 @@ const SummaryView: React.FC<{ track: FinishedTrack; onSaved: (w: SavedWorkout) =
     setError('');
     const all = track.segments.flat();
     const route = encodePolyline(simplifyTo(all, 4000));
-    const r = await callApi<{ workout?: SavedWorkout; error?: string }>('/api/workouts', {
+    const r = await callApi<{ workout?: SavedWorkout; records?: RecordEntry[]; error?: string }>('/api/workouts', {
       action: 'create',
       workout: { sport: track.sport, title, notes, startedAt: new Date(track.startedAt).toISOString(), movingS: track.movingS, elapsedS: Math.max(track.elapsedS, track.movingS), distanceM: stats.distanceM, elevationGainM: stats.elevationGainM, route, splits: stats.splits, source: 'gps' },
     });
     setBusy(false);
-    if (r.ok && r.data.workout) onSaved(r.data.workout);
+    if (r.ok && r.data.workout) onSaved(r.data.workout, r.data.records || []);
     else setError(r.data.error || 'Não foi possível salvar o treino.');
   };
 
@@ -376,7 +389,7 @@ const WorkoutDetail: React.FC<{ id: number; onClose: () => void; onDeleted: () =
 /* Lançar treino sem GPS (esteira, bike ergométrica...)                */
 /* ------------------------------------------------------------------ */
 
-const ManualForm: React.FC<{ onClose: () => void; onSaved: (w: SavedWorkout) => void }> = ({ onClose, onSaved }) => {
+const ManualForm: React.FC<{ onClose: () => void; onSaved: (w: SavedWorkout, recs?: RecordEntry[]) => void }> = ({ onClose, onSaved }) => {
   const [sport, setSport] = useState<SportId>('corrida');
   const [km, setKm] = useState('');
   const [h, setH] = useState('0');
@@ -398,12 +411,12 @@ const ManualForm: React.FC<{ onClose: () => void; onSaved: (w: SavedWorkout) => 
     setBusy(true);
     setError('');
     const started = new Date(when);
-    const r = await callApi<{ workout?: SavedWorkout; error?: string }>('/api/workouts', {
+    const r = await callApi<{ workout?: SavedWorkout; records?: RecordEntry[]; error?: string }>('/api/workouts', {
       action: 'create',
       workout: { sport, title: title || autoTitle(sport, started), notes: '', startedAt: started.toISOString(), movingS, elapsedS: movingS, distanceM, elevationGainM: null, route: '', splits: [], source: 'manual' },
     });
     setBusy(false);
-    if (r.ok && r.data.workout) onSaved(r.data.workout);
+    if (r.ok && r.data.workout) onSaved(r.data.workout, r.data.records || []);
     else setError(r.data.error || 'Não foi possível salvar.');
   };
 
@@ -444,12 +457,49 @@ const ManualForm: React.FC<{ onClose: () => void; onSaved: (w: SavedWorkout) => 
 };
 
 /* ------------------------------------------------------------------ */
+/* Recordes pessoais                                                   */
+/* ------------------------------------------------------------------ */
+
+const RecordsCard: React.FC<{ records: RecordEntry[]; onOpen: (id: number) => void }> = ({ records, onOpen }) => {
+  const sports = SPORT_IDS.filter((id) => records.some((r) => r.sport === id));
+  const [sport, setSport] = useState<SportId>(sports[0]);
+  const cur = sports.includes(sport) ? sport : sports[0];
+  const ORDER = ['dist', 'tempo', 'km', 'pace1k', 'pace5k', 'pace10k', 'veloc'];
+  const list = records.filter((r) => r.sport === cur).sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
+  return (
+    <section className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-semibold text-[#f0f6fc] inline-flex items-center gap-2"><Trophy className="w-4 h-4 text-amber-300" /> Seus recordes</h3>
+        {sports.length > 1 && (
+          <div className="flex gap-1">
+            {sports.map((id) => (
+              <button key={id} type="button" onClick={() => setSport(id)} className={`px-2.5 py-1 rounded-full text-xs font-semibold ${cur === id ? 'bg-emerald-500/20 text-emerald-300' : 'text-[#8b949e] hover:text-white'}`}>{SPORTS[id].label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {list.map((r) => (
+          <button key={r.kind} type="button" onClick={() => onOpen(r.workoutId)} className="text-left rounded-xl border border-[#21262d] bg-[#0d1117] hover:border-amber-400/40 p-3">
+            <p className="text-[11px] text-[#8b949e]">{r.label}</p>
+            <p className="text-lg font-extrabold text-[#f0f6fc] tabular-nums">{recordValueLabel(r)}</p>
+            <p className="text-[10px] text-[#6e7681]">{r.date.slice(8, 10)}/{r.date.slice(5, 7)}/{r.date.slice(0, 4)}</p>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+};
+
+/* ------------------------------------------------------------------ */
 /* Aba                                                                 */
 /* ------------------------------------------------------------------ */
 
 export const TabWorkout: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
   const s = useRecorder();
   const [list, setList] = useState<SavedWorkout[] | null>(null);
+  const [records, setRecords] = useState<RecordEntry[]>([]);
+  const [celebrate, setCelebrate] = useState<RecordEntry[]>([]);
   const [finished, setFinished] = useState<FinishedTrack | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [manual, setManual] = useState(false);
@@ -463,15 +513,19 @@ export const TabWorkout: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
   const startNow = () => (gpsOk ? rec.start(s.sport) : setAskGps(true));
 
   const load = useCallback(async () => {
-    const r = await callApi<{ workouts?: SavedWorkout[]; error?: string }>('/api/workouts');
-    if (r.ok) setList(r.data.workouts || []);
+    const r = await callApi<{ workouts?: SavedWorkout[]; records?: RecordEntry[]; error?: string }>('/api/workouts');
+    if (r.ok) {
+      setList(r.data.workouts || []);
+      setRecords(r.data.records || []);
+    }
     else setError(r.data.error || 'Não foi possível carregar seus treinos.');
   }, []);
   useEffect(() => {
     load();
   }, [load]);
 
-  const afterSave = (w: SavedWorkout) => {
+  const afterSave = (w: SavedWorkout, recs: RecordEntry[] = []) => {
+    setCelebrate(recs);
     setFinished(null);
     setManual(false);
     load();
@@ -536,6 +590,19 @@ export const TabWorkout: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
         <div className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4"><div className="text-xs text-[#8b949e] flex items-center gap-1"><RouteIcon className="w-3.5 h-3.5" /> Distância</div><div className="text-2xl font-extrabold text-[#f0f6fc]">{formatKm(week.distanceM, 1)} <span className="text-sm text-[#8b949e]">km</span></div></div>
         <div className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4"><div className="text-xs text-[#8b949e] flex items-center gap-1"><Timer className="w-3.5 h-3.5" /> Tempo</div><div className="text-2xl font-extrabold text-[#f0f6fc]">{formatDuration(week.movingS)}</div></div>
       </section>
+
+      {celebrate.length > 0 && (
+        <section className="rounded-2xl border border-amber-400/50 bg-amber-500/10 p-4 flex gap-3 items-start" role="status">
+          <Trophy className="w-8 h-8 text-amber-300 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-extrabold text-amber-200">{celebrate.length === 1 ? 'Novo recorde pessoal!' : `${celebrate.length} recordes pessoais novos!`}</p>
+            <ul className="text-sm text-[#f0f6fc]">{celebrate.map((r) => <li key={r.kind}>{r.label} ({SPORTS[r.sport].label.toLowerCase()}): <strong>{recordValueLabel(r)}</strong></li>)}</ul>
+          </div>
+          <button type="button" onClick={() => setCelebrate([])} aria-label="Fechar" className="p-1 text-[#8b949e] hover:text-white"><X className="w-4 h-4" /></button>
+        </section>
+      )}
+
+      {records.length > 0 && <RecordsCard records={records} onOpen={setOpenId} />}
 
       <section className="space-y-3">
         <h3 className="text-base font-semibold text-[#f0f6fc]">Seus treinos</h3>

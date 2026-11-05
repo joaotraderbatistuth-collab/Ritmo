@@ -218,6 +218,7 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS "reminders_due_idx" ON "reminders" ("sent_at","remind_at")`,
   `CREATE INDEX IF NOT EXISTS "reminders_user_idx" ON "reminders" ("user_id","remind_at")`,
+  `ALTER TABLE "reminders" ADD COLUMN IF NOT EXISTS "repeat" text`,
 
   // ---- consentimentos (LGPD)
   `CREATE TABLE IF NOT EXISTS "consents" (
@@ -229,6 +230,64 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
     "revoked_at" timestamp
   )`,
   `CREATE INDEX IF NOT EXISTS "consents_user_idx" ON "consents" ("user_id","kind")`,
+
+  // ---- painel de números: origem do cadastro e dias de uso
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "signup_source" text`,
+  `CREATE TABLE IF NOT EXISTS "user_activity" (
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "day" text NOT NULL,
+    PRIMARY KEY ("user_id", "day")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "user_activity_day_idx" ON "user_activity" ("day")`,
+
+  // ---- alerta de erros
+  `CREATE TABLE IF NOT EXISTS "error_logs" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "fingerprint" text NOT NULL,
+    "source" text NOT NULL,
+    "message" text NOT NULL,
+    "stack" text DEFAULT '' NOT NULL,
+    "url" text DEFAULT '' NOT NULL,
+    "user_agent" text DEFAULT '' NOT NULL,
+    "user_id" integer,
+    "count" integer DEFAULT 1 NOT NULL,
+    "first_seen" timestamp DEFAULT now() NOT NULL,
+    "last_seen" timestamp DEFAULT now() NOT NULL,
+    "resolved_at" timestamp,
+    "notified_at" timestamp
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "error_logs_fingerprint_idx" ON "error_logs" ("fingerprint")`,
+
+  // ---- missões, baú, ofensiva e ligas
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "league_tier" integer NOT NULL DEFAULT 0`,
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "league_opt_out" boolean NOT NULL DEFAULT false`,
+  `CREATE TABLE IF NOT EXISTS "mission_days" (
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "day" text NOT NULL,
+    "reward" text NOT NULL,
+    "xp" integer DEFAULT 0 NOT NULL,
+    "opened_at" timestamp DEFAULT now() NOT NULL,
+    PRIMARY KEY ("user_id", "day")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "league_weeks" (
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "week" text NOT NULL,
+    "tier" integer NOT NULL,
+    "group_no" integer NOT NULL,
+    "xp" integer DEFAULT 0 NOT NULL,
+    "updated_at" timestamp DEFAULT now() NOT NULL,
+    PRIMARY KEY ("user_id", "week")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "league_weeks_group_idx" ON "league_weeks" ("week", "tier", "group_no")`,
+
+  // ---- seguir pessoas no Feed
+  `CREATE TABLE IF NOT EXISTS "follows" (
+    "follower_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "followee_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "created_at" timestamp DEFAULT now() NOT NULL,
+    PRIMARY KEY ("follower_id", "followee_id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "follows_followee_idx" ON "follows" ("followee_id")`,
 
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).

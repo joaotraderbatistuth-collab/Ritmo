@@ -4,6 +4,7 @@ import {
   Flame, ArrowRight, Check, X, ChevronDown, Link2, Timer, ShieldCheck, Clock, Quote, Sparkles, Wallet, Share2, BadgeCheck, Banknote,
   Heart, MessageCircle, Search, Eye, Users, Lock, Crown, Trophy, Newspaper, Megaphone,
   Bell, Smartphone, BookOpen, Gift,
+  Mic, MapPin, Activity, Target, UserPlus, Moon,
 } from 'lucide-react';
 import { InstallPwaButton } from '../components/InstallPwaButton.js';
 import { TEAM_PLATFORM_FEE_PERCENT, splitTeamPayment } from '../lib/teams-plan.js';
@@ -26,6 +27,9 @@ const css = `
 @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.55); } 50% { box-shadow: 0 0 0 14px rgba(16,185,129,0); } }
 @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
 @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes vDraw { from { stroke-dashoffset: 600; } to { stroke-dashoffset: 0; } }
+.v-draw { animation: vDraw 3.5s ease-out infinite alternate; }
+.v-rise { animation: rise .5s ease both; }
 .v-reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
 .v-reveal.v-in { opacity: 1; transform: translateY(0); }
 .v-pop { animation: pop .45s ease-out both; }
@@ -34,7 +38,7 @@ const css = `
 .v-float { animation: floaty 5s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
   .v-reveal { opacity: 1; transform: none; transition: none; }
-  .v-pop, .v-glow, .v-caret, .v-float { animation: none !important; }
+  .v-pop, .v-glow, .v-caret, .v-float, .v-draw, .v-rise { animation: none !important; }
 }
 `;
 
@@ -659,6 +663,141 @@ const COMPARE = [
   ['O que você sabe fica só com você', 'Seu conhecimento vira um Ritus por assinatura'],
 ];
 
+
+/* ------------------------------------------------------------------ */
+/* Novidades: missões, treino com GPS, secretário por voz, níveis      */
+/* ------------------------------------------------------------------ */
+
+const ExampleTag = () => <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-[#0d1117] border border-[#30363d] rounded-full px-2 py-0.5">Exemplo</span>;
+
+function MissionsDemo() {
+  const [done, setDone] = useState([true, true, false]);
+  const [open, setOpen] = useState(false);
+  const all = done.every(Boolean);
+  const items = ['Marque 3 hábitos', 'Faça 1 sessão de foco', 'Registre um treino'];
+  return (
+    <div className="relative rounded-3xl border border-[#30363d] bg-[#161b22] p-5">
+      <ExampleTag />
+      <div className="flex items-center justify-between pr-16">
+        <span className="font-extrabold">Missões de hoje <span className="text-xs text-slate-500">{done.filter(Boolean).length}/3</span></span>
+      </div>
+      <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/15 text-orange-300 text-sm font-extrabold"><Flame className="w-4 h-4 fill-orange-400 text-orange-400" /> 12 dias</div>
+      <div className="mt-4 flex gap-4">
+        <ul className="flex-1 space-y-2">
+          {items.map((t, i) => (
+            <li key={t}>
+              <button type="button" onClick={() => setDone((d) => d.map((v, j) => (j === i ? !v : v)))} className={`w-full flex items-center gap-3 rounded-xl px-3 py-2 text-left border text-sm ${done[i] ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 line-through' : 'border-[#30363d] bg-[#0d1117]'}`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${done[i] ? 'bg-emerald-500 text-slate-950' : 'border-2 border-[#30363d]'}`}>{done[i] && <Check className="w-3.5 h-3.5" />}</span>
+                {t}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="w-24 shrink-0 rounded-xl border border-[#30363d] bg-[#0d1117] flex flex-col items-center justify-center p-2 text-center">
+          <Gift className={`w-10 h-10 ${all ? 'text-amber-300 animate-bounce' : 'text-slate-600'}`} />
+          {all ? (
+            <button type="button" onClick={() => setOpen(true)} className="mt-1 w-full py-1 rounded-lg bg-amber-400 text-slate-950 text-xs font-extrabold">{open ? '+25 pontos!' : 'Abrir baú!'}</button>
+          ) : (
+            <span className="mt-1 text-[11px] text-slate-500 inline-flex items-center gap-1"><Lock className="w-3 h-3" /> Cumpra as 3</span>
+          )}
+        </div>
+      </div>
+      <p className="mt-3 text-[11px] text-slate-500 flex items-center gap-1"><Moon className="w-3 h-3" /> 1 dia de descanso por semana sem perder a ofensiva. Toque nas missões.</p>
+    </div>
+  );
+}
+
+function GpsDemo() {
+  const path = 'M20,150 C45,120 60,140 80,110 S120,60 150,70 S200,40 230,55 S270,100 250,130 S200,160 170,150';
+  return (
+    <div className="relative rounded-3xl border border-[#30363d] bg-[#161b22] p-5">
+      <ExampleTag />
+      <div className="flex items-center gap-2 text-emerald-400 font-bold"><Activity className="w-5 h-5" /> Corrida da manhã</div>
+      <svg viewBox="0 0 280 180" preserveAspectRatio="none" className="mt-3 w-full h-44 rounded-2xl bg-[#0d1117] border border-[#21262d]" role="img" aria-label="Rota de exemplo desenhada no mapa">
+        {Array.from({ length: 8 }, (_, i) => <line key={`h${i}`} x1="0" x2="280" y1={i * 26} y2={i * 26 + 8} stroke="#1c2128" strokeWidth="6" />)}
+        {Array.from({ length: 7 }, (_, i) => <line key={`v${i}`} y1="0" y2="180" x1={i * 45} x2={i * 45 + 12} stroke="#1c2128" strokeWidth="5" />)}
+        <path d={path} fill="none" stroke="#10b981" strokeWidth="5" strokeLinecap="round" strokeDasharray="600" className="v-draw" />
+        <circle cx="20" cy="150" r="6" fill="#10b981" stroke="#0d1117" strokeWidth="2" />
+        <circle cx="170" cy="150" r="6" fill="#f43f5e" stroke="#0d1117" strokeWidth="2" />
+      </svg>
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+        <div><div className="text-[11px] text-slate-500">Distância</div><div className="text-xl font-extrabold">5,24 <span className="text-xs text-slate-500">km</span></div></div>
+        <div><div className="text-[11px] text-slate-500">Tempo</div><div className="text-xl font-extrabold">28:41</div></div>
+        <div><div className="text-[11px] text-slate-500">Ritmo médio</div><div className="text-xl font-extrabold">5:28 <span className="text-xs text-slate-500">/km</span></div></div>
+      </div>
+      <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 flex items-center gap-2"><Trophy className="w-4 h-4" /> Novo recorde pessoal: km mais rápido (4:59)</div>
+    </div>
+  );
+}
+
+const VOICE_SAMPLES = [
+  { me: 'Gastei 32 reais no almoço', bot: 'Lancei R$ 32,00 em Alimentação, hoje.' },
+  { me: 'Agenda dentista amanhã às 3 da tarde', bot: 'Agendei Dentista amanhã às 15h. Te aviso 30 minutos antes.' },
+  { me: 'Me lembra toda segunda às 8 de levar o lixo', bot: 'Combinado! Vou te lembrar toda segunda às 8h.' },
+  { me: 'Como está meu dia?', bot: 'Você tem 3 tarefas, 2 hábitos para marcar e 1 conta vencendo amanhã.' },
+];
+
+function VoiceDemo() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((n) => (n + 1) % VOICE_SAMPLES.length), 3800);
+    return () => clearInterval(t);
+  }, []);
+  const v = VOICE_SAMPLES[i];
+  return (
+    <div className="relative rounded-3xl border border-[#30363d] bg-[#161b22] p-5 min-h-[260px] flex flex-col">
+      <ExampleTag />
+      <p className="text-sm font-bold text-emerald-400 pr-20">Rita, sua secretária <span className="text-slate-500 font-normal">(você escolhe o nome)</span></p>
+      <div key={i} className="mt-4 space-y-3 flex-1">
+        <div className="flex justify-end v-rise"><span className="max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600 text-white px-3.5 py-2 text-sm">🎙️ “{v.me}”</span></div>
+        <div className="flex justify-start v-rise" style={{ animationDelay: '600ms' }}><span className="max-w-[85%] rounded-2xl rounded-bl-md bg-[#0d1117] border border-[#30363d] px-3.5 py-2 text-sm text-slate-200">{v.bot}</span></div>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <span className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center v-glow"><Mic className="w-6 h-6 text-white" /></span>
+        <span className="text-sm text-slate-400">Toque, fale e pronto. Sem digitar.</span>
+      </div>
+    </div>
+  );
+}
+
+const FRAME_DEMO = [
+  { lv: 3, name: 'Bronze', ring: 'conic-gradient(#8a4b1f,#e0a26a,#a8622c,#f1c08e,#8a4b1f)' },
+  { lv: 5, name: 'Prata', ring: 'conic-gradient(#7d8590,#f0f6fc,#9aa4ae,#ffffff,#7d8590)' },
+  { lv: 7, name: 'Ouro', ring: 'conic-gradient(#b7791f,#fde68a,#d69e2e,#fff7c2,#b7791f)' },
+  { lv: 11, name: 'Lendária', ring: 'conic-gradient(#f43f5e,#f59e0b,#10b981,#3b82f6,#a855f7,#f43f5e)' },
+];
+
+function LevelsDemo() {
+  return (
+    <div className="relative rounded-3xl border border-[#30363d] bg-[#161b22] p-5">
+      <ExampleTag />
+      <div className="flex justify-around pr-10">
+        {FRAME_DEMO.map((f) => (
+          <div key={f.lv} className="text-center">
+            <span className="inline-flex rounded-full p-[3px]" style={{ background: f.ring }}><span className="w-12 h-12 rounded-full bg-[#0d1117] flex items-center justify-center text-sm font-bold text-slate-300">Nv {f.lv}</span></span>
+            <div className="mt-1 text-[11px] text-slate-400">{f.name}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 rounded-2xl border border-[#30363d] bg-[#0d1117] p-4">
+        <div className="flex items-center justify-between text-sm"><span className="font-bold inline-flex items-center gap-1.5"><Trophy className="w-4 h-4 text-amber-300" /> Liga Ouro</span><span className="text-slate-500">termina em 3 dias</span></div>
+        <ol className="mt-3 space-y-1.5 text-sm">
+          {[['1', 'Ana', 412], ['2', 'Você', 388], ['3', 'Bruno', 350], ['4', 'Carla', 301]].map(([r, n, x]) => (
+            <li key={String(r)} className={`flex items-center gap-3 rounded-lg px-2 py-1 ${n === 'Você' ? 'bg-emerald-500/15 border border-emerald-500/40' : ''}`}>
+              <span className="w-4 text-emerald-400 font-bold">{r}</span><span className="flex-1">{n}</span><span className="tabular-nums font-semibold">{x}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-2 text-[11px] text-slate-500">Os 5 primeiros sobem de liga. Pontos e nomes de exemplo.</p>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-sm">
+        <span className="text-slate-400">128 seguidores · 96 seguindo</span>
+        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-bold"><UserPlus className="w-3.5 h-3.5" /> Seguir</span>
+      </div>
+    </div>
+  );
+}
+
 const FAQ = [
   { q: 'Já tentei outros apps e larguei. Por que seria diferente?', a: 'A maioria cobra perfeição: perdeu um dia, zerou a sequência. No Ritmo, a corrente conta semanas cumpridas pela meta que você mesmo definiu, não dias seguidos. Quem treina três vezes por semana não quebra nada nos dias de descanso. E o teste é grátis justamente para você comprovar na prática.' },
   { q: 'Preciso de cartão para testar?', a: 'Não. Os 7 dias de teste começam assim que você cria a conta, sem cadastrar cartão.' },
@@ -672,6 +811,10 @@ const FAQ = [
   { q: 'Tem aplicativo para celular?', a: 'Tem. O Ritmo se instala direto pelo navegador, sem loja: no Android, toque em “Instalar app”; no iPhone, use Compartilhar → Adicionar à Tela de Início. Fica com ícone, abre em tela cheia e recebe lembretes.' },
   { q: 'Como funcionam as notificações?', a: 'Você liga no sino do app e escolhe receber 1, 2 ou 3 por dia. São mais de 60 lembretes diferentes que mudam a cada dia: criar um card, fazer um ciclo de foco, um treino, marcar os hábitos, compartilhar uma conquista. Dá para desligar quando quiser.' },
   { q: 'Os Ritus gratuitos são pagos depois?', a: 'Não. Os 10 Ritus gratuitos (como o Clube do Livro) continuam grátis para quem usa o Ritmo. Ritus pagos são criados por outros usuários, que definem o próprio preço.' },
+  { q: 'O que são as missões do dia e a ofensiva?', a: 'Todo dia o Ritmo sugere 3 missões pequenas, escolhidas pelo que você já usa (e uma para descobrir algo novo). Cumpriu as 3, abre um baú com pontos ou um dia extra de descanso. A ofensiva conta os dias seguidos em que você fez algo no app, com 1 dia de descanso por semana que não quebra a sequência: constância sem culpa.' },
+  { q: 'Como funcionam os níveis e as ligas?', a: 'Tudo o que você faz (hábito, tarefa, foco, treino, diário, finanças) vira Pontos de Ritmo, com limite por dia para valer a constância e não o exagero. Os pontos sobem o seu nível e liberam molduras para a foto do perfil. Toda semana você entra numa liga com até 20 pessoas: os 5 primeiros sobem. Não quer competir? Dá para sair das ligas com um toque. Os pontos não valem dinheiro.' },
+  { q: 'O treino com GPS funciona como os apps de corrida?', a: 'Você escolhe corrida, caminhada, pedal ou trilha, toca em Iniciar e o Ritmo desenha a rota no mapa, com cronômetro, distância, ritmo por km, pausa automática quando você para e recordes pessoais. Depois dá para compartilhar no Feed ou gerar uma imagem para Stories, escondendo o começo e o fim da rota. A localização só é usada com a sua permissão.' },
+  { q: 'Como é o secretário por voz?', a: 'É um assistente que você batiza com o nome que quiser. Você toca no botão e fala: “gastei 32 no almoço”, “agenda dentista amanhã às 3”, “me lembra toda segunda de levar o lixo”. Ele lança o gasto, marca o compromisso, cria lembretes (inclusive os que se repetem) e avisa por notificação. Funciona no navegador do celular, sem instalar nada além do Ritmo.' },
   { q: 'O Ritmo me garante resultado?', a: 'Não, e desconfie de quem garante. Ele é uma ferramenta: mostra o que você fez, o que falta e para onde o seu dinheiro e o seu tempo estão indo. O resultado depende de você abrir o app e agir.' },
 ];
 
@@ -871,6 +1014,50 @@ function SalesPage() {
           <Reveal delay={100}>
             <JournalDemo />
           </Reveal>
+        </div>
+      </section>
+
+      {/* NOVIDADES */}
+      <section className="border-y border-emerald-500/20 bg-gradient-to-b from-emerald-500/[0.06] to-transparent">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+          <Reveal>
+            <p className="text-center text-sm font-bold text-emerald-400 uppercase tracking-wider">Novo no Ritmo</p>
+            <h2 className="mt-2 text-3xl sm:text-5xl font-extrabold text-center leading-tight">Dá vontade de voltar <span className="bg-gradient-to-r from-amber-300 to-rose-400 bg-clip-text text-transparent">amanhã.</span> E depois de amanhã.</h2>
+            <p className="mt-4 text-center text-slate-400 max-w-2xl mx-auto">Missões, baú, ofensiva, ligas, treino com GPS e um secretário que obedece à sua voz. Pequenas vitórias todo dia, sem extremismo: descansar faz parte.</p>
+          </Reveal>
+
+          <div className="mt-12 grid lg:grid-cols-2 gap-8 items-center">
+            <Reveal>
+              <h3 className="text-2xl font-extrabold inline-flex items-center gap-2"><Target className="w-6 h-6 text-amber-300" /> 3 missões por dia. Um baú no final.</h3>
+              <p className="mt-3 text-slate-400">Todo dia, três passos pequenos e possíveis, pensados para o que você já usa. Cumpriu? Abre o baú. A ofensiva mostra há quantos dias você está em movimento, e 1 dia de descanso por semana não apaga nada. Porque um dia ruim não define você.</p>
+            </Reveal>
+            <Reveal delay={100}><MissionsDemo /></Reveal>
+          </div>
+
+          <div className="mt-16 grid lg:grid-cols-2 gap-8 items-center">
+            <Reveal className="lg:order-2">
+              <h3 className="text-2xl font-extrabold inline-flex items-center gap-2"><MapPin className="w-6 h-6 text-emerald-400" /> Treino com GPS e mapa da rota.</h3>
+              <p className="mt-3 text-slate-400">Corrida, caminhada, pedal ou trilha: cronômetro, distância, ritmo por km, pausa automática no semáforo e recordes pessoais. Termine e compartilhe no Feed ou gere uma imagem pronta para o Stories, com o começo e o fim da rota escondidos para proteger a sua casa.</p>
+            </Reveal>
+            <Reveal delay={100} className="lg:order-1"><GpsDemo /></Reveal>
+          </div>
+
+          <div className="mt-16 grid lg:grid-cols-2 gap-8 items-center">
+            <Reveal>
+              <h3 className="text-2xl font-extrabold inline-flex items-center gap-2"><Mic className="w-6 h-6 text-teal-300" /> Fale. O Ritmo anota.</h3>
+              <p className="mt-3 text-slate-400">Dê um nome ao seu secretário e só fale: ele lança gastos, agenda compromissos, cria lembretes que se repetem (“toda segunda às 8”) e conta como está o seu dia. A notificação chega mesmo com o app fechado.</p>
+            </Reveal>
+            <Reveal delay={100}><VoiceDemo /></Reveal>
+          </div>
+
+          <div className="mt-16 grid lg:grid-cols-2 gap-8 items-center">
+            <Reveal className="lg:order-2">
+              <h3 className="text-2xl font-extrabold inline-flex items-center gap-2"><Crown className="w-6 h-6 text-amber-300" /> Níveis, molduras, ligas e seguidores.</h3>
+              <p className="mt-3 text-slate-400">Cada hábito, foco, treino e lançamento vira ponto. Os pontos sobem o seu nível e liberam molduras do Bronze à Lendária. Toda semana uma liga nova com gente no mesmo ritmo, perfil com bio e seguidores, e um Feed só de quem você segue. Prefere sem competição? Um toque e você sai das ligas.</p>
+            </Reveal>
+            <Reveal delay={100} className="lg:order-1"><LevelsDemo /></Reveal>
+          </div>
+          <p className="mt-10 text-center text-[11px] text-slate-600">As telas desta seção são demonstrações com dados de exemplo.</p>
         </div>
       </section>
 

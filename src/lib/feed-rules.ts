@@ -54,6 +54,8 @@ export type Achievement =
   | { type: 'habito'; habit: string }
   | { type: 'tarefa'; title: string }
   | { type: 'nivel'; level: number; name: string }
+  | { type: 'ofensiva'; days: number }
+  | { type: 'semana'; xp: number; activeDays: number }
   | { type: 'treino'; sport: SportId; distanceM: number; durationS: number; elevationGainM?: number; route?: string };
 
 const int = (v: unknown, min: number, max: number): number | null => {
@@ -113,6 +115,15 @@ export function sanitizeAchievement(raw: unknown): Achievement | null {
       const route = typeof r.route === 'string' && r.route.length <= FEED_ROUTE_MAX && POLYLINE_RE.test(r.route) ? r.route : '';
       return { type: 'treino', sport: r.sport, distanceM, durationS, ...(elev ? { elevationGainM: elev } : {}), ...(route ? { route } : {}) };
     }
+    case 'ofensiva': {
+      const days = int(r.days, 2, 3650);
+      return days ? { type: 'ofensiva', days } : null;
+    }
+    case 'semana': {
+      const xp = int(r.xp, 1, 10000);
+      const activeDays = int(r.activeDays, 1, 7);
+      return xp && activeDays ? { type: 'semana', xp, activeDays } : null;
+    }
     case 'nivel': {
       // o nome vem sempre da tabela de níveis, nunca do navegador
       const level = int(r.level, 2, MAX_LEVEL);
@@ -143,6 +154,10 @@ export function achievementHeadline(a: Achievement): string {
       return `Tarefa concluída: “${a.title}”`;
     case 'nivel':
       return `Subiu para o nível ${a.level}: ${a.name}`;
+    case 'ofensiva':
+      return `Ofensiva de ${a.days} dias seguidos no Ritmo`;
+    case 'semana':
+      return `Semana fechada: ${a.xp} pontos em ${a.activeDays} ${a.activeDays === 1 ? 'dia ativo' : 'dias ativos'}`;
     case 'treino': {
       const sp = SPORTS[a.sport];
       const rate = sp.usesPace ? `${formatPace(paceSPerKm(a.distanceM, a.durationS))} /km` : `${speedKmh(a.distanceM, a.durationS).toFixed(1).replace('.', ',')} km/h`;

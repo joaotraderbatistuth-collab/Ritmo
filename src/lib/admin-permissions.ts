@@ -20,6 +20,7 @@ export const PERMISSIONS = [
   { key: 'exports', label: 'Planilhas', description: 'Baixar planilhas de dados (usuários, vendas, comissões...).' },
   { key: 'moderation', label: 'Moderação do Feed', description: 'Analisar denúncias do Feed, esconder conteúdo, silenciar usuários e suspender Ritus.' },
   { key: 'audit', label: 'Auditoria', description: 'Ver o histórico de tudo o que os administradores fizeram.' },
+  { key: 'errors', label: 'Erros do sistema', description: 'Ver os erros que aconteceram no app e no servidor e marcar como resolvidos.' },
   { key: 'admins_create', label: 'Cadastrar administradores', description: 'Adicionar novos e-mails como administrador, só com as permissões que ele mesmo tem.' },
 ] as const;
 

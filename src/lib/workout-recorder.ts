@@ -1,7 +1,7 @@
 // Gravador do treino com GPS (só no navegador).
 // Fica fora do React de propósito: trocar de aba no app não para o treino.
 // O estado é salvo no aparelho a cada poucos segundos; se a página recarregar, o treino volta pausado.
-import { classifyPoint, GpsPoint, SportId } from './workout.js';
+import { classifyPoint, detectResume, detectStop, GpsPoint, SportId } from './workout.js';
 
 export type RecStatus = 'idle' | 'recording' | 'paused';
 
@@ -21,6 +21,10 @@ export interface RecState {
   gpsError: string | null;
   /** O treino foi recuperado depois de recarregar a página. */
   recovered: boolean;
+  /** Pausa automática ligada (preferência do aparelho). */
+  autoPauseOn: boolean;
+  /** Pausado sozinho porque a pessoa parou (volta sozinho ao andar). */
+  autoPaused: boolean;
 }
 
 export interface FinishedTrack {
@@ -45,7 +49,13 @@ let state: RecState = {
   fix: null,
   gpsError: null,
   recovered: false,
+  autoPauseOn: true,
+  autoPaused: false,
 };
+const AUTO_KEY = 'ritmo_autopause';
+/** Leituras recentes do GPS (para saber se a pessoa parou) e o ponto onde a pausa automática começou. */
+let recent: { lat: number; lng: number; t: number; acc: number | null }[] = [];
+let anchor: { lat: number; lng: number; t: number; acc: number | null } | null = null;
 const listeners = new Set<() => void>();
 let watchId: number | null = null;
 let warmers = 0;
@@ -83,6 +93,7 @@ function save(force = false) {
 function restore() {
   if (restored || !isBrowser()) return;
   restored = true;
+  try { state = { ...state, autoPauseOn: localStorage.getItem(AUTO_KEY) !== '0' }; } catch {}
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return;
@@ -118,9 +129,23 @@ function onPosition(pos: GeolocationPosition) {
   const c = pos.coords;
   const point: GpsPoint = { lat: c.latitude, lng: c.longitude, t: pos.timestamp || Date.now(), alt: c.altitude ?? null, acc: c.accuracy ?? null };
   const fix = { lat: point.lat, lng: point.lng, acc: point.acc ?? null, t: point.t };
+  recent = [...recent.filter((f) => point.t - f.t < 60_000), fix];
+  if (state.status === 'paused' && state.autoPaused && detectResume(anchor, fix, state.sport)) {
+    autoResume(point);
+    set({ fix, gpsError: null });
+    return;
+  }
   if (state.status !== 'recording') {
     set({ fix, gpsError: null });
     return;
+  }
+  if (state.autoPauseOn) {
+    const stop = detectStop(recent, state.sport, point.t);
+    if (stop.stopped) {
+      autoPause(stop.since, fix);
+      set({ fix, gpsError: null });
+      return;
+    }
   }
   const segs = state.segments.length ? state.segments : [[]];
   const seg = segs[segs.length - 1];
@@ -205,7 +230,9 @@ export function start(sport: SportId) {
   const now = Date.now();
   // aproveita a posição atual (se for boa) como primeiro ponto
   const first = state.fix && state.fix.acc != null && state.fix.acc <= 35 && now - state.fix.t < 15000 ? [{ ...state.fix, t: now }] : [];
-  set({ status: 'recording', sport, startedAt: now, segments: [first], activeMs: 0, runStart: now, recovered: false });
+  recent = [];
+  anchor = null;
+  set({ status: 'recording', sport, startedAt: now, segments: [first], activeMs: 0, runStart: now, recovered: false, autoPaused: false });
   startWatch();
   keepScreenOn();
   save(true);
@@ -213,20 +240,49 @@ export function start(sport: SportId) {
 
 export function pause() {
   if (state.status !== 'recording') return;
-  set({ status: 'paused', activeMs: activeMsNow(), runStart: null });
+  set({ status: 'paused', activeMs: activeMsNow(), runStart: null, autoPaused: false });
   save(true);
+}
+
+/** Parou de se mexer: pausa sem contar o tempo parado. */
+function autoPause(since: number, fix: { lat: number; lng: number; t: number; acc: number | null }) {
+  if (state.status !== 'recording' || !state.runStart) return;
+  const end = Math.max(state.runStart, Math.min(since, Date.now()));
+  anchor = fix;
+  set({ status: 'paused', activeMs: state.activeMs + (end - state.runStart), runStart: null, autoPaused: true });
+  save(true);
+  try { navigator.vibrate?.(80); } catch {}
+}
+
+/** Voltou a andar: retoma num trecho novo, começando no ponto atual. */
+function autoResume(point: GpsPoint) {
+  anchor = null;
+  recent = [];
+  set({ status: 'recording', runStart: Date.now(), segments: [...state.segments, [point]], autoPaused: false });
+  save(true);
+  try { navigator.vibrate?.([60, 60, 60]); } catch {}
+}
+
+export function setAutoPause(on: boolean) {
+  try { localStorage.setItem(AUTO_KEY, on ? '1' : '0'); } catch {}
+  set({ autoPauseOn: on });
+  if (!on && state.status === 'paused' && state.autoPaused) resume();
 }
 
 export function resume() {
   if (state.status !== 'paused') return;
-  set({ status: 'recording', runStart: Date.now(), segments: [...state.segments, []], recovered: false });
+  anchor = null;
+  recent = [];
+  set({ status: 'recording', runStart: Date.now(), segments: [...state.segments, []], recovered: false, autoPaused: false });
   startWatch();
   keepScreenOn();
   save(true);
 }
 
 function reset() {
-  set({ status: 'idle', startedAt: null, segments: [], activeMs: 0, runStart: null, recovered: false });
+  anchor = null;
+  recent = [];
+  set({ status: 'idle', startedAt: null, segments: [], activeMs: 0, runStart: null, recovered: false, autoPaused: false });
   save(true);
   releaseScreen();
   if (warmers === 0) stopWatch();

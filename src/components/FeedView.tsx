@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame, Trophy, Activity } from 'lucide-react';
+import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame, Trophy, Activity, UserPlus, UserCheck } from 'lucide-react';
 import { RouteSvg } from './RouteSvg.js';
 import { SPORTS, formatDuration, formatKm, formatPace, paceSPerKm, speedKmh } from '../lib/workout.js';
 import { LevelAvatar } from './LevelAvatar.js';
@@ -33,7 +33,7 @@ export interface FeedPostData {
   canDelete: boolean;
 }
 
-const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2, nivel: Trophy, treino: Activity };
+const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2, nivel: Trophy, treino: Activity, ofensiva: Flame, semana: Trophy };
 
 /* ------------------------------------------------------------------ */
 /* Foto: escolher, enviar e mostrar                                    */
@@ -147,6 +147,7 @@ const Composer: React.FC<{ teamId: number | null; achievements: Achievement[]; p
     setBusy(true);
     setMsg(null);
     const r = await callApi('/api/feed', { action: 'create_post', body: text, teamId, achievement: chosen || undefined, imageUrl: image || undefined });
+    if (r.ok) window.dispatchEvent(new Event('ritmo:xp-refresh'));
     setBusy(false);
     if (r.ok) {
       setText('');
@@ -259,6 +260,7 @@ const PostCard: React.FC<{ post: FeedPostData; onChanged: () => void; onNotice: 
   };
   const send = async () => {
     const r = await callApi('/api/feed', { action: 'add_comment', postId: post.id, body: draft, imageUrl: draftImage || undefined });
+    if (r.ok) window.dispatchEvent(new Event('ritmo:xp-refresh'));
     if (r.ok) {
       setDraft('');
       setDraftImage(null);
@@ -365,11 +367,21 @@ export const FeedView: React.FC<{ teamId: number | null; canPost: boolean; achie
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
+  // Feed geral: "Todos" ou só quem eu sigo (lembra a escolha no aparelho)
+  const [onlyFollowing, setOnlyFollowing] = useState(false);
+  useEffect(() => {
+    try { setOnlyFollowing(!teamId && localStorage.getItem('ritmo_feed_following') === '1'); } catch {}
+  }, [teamId]);
+  const chooseFollowing = (v: boolean) => {
+    setOnlyFollowing(v);
+    try { localStorage.setItem('ritmo_feed_following', v ? '1' : '0'); } catch {}
+  };
 
   const load = useCallback(async (before?: number) => {
     setLoading(true);
     const qs = new URLSearchParams();
     if (teamId) qs.set('teamId', String(teamId));
+    else if (onlyFollowing) qs.set('following', '1');
     if (before) qs.set('before', String(before));
     const r = await callApi(`/api/feed?${qs.toString()}`);
     setLoading(false);
@@ -381,7 +393,7 @@ export const FeedView: React.FC<{ teamId: number | null; canPost: boolean; achie
     const d = r.data as any;
     setPosts((prev) => (before ? [...prev, ...d.posts] : d.posts));
     setHasMore(d.hasMore);
-  }, [teamId]);
+  }, [teamId, onlyFollowing]);
 
   useEffect(() => {
     load();
@@ -392,7 +404,18 @@ export const FeedView: React.FC<{ teamId: number | null; canPost: boolean; achie
       {canPost && <Composer teamId={teamId} achievements={achievements} prefill={prefill} onPosted={() => { onPrefillUsed?.(); load(); }} />}
       {notice && <div role="status" className={`text-sm rounded-lg p-3 border ${notice.ok ? 'text-emerald-300 bg-emerald-950/40 border-emerald-800/60' : 'text-rose-300 bg-rose-950/40 border-rose-800/60'}`}>{notice.text}</div>}
       {error && <div role="alert" className="text-sm text-rose-300 bg-rose-950/40 border border-rose-800/60 rounded-lg p-3">{error}</div>}
-      {!loading && !error && posts.length === 0 && <div className="rounded-2xl border border-dashed border-[#30363d] p-8 text-center text-sm text-[#8b949e]">{emptyText}</div>}
+      {!teamId && (
+        <div className="flex gap-1 p-1 rounded-xl bg-[#161b22] border border-[#30363d] w-fit" role="tablist" aria-label="Filtrar o Feed">
+          {[{ v: false, label: 'Todos' }, { v: true, label: 'Seguindo' }].map((o) => (
+            <button key={o.label} type="button" role="tab" aria-selected={onlyFollowing === o.v} onClick={() => chooseFollowing(o.v)} className={`px-4 py-1.5 rounded-lg text-sm font-semibold ${onlyFollowing === o.v ? 'bg-emerald-600 text-white' : 'text-[#8b949e] hover:text-white'}`}>{o.label}</button>
+          ))}
+        </div>
+      )}
+      {!loading && !error && posts.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-[#30363d] p-8 text-center text-sm text-[#8b949e]">
+          {onlyFollowing && !teamId ? 'Você ainda não segue ninguém (ou quem você segue não publicou). Toque na foto de alguém no Feed e depois em Seguir.' : emptyText}
+        </div>
+      )}
       {posts.map((p) => <PostCard key={p.id} post={p} onChanged={() => load()} onNotice={(text, ok) => setNotice({ text, ok })} />)}
       {loading && <p className="text-center text-xs text-[#6e7681]">Carregando...</p>}
       {hasMore && !loading && <div className="text-center"><button type="button" onClick={() => load(posts[posts.length - 1]?.id)} className="px-4 py-2 rounded-lg border border-[#30363d] text-sm text-[#c9d1d9] hover:bg-[#21262d]">Carregar mais</button></div>}
@@ -416,6 +439,9 @@ interface PublicProfile {
   memberSince: string | null;
   posts: number;
   likesReceived: number;
+  followers?: number;
+  following?: number;
+  followedByMe?: boolean;
   isMe: boolean;
 }
 
@@ -463,6 +489,16 @@ export const ProfileModal: React.FC<{ userId: number | null; onClose: () => void
     return () => window.removeEventListener('keydown', onKey);
   }, [userId, onClose]);
 
+  const [followBusy, setFollowBusy] = useState(false);
+  const toggleFollow = async () => {
+    if (!profile) return;
+    setFollowBusy(true);
+    const r = await callApi<{ following?: boolean; followers?: number; error?: string }>('/api/feed', { action: 'toggle_follow', userId: profile.id });
+    setFollowBusy(false);
+    if (r.ok) setProfile({ ...profile, followedByMe: Boolean(r.data.following), followers: r.data.followers ?? profile.followers });
+    else setNotice({ text: r.data.error || 'Não foi possível seguir agora.', ok: false });
+  };
+
   if (!userId) return null;
   const info = profile ? levelInfo(profile.xp) : null;
   const frame = profile ? frameForLevel(profile.level) : null;
@@ -507,6 +543,20 @@ export const ProfileModal: React.FC<{ userId: number | null; onClose: () => void
                 <div className="rounded-xl bg-[#161b22] border border-[#21262d] py-2"><dt className="text-[11px] text-[#8b949e]">Curtidas</dt><dd className="text-lg font-bold text-[#f0f6fc]">{profile.likesReceived}</dd></div>
                 <div className="rounded-xl bg-[#161b22] border border-[#21262d] py-2"><dt className="text-[11px] text-[#8b949e]">Pontos</dt><dd className="text-lg font-bold text-[#f0f6fc]">{profile.xp.toLocaleString('pt-BR')}</dd></div>
               </dl>
+              <p className="mt-3 text-sm text-[#8b949e]">
+                <strong className="text-[#f0f6fc]">{profile.followers ?? 0}</strong> {(profile.followers ?? 0) === 1 ? 'seguidor' : 'seguidores'} · <strong className="text-[#f0f6fc]">{profile.following ?? 0}</strong> seguindo
+              </p>
+              {!profile.isMe && (
+                <button
+                  type="button"
+                  onClick={toggleFollow}
+                  disabled={followBusy}
+                  aria-pressed={Boolean(profile.followedByMe)}
+                  className={`mt-3 inline-flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-bold ${profile.followedByMe ? 'border border-[#30363d] text-[#c9d1d9] hover:border-rose-400/60 hover:text-rose-300' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
+                >
+                  {profile.followedByMe ? <><UserCheck className="w-4 h-4" /> Seguindo</> : <><UserPlus className="w-4 h-4" /> Seguir</>}
+                </button>
+              )}
               {profile.memberSince && <p className="mt-3 text-xs text-[#6e7681]">No Ritmo desde {monthYear(profile.memberSince)}</p>}
               {profile.isMe && onEditMine && (
                 <button type="button" onClick={() => { onClose(); onEditMine(); }} className="mt-3 px-4 py-2 rounded-lg border border-[#30363d] text-sm text-[#c9d1d9] hover:bg-[#21262d]">Editar meu perfil</button>

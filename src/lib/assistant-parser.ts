@@ -1,12 +1,13 @@
 // Secretário do Ritmo: entende frases faladas ou digitadas em português. Regras PURAS, testadas em tests/.
 // Ex.: "gastei 32 no almoço", "agenda dentista amanhã às 3 da tarde", "me lembra de pagar a luz dia 10".
+import { findRepeat, settleRepeat } from './recurrence.js';
 
 export type AssistantTab = 'feed' | 'hoje' | 'roteiro' | 'rotina' | 'quadros' | 'habitos' | 'treino' | 'foco' | 'diario' | 'financas' | 'progresso' | 'configuracoes' | 'afiliados';
 
 export type Intent =
   | { kind: 'expense' | 'income'; amountCents: number | null; description: string; category: string; date: string }
   | { kind: 'appointment'; title: string; date: string | null; time: string | null }
-  | { kind: 'reminder'; text: string; date: string | null; time: string | null }
+  | { kind: 'reminder'; text: string; date: string | null; time: string | null; repeat?: string | null }
   | { kind: 'task'; title: string; date: string }
   | { kind: 'habit_done'; name: string }
   | { kind: 'agenda'; date: string }
@@ -301,8 +302,11 @@ export function parseCommand(raw: string, now: Date = new Date(), assistantName 
   // lembrete
   if (p.has(/\b(me lembr\w*|lembre-?me|lembrar de|lembrete|me avis\w*|nao (me )?deixa (eu )?esquecer|me alert\w*)\b/)) {
     p.cut(/\b(?:cria|criar|faz|fazer|coloca|colocar|adiciona|adicionar)?\s*(?:um\s+)?(?:me lembr\w*|lembre-?me|lembrar|lembrete|me avis\w*|nao (?:me )?deixa (?:eu )?esquecer|me alert\w*)\b(?:\s+(?:de|que|da|do|pra|para)\b)?/);
+    const rep = findRepeat(p.n);
+    if (rep) p.cut(rep.match);
     const when = extractWhen(p, now);
-    return { kind: 'reminder', text: tidy(p.orig), date: when.date, time: when.time };
+    const repeat = rep ? settleRepeat(rep.repeat, when.date || ymd(now)) : null;
+    return { kind: 'reminder', text: tidy(p.orig), date: when.date, time: when.time, repeat };
   }
 
   // consultas (antes dos lançamentos: "quanto gastei" não é um gasto)

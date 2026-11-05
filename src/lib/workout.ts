@@ -399,3 +399,103 @@ export function totals(list: { distanceM: number; movingS: number }[]): { count:
   }
   return out;
 }
+
+/* ---------------- Pausa automática ---------------- */
+
+/** Parado: andou menos que `stillM` nos últimos `windowS` segundos. Volta: afastou `resumeM` do ponto da pausa. */
+export const AUTO_PAUSE: Record<SportId, { windowS: number; stillM: number; resumeM: number }> = {
+  corrida: { windowS: 10, stillM: 8, resumeM: 12 },
+  caminhada: { windowS: 15, stillM: 7, resumeM: 10 },
+  bike: { windowS: 8, stillM: 10, resumeM: 20 },
+  trilha: { windowS: 20, stillM: 8, resumeM: 12 },
+};
+
+type Fix = { lat: number; lng: number; t: number; acc?: number | null };
+
+/**
+ * Está parado? Olha as leituras boas dos últimos segundos. Só decide com GPS chegando
+ * (sem leitura recente, não pausa: pode ser só o sinal que caiu).
+ * Devolve desde quando está parado (para não contar esse tempo).
+ */
+export function detectStop(fixes: Fix[], sport: SportId, now: number): { stopped: boolean; since: number } {
+  const cfg = AUTO_PAUSE[sport];
+  const from = now - cfg.windowS * 1000;
+  const win = fixes.filter((f) => f.t >= from && f.t <= now && (f.acc == null || f.acc <= GPS_LIMITS.maxAccuracyM));
+  if (win.length < 3) return { stopped: false, since: now };
+  if (win[win.length - 1].t - win[0].t < cfg.windowS * 800) return { stopped: false, since: now };
+  if (now - win[win.length - 1].t > 6000) return { stopped: false, since: now };
+  const last = win[win.length - 1];
+  const far = Math.max(...win.map((f) => haversine(f, last)));
+  return far < cfg.stillM ? { stopped: true, since: win[0].t } : { stopped: false, since: now };
+}
+
+/** Voltou a se mover depois da pausa automática? */
+export function detectResume(anchor: Fix | null, fix: Fix, sport: SportId): boolean {
+  if (!anchor) return false;
+  if (fix.acc != null && fix.acc > 30) return false;
+  return haversine(anchor, fix) >= AUTO_PAUSE[sport].resumeM;
+}
+
+/* ---------------- Recordes pessoais ---------------- */
+
+export interface RecordEntry {
+  /** 'dist' maior distância · 'tempo' treino mais longo · 'pace5k'/'pace1k' melhor ritmo médio · 'veloc' maior média (pedal) · 'km' km mais rápido. */
+  kind: 'dist' | 'tempo' | 'pace1k' | 'pace5k' | 'pace10k' | 'veloc' | 'km';
+  sport: SportId;
+  label: string;
+  /** Número para comparar (maior é melhor em dist/tempo/veloc; menor é melhor nos ritmos). */
+  value: number;
+  workoutId: number;
+  date: string;
+}
+
+type RecWorkout = { id: number; sport: SportId; distanceM: number; movingS: number; startedAt: string; splits?: Split[] };
+
+const LOWER_IS_BETTER = new Set(['pace1k', 'pace5k', 'pace10k', 'km']);
+
+function candidates(w: RecWorkout): RecordEntry[] {
+  const out: RecordEntry[] = [];
+  const base = { sport: w.sport, workoutId: w.id, date: String(w.startedAt).slice(0, 10) };
+  if (w.distanceM >= 100) out.push({ ...base, kind: 'dist', label: 'Maior distância', value: w.distanceM });
+  if (w.movingS >= 60) out.push({ ...base, kind: 'tempo', label: 'Treino mais longo', value: w.movingS });
+  if (SPORTS[w.sport].usesPace) {
+    const pace = paceSPerKm(w.distanceM, w.movingS);
+    if (pace) {
+      if (w.distanceM >= 10000) out.push({ ...base, kind: 'pace10k', label: 'Melhor ritmo em 10 km ou mais', value: Math.round(pace) });
+      if (w.distanceM >= 5000) out.push({ ...base, kind: 'pace5k', label: 'Melhor ritmo em 5 km ou mais', value: Math.round(pace) });
+      if (w.distanceM >= 1000) out.push({ ...base, kind: 'pace1k', label: 'Melhor ritmo médio', value: Math.round(pace) });
+    }
+    const full = (w.splits || []).filter((s) => s.meters >= 990 && s.seconds > 0);
+    if (full.length) out.push({ ...base, kind: 'km', label: 'Km mais rápido', value: Math.min(...full.map((s) => s.seconds)) });
+  } else if (w.distanceM >= 2000 && w.movingS > 0) {
+    out.push({ ...base, kind: 'veloc', label: 'Maior velocidade média', value: Math.round(speedKmh(w.distanceM, w.movingS) * 10) / 10 });
+  }
+  // descarta números impossíveis (GPS doido)
+  return out.filter((r) => r.kind !== 'veloc' || r.value <= SPORTS[w.sport].maxAvgKmh);
+}
+
+const better = (a: RecordEntry, b: RecordEntry | undefined) => !b || (LOWER_IS_BETTER.has(a.kind) ? a.value < b.value : a.value > b.value);
+
+/** Melhores marcas por esporte (em caso de empate, vale a mais antiga). */
+export function personalRecords(list: RecWorkout[]): RecordEntry[] {
+  const best = new Map<string, RecordEntry>();
+  const sorted = list.slice().sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt)) || a.id - b.id);
+  for (const w of sorted) for (const c of candidates(w)) if (better(c, best.get(`${c.sport}:${c.kind}`))) best.set(`${c.sport}:${c.kind}`, c);
+  return [...best.values()];
+}
+
+/** Recordes que um treino novo acabou de bater (precisa ter um treino anterior do mesmo esporte). */
+export function newRecords(previous: RecWorkout[], w: RecWorkout): RecordEntry[] {
+  const same = previous.filter((p) => p.sport === w.sport && p.id !== w.id);
+  if (!same.length) return [];
+  const old = new Map(personalRecords(same).map((r) => [r.kind, r]));
+  return candidates(w).filter((c) => old.has(c.kind) && better(c, old.get(c.kind)));
+}
+
+/** "10,52 km", "1h05", "5:12 /km", "28,4 km/h". */
+export function recordValueLabel(r: Pick<RecordEntry, 'kind' | 'value'>): string {
+  if (r.kind === 'dist') return `${formatKm(r.value)} km`;
+  if (r.kind === 'tempo') return formatDuration(r.value);
+  if (r.kind === 'veloc') return `${String(r.value).replace('.', ',')} km/h`;
+  return `${formatPace(r.value)} /km`;
+}

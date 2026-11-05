@@ -3,8 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Flame, Users, CreditCard, Ticket, Wallet, LayoutDashboard, Search, X, AlertCircle, CheckCircle2,
   ShieldCheck, Download, History, Network, UserCog, Gift, Power, RotateCcw, Pencil, Flag,
-  Copy, Paperclip, FileText, Mail,
+  Copy, Paperclip, FileText, Mail, BarChart3, Bug,
 } from 'lucide-react';
+import { NumbersTab, ErrorsTab } from '../components/admin/AdminNumbers.js';
 import { uploadFile } from '../lib/upload.js';
 import { PERMISSIONS, PERMISSION_TEMPLATES } from '../lib/admin-permissions.js';
 import { payoutCycle, payoutDatesText, shortDateBR } from '../lib/payout-schedule.js';
@@ -39,7 +40,7 @@ const STATUS_TONE: Record<string, string> = {
 const PERM_LABEL: Record<string, string> = Object.fromEntries(PERMISSIONS.map((p) => [p.key, p.label]));
 
 type Act = (body: Record<string, unknown>) => Promise<boolean>;
-type Tab = 'geral' | 'usuarios' | 'admins' | 'vendas' | 'cupons' | 'afiliados' | 'saques' | 'moderacao' | 'planilhas' | 'auditoria';
+type Tab = 'geral' | 'numeros' | 'erros' | 'usuarios' | 'admins' | 'vendas' | 'cupons' | 'afiliados' | 'saques' | 'moderacao' | 'planilhas' | 'auditoria';
 
 const inputCls = 'bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:border-emerald-500';
 const btnPrimary = 'px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm disabled:opacity-50';
@@ -101,6 +102,8 @@ function AdminPage() {
   const tabs = useMemo(() => {
     const all: { id: Tab; label: string; icon: any; show: boolean }[] = [
       { id: 'geral', label: 'Visão geral', icon: LayoutDashboard, show: can('overview') || can('finance') },
+      { id: 'numeros', label: 'Números', icon: BarChart3, show: can('overview') },
+      { id: 'erros', label: 'Erros', icon: Bug, show: can('errors') },
       { id: 'usuarios', label: 'Usuários', icon: Users, show: can('users_view') || can('users_manage') },
       { id: 'admins', label: 'Administradores', icon: ShieldCheck, show: can('admins_manage') || can('admins_create') },
       { id: 'vendas', label: 'Vendas', icon: CreditCard, show: can('finance') },
@@ -180,6 +183,8 @@ function AdminPage() {
         )}
 
         {tab === 'geral' && <Overview data={data} />}
+        {tab === 'numeros' && <NumbersTab />}
+        {tab === 'erros' && <ErrorsTab />}
         {tab === 'usuarios' && <UsersTab users={data.users || []} act={act} canManage={can('users_manage')} isMaster={Boolean(data.adminUser?.isMaster)} me={data.adminUser?.id} />}
         {tab === 'admins' && <AdminsTab admins={data.admins || []} invites={data.adminInvites || []} act={act} me={data.adminUser?.id} isMaster={Boolean(data.adminUser?.isMaster)} myPerms={perms} />}
         {tab === 'vendas' && <SalesTab finance={data.finance} teamsFinance={data.teamsFinance} payments={data.payments || []} act={act} canRefund={can('refunds')} />}

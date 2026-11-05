@@ -18,6 +18,7 @@ import {
   timeLabel,
   ymd,
 } from '../lib/assistant-parser.js';
+import { firstOccurrence, repeatLabel } from '../lib/recurrence.js';
 import * as recorder from '../lib/workout-recorder.js';
 import { SPORTS } from '../lib/workout.js';
 import type { FinanceTransactionItem, HabitItem, HabitLogItem, TaskItem } from '../lib/types.js';
@@ -29,6 +30,7 @@ interface Reminder {
   remindAt: string;
   taskId: number | null;
   sentAt: string | null;
+  repeat?: string | null;
 }
 
 interface Msg {
@@ -162,12 +164,13 @@ export const Assistant: React.FC<{
   /* ---------- lembrete tocando com o app aberto ---------- */
   useEffect(() => {
     const check = () => {
-      let alerted: number[] = [];
+      let alerted: (number | string)[] = [];
       try { alerted = JSON.parse(localStorage.getItem('ritmo_reminders_alerted') || '[]'); } catch {}
-      const due = reminders.find((r) => new Date(r.remindAt).getTime() <= Date.now() && Date.now() - new Date(r.remindAt).getTime() < 3 * 3600_000 && !alerted.includes(r.id));
+      const key = (r: Reminder) => (r.repeat ? `${r.id}@${r.remindAt}` : r.id);
+      const due = reminders.find((r) => new Date(r.remindAt).getTime() <= Date.now() && Date.now() - new Date(r.remindAt).getTime() < 3 * 3600_000 && !alerted.includes(key(r)));
       if (due) {
         setAlert(due);
-        try { localStorage.setItem('ritmo_reminders_alerted', JSON.stringify([...alerted, due.id].slice(-200))); } catch {}
+        try { localStorage.setItem('ritmo_reminders_alerted', JSON.stringify([...alerted, key(due)].slice(-200))); } catch {}
         if (readPref('ritmo_assistant_voice', true)) speak(`${firstName ? firstName + ', ' : ''}lembrete: ${due.text}`);
       }
     };
@@ -187,8 +190,8 @@ export const Assistant: React.FC<{
   const today = () => ymd(new Date());
   const pushTip = () => (typeof Notification !== 'undefined' && Notification.permission !== 'granted' ? ' Dica: ligue as notificações no sino para eu te avisar mesmo com o app fechado.' : '');
 
-  const addReminder = async (text: string, at: Date, taskId: number | null = null) => {
-    const r = await callApi<{ reminder?: Reminder; error?: string }>('/api/assistant', { action: 'add_reminder', text, remindAt: at.toISOString(), taskId });
+  const addReminder = async (text: string, at: Date, taskId: number | null = null, repeat: string | null = null) => {
+    const r = await callApi<{ reminder?: Reminder; error?: string }>('/api/assistant', { action: 'add_reminder', text, remindAt: at.toISOString(), taskId, repeat });
     if (r.ok && r.data.reminder) {
       setReminders((list) => [...list, r.data.reminder!].sort((a, b) => a.remindAt.localeCompare(b.remindAt)));
       return r.data.reminder;
@@ -257,6 +260,20 @@ export const Assistant: React.FC<{
 
       case 'reminder': {
         if (!intent.text) return say('Do que você quer que eu te lembre?');
+        if (intent.repeat) {
+          const time = intent.time || '09:00';
+          const first = firstOccurrence(intent.repeat, time, now, intent.date);
+          if (!first) return say('Não entendi quando repetir. Tente "toda segunda às 8".');
+          try {
+            const r = await addReminder(intent.text, first, null, intent.repeat);
+            return say(`Combinado! Vou te lembrar de ${intent.text.toLowerCase()} ${repeatLabel(intent.repeat)} às ${timeLabel(time)}. A primeira vez é ${dayLabel(ymd(first), now)}.${intent.time ? '' : ' (Coloquei 9h; para mudar, diga outro horário.)'}${pushTip()}`, {
+              label: 'Desfazer',
+              run: async () => { await doneReminder(r.id); say('Lembrete cancelado.'); },
+            });
+          } catch (e: any) {
+            return say(e.message);
+          }
+        }
         if (!intent.date && !intent.time) {
           pending.current = intent;
           return say(`Quando devo te lembrar de ${intent.text.toLowerCase()}?`);
@@ -357,7 +374,7 @@ export const Assistant: React.FC<{
       case 'reminders': {
         const next = reminders.filter((r) => new Date(r.remindAt).getTime() > now.getTime());
         if (!next.length) return say('Você não tem lembretes marcados.');
-        return say(`Seus lembretes: ${next.slice(0, 6).map((r) => { const d = new Date(r.remindAt); return `${r.text}, ${dayLabel(ymd(d), now)} às ${timeLabel(d.toTimeString().slice(0, 5))}`; }).join('; ')}.`);
+        return say(`Seus lembretes: ${next.slice(0, 6).map((r) => { const d = new Date(r.remindAt); return `${r.text}, ${r.repeat ? `${repeatLabel(r.repeat)}, próxima ` : ''}${dayLabel(ymd(d), now)} às ${timeLabel(d.toTimeString().slice(0, 5))}`; }).join('; ')}.`);
       }
 
       case 'start_workout': {
@@ -438,6 +455,7 @@ export const Assistant: React.FC<{
       say('Ops, algo deu errado. Tente de novo.');
     } finally {
       setBusy(false);
+      window.dispatchEvent(new Event('ritmo:xp-refresh'));
     }
   };
 
@@ -504,6 +522,15 @@ export const Assistant: React.FC<{
     }
   };
 
+  // Missão "peça um lembrete": outras telas abrem o secretário por este evento
+  const openPanelRef = useRef(openPanel);
+  openPanelRef.current = openPanel;
+  useEffect(() => {
+    const h = () => openPanelRef.current();
+    window.addEventListener('ritmo:open-assistant', h);
+    return () => window.removeEventListener('ritmo:open-assistant', h);
+  }, []);
+
   const saveName = async (n: string) => {
     const r = await callApi<{ name?: string; error?: string }>('/api/assistant', { action: 'set_name', name: n });
     if (!r.ok) return;
@@ -540,11 +567,12 @@ export const Assistant: React.FC<{
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold uppercase tracking-wider text-amber-300">{botName} lembrando</p>
               <p className="text-sm font-semibold text-[#f0f6fc] break-words">{alert.text}</p>
+              {alert.repeat && <p className="text-[11px] text-[#8b949e]">Repete {repeatLabel(alert.repeat)}</p>}
             </div>
           </div>
           <div className="mt-3 flex gap-2 justify-end">
             <button type="button" onClick={() => setAlert(null)} className="px-3 py-1.5 rounded-lg text-sm text-[#8b949e] hover:text-white">Fechar</button>
-            <button type="button" onClick={() => doneReminder(alert.id)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold"><Check className="w-4 h-4" /> Feito</button>
+            <button type="button" onClick={() => (alert.repeat ? setAlert(null) : doneReminder(alert.id))} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold"><Check className="w-4 h-4" /> Feito</button>
           </div>
         </div>
       )}
@@ -670,7 +698,7 @@ export const Assistant: React.FC<{
                       return (
                         <li key={r.id} className="flex items-center gap-2 text-sm">
                           <span className="flex-1 min-w-0 truncate text-[#c9d1d9]">{r.text}</span>
-                          <span className="text-[11px] text-[#8b949e] whitespace-nowrap">{dayLabel(ymd(d))} {timeLabel(d.toTimeString().slice(0, 5))}</span>
+                          <span className="text-[11px] text-[#8b949e] whitespace-nowrap">{r.repeat ? `🔁 ${repeatLabel(r.repeat)}, ` : ''}{dayLabel(ymd(d))} {timeLabel(d.toTimeString().slice(0, 5))}</span>
                           <button type="button" onClick={() => doneReminder(r.id)} aria-label="Apagar lembrete" className="p-1 text-[#6e7681] hover:text-rose-400"><X className="w-3.5 h-3.5" /></button>
                         </li>
                       );

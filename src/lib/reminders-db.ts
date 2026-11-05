@@ -10,6 +10,8 @@ export interface ReminderItem {
   remindAt: string;
   taskId: number | null;
   sentAt: string | null;
+  /** Repetição ('daily', 'weekly:1,3', 'monthly:10') ou null. */
+  repeat: string | null;
 }
 
 const mem: (ReminderItem & { userId: number; doneAt: string | null })[] = [];
@@ -29,7 +31,7 @@ export async function listReminders(userId: number): Promise<ReminderItem[]> {
         .where(and(eq(schema.reminders.userId, userId), isNull(schema.reminders.doneAt), gte(schema.reminders.remindAt, since)))
         .orderBy(asc(schema.reminders.remindAt))
         .limit(REMINDER_LIMITS.activeMax);
-      return rows.map((r) => ({ id: r.id, text: r.text, remindAt: iso(r.remindAt)!, taskId: r.taskId ?? null, sentAt: iso(r.sentAt) }));
+      return rows.map((r) => ({ id: r.id, text: r.text, remindAt: iso(r.remindAt)!, taskId: r.taskId ?? null, sentAt: iso(r.sentAt), repeat: r.repeat ?? null }));
     } catch (e) {
       console.error('[lembretes] listar', e);
     }
@@ -40,18 +42,18 @@ export async function listReminders(userId: number): Promise<ReminderItem[]> {
     .map(({ userId: _u, doneAt: _d, ...r }) => r);
 }
 
-export async function createReminder(userId: number, input: { text: string; remindAt: Date; taskId?: number | null }): Promise<ReminderItem> {
+export async function createReminder(userId: number, input: { text: string; remindAt: Date; taskId?: number | null; repeat?: string | null }): Promise<ReminderItem> {
   if (await checkDb()) {
     try {
-      const [r] = await db.insert(schema.reminders).values({ userId, text: input.text, remindAt: input.remindAt, taskId: input.taskId ?? null }).returning();
-      return { id: r.id, text: r.text, remindAt: iso(r.remindAt)!, taskId: r.taskId ?? null, sentAt: null };
+      const [r] = await db.insert(schema.reminders).values({ userId, text: input.text, remindAt: input.remindAt, taskId: input.taskId ?? null, repeat: input.repeat ?? null }).returning();
+      return { id: r.id, text: r.text, remindAt: iso(r.remindAt)!, taskId: r.taskId ?? null, sentAt: null, repeat: r.repeat ?? null };
     } catch (e) {
       console.error('[lembretes] criar', e);
     }
   }
-  const item = { id: ++memId, userId, text: input.text, remindAt: input.remindAt.toISOString(), taskId: input.taskId ?? null, sentAt: null, doneAt: null };
+  const item = { id: ++memId, userId, text: input.text, remindAt: input.remindAt.toISOString(), taskId: input.taskId ?? null, sentAt: null, doneAt: null, repeat: input.repeat ?? null };
   mem.push(item);
-  return { id: item.id, text: item.text, remindAt: item.remindAt, taskId: item.taskId, sentAt: null };
+  return { id: item.id, text: item.text, remindAt: item.remindAt, taskId: item.taskId, sentAt: null, repeat: item.repeat };
 }
 
 /** Conclui (some da lista) ou apaga. */

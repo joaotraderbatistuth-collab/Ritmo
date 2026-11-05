@@ -91,3 +91,18 @@ export async function sendRenewalReminderEmail(
   `;
   return sendEmail(to, `${title} — Ritmo`, html);
 }
+
+/** Alerta de erro novo para o administrador master (no máximo um por erro a cada 6 horas). */
+export async function sendErrorAlertEmail(to: string, info: { message: string; source: string; url: string; count: number }): Promise<SendEmailResult> {
+  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+  return sendEmail(
+    to,
+    `[Ritmo] Erro ${info.source === 'servidor' ? 'no servidor' : 'no app'}: ${info.message.slice(0, 80)}`,
+    `<div style="font-family:Arial,sans-serif;max-width:560px">
+      <h2 style="color:#e11d48">Apareceu um erro no Ritmo</h2>
+      <p><strong>Onde:</strong> ${info.source === 'servidor' ? 'servidor' : 'app (navegador)'}<br><strong>Página:</strong> ${esc(info.url || '-')}<br><strong>Vezes:</strong> ${info.count}</p>
+      <pre style="background:#f4f4f5;padding:12px;border-radius:8px;white-space:pre-wrap">${esc(info.message.slice(0, 600))}</pre>
+      <p>Veja os detalhes no painel admin, aba <strong>Erros</strong>.</p>
+    </div>`
+  );
+}

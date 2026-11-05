@@ -14,6 +14,9 @@ import { GUIDE_STEPS, parseGuideState, shouldAutoStartGuide } from '../src/lib/s
 import { splitTeamPayment, validateTeamInput, teamCodeFrom, isValidTeamCode, membershipActive, nextMembershipExpiry, teamPriceLabel, qualifiesForFreeAccess, TEAM_PLATFORM_FEE_PERCENT } from '../src/lib/teams-plan.js';
 import { normalizeText, displayName, initials, sanitizeAchievement, achievementHeadline, parsePayload, rateLimited, timeAgo, FEED_LIMITS } from '../src/lib/feed-rules.js';
 import { computeShareable } from '../src/lib/achievements.js';
+import { findRepeat, firstOccurrence, nextOccurrence, repeatLabel, isValidRepeat } from '../src/lib/recurrence.js';
+import { detectStop, detectResume, personalRecords, newRecords, recordValueLabel } from '../src/lib/workout.js';
+import { pickMissions, missionProgress, chestReward, computeStreak, nextMilestone, weekSummary, nextTier, rankInGroup, mondayOf, MISSION_POOL } from '../src/lib/missions.js';
 import { computeNotices } from '../src/lib/notices.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
 
@@ -28,6 +31,8 @@ function assert(condition: boolean, message: string) {
   }
 }
 
+import { computeMetrics, sourceLabel, weekStart } from '../src/lib/metrics.js';
+import { cleanError, fingerprint as errFingerprint, isNoise, scrub } from '../src/lib/error-rules.js';
 import { parseCommand, completeWith, resolveDateTime, extractAmount as _ea, dayLabel, timeLabel, cleanAssistantName, guessCategory, tidy, fold } from '../src/lib/assistant-parser.js';
 import { haversine, classifyPoint, trackStats, currentPace, formatDuration, formatPace, formatKm, encodePolyline, decodePolyline, simplify, simplifyTo, trimRoute, validateWorkout, autoTitle, totals as workoutTotals, SPORTS } from '../src/lib/workout.js';
 import { computeXp, levelInfo, LEVELS, XP_RULES, XP_DAILY_MAX, frameForLevel, MAX_LEVEL } from '../src/lib/levels.js';
@@ -594,6 +599,133 @@ export function runTests() {
   assert(guessCategory('Uber', 'expense') === 'transporte' && guessCategory('freela', 'income') === 'renda', 'categoria');
   assert(tidy('de pagar a luz no') === 'Pagar a luz' && fold('Ação') === 'acao', 'limpeza de texto');
   console.log('✓ Todos os testes do secretário passaram com sucesso!');
+
+  console.log('18. Testando o painel de números...');
+  assert(weekStart('2026-11-05') === '2026-11-02' && weekStart('2026-11-02') === '2026-11-02' && weekStart('2026-11-08') === '2026-11-02', 'semana começa na segunda');
+  assert(sourceLabel({ referredBy: 'RITMO-X', source: null }) === 'Indicação (afiliado)' && sourceLabel({ referredBy: null, source: 'utm:instagram/black' }) === 'Instagram' && sourceLabel({ referredBy: null, source: 'site:l.instagram.com' }) === 'Instagram' && sourceLabel({ referredBy: null, source: 'ritus' }) === 'Ritus' && sourceLabel({ referredBy: null, source: null }) === 'Direto / sem origem', 'origem do cadastro');
+  const mu = (id: number, createdDay: string, extra: any = {}) => ({ id, createdDay, role: 'user', status: 'trial', referredBy: null, source: null, ...extra });
+  const mt = computeMetrics({
+    today: '2026-11-05',
+    priceCents: 3990,
+    users: [
+      mu(1, '2026-10-01', { source: 'utm:instagram' }),
+      mu(2, '2026-10-01'),
+      mu(3, '2026-10-02', { referredBy: 'X' }),
+      mu(4, '2026-11-04'),
+      mu(9, '2026-10-01', { role: 'admin' }),
+    ],
+    payments: [
+      { userId: 1, paidDay: '2026-10-08', amountCents: 3990, kind: 'subscription' },
+      { userId: 1, paidDay: '2026-11-03', amountCents: 3990, kind: 'subscription' },
+      { userId: 3, paidDay: '2026-10-04', amountCents: 3990, kind: 'subscription' },
+      { userId: 9, paidDay: '2026-10-09', amountCents: 3990, kind: 'subscription' },
+    ],
+    activity: [
+      { userId: 1, day: '2026-10-02' },
+      { userId: 1, day: '2026-10-09' },
+      { userId: 2, day: '2026-10-02' },
+      { userId: 3, day: '2026-10-31' },
+      { userId: 4, day: '2026-11-05' },
+    ],
+  });
+  assert(mt.totals.users === 4, 'administrador fica de fora');
+  assert(mt.totals.paying === 1 && mt.totals.mrrCents === 3990, 'pagante agora (pagou nos últimos 30 dias)');
+  assert(mt.conversionOverall.signups === 3 && mt.conversionOverall.converted === 2, 'conversão do teste (só testes terminados)');
+  assert(mt.retention.cohortD1 === 4 && mt.retention.d1 === 75, 'voltou no dia seguinte: 3 de 4');
+  assert(mt.retention.d7 === 33.3 && mt.retention.d30 === 66.7, 'semana 2 e mês 1');
+  const nov = mt.churn[mt.churn.length - 1];
+  assert(nov.month === '2026-11' && nov.startPaying === 2 && nov.lost === 1 && nov.rate === 50 && nov.partial, 'cancelamentos do mês: 1 de 2 não renovou');
+  assert(mt.totals.revenueMonthCents === 3990 && mt.totals.revenueLastMonthCents === 7980, 'receita do mês e do anterior');
+  const insta = mt.sources.find((x) => x.source === 'Instagram');
+  assert(insta?.signups === 1 && insta.paying === 1 && mt.sources[0].paying >= mt.sources[mt.sources.length - 1].paying, 'origem dos assinantes');
+  assert(mt.signupsDaily.length === 30 && mt.signupsDaily[29].day === '2026-11-05' && mt.signupsDaily[29].active === 1 && mt.signupsDaily[28].signups === 1, 'série diária');
+  assert(mt.totals.activeToday === 1 && mt.totals.trialsActive === 1, 'ativos hoje e testes em andamento');
+  console.log('✓ Todos os testes do painel de números passaram com sucesso!');
+
+  console.log('19. Testando o alerta de erros...');
+  assert(isNoise('ResizeObserver loop limit exceeded') && isNoise('TypeError: Failed to fetch') && isNoise('x', 'at chrome-extension://abc/x.js') && !isNoise("Cannot read properties of undefined (reading 'map')"), 'ignora ruído');
+  assert(scrub('falhou para joao@x.com com token eyJa.eyJb.c e ?code=1234') === 'falhou para [email] com token [token] e ?code=[oculto]', 'tira dados pessoais');
+  const fe1 = errFingerprint('navegador', 'Cannot read 12 of undefined', 'TypeError\n    at go (https://meu-ritmo.netlify.app/assets/app-AbC123xy.js:10:20)');
+  const fe2 = errFingerprint('navegador', 'Cannot read 99 of undefined', 'TypeError\n    at go (https://meu-ritmo.netlify.app/assets/app-ZZZ999qq.js:11:5)');
+  assert(fe1 === fe2 && fe1 !== errFingerprint('servidor', 'Cannot read 12 of undefined', ''), 'agrupa o mesmo erro mesmo com versão nova');
+  assert(cleanError({ message: '' }, 'navegador') === null && cleanError({ message: 'Load failed' }, 'navegador') === null, 'erro vazio ou de rede é ignorado');
+  const ce = cleanError({ message: 'x'.repeat(900), stack: 'y', url: '/app?token=abc' }, 'navegador');
+  assert(ce !== null && ce.message.length === 500 && ce.url === '/app?token=[oculto]', 'limita o tamanho e esconde token da URL');
+  console.log('✓ Todos os testes do alerta de erros passaram com sucesso!');
+
+  console.log('20. Testando missões, baú, ofensiva, resumo da semana e ligas...');
+  const novo = pickMissions(7, '2026-11-05', new Set());
+  assert(novo.length === 3 && new Set(novo.map((m) => m.feature)).size === 3, '3 missões de recursos diferentes');
+  assert(JSON.stringify(novo) === JSON.stringify(pickMissions(7, '2026-11-05', new Set())), 'mesma pessoa e dia: mesmas missões');
+  const usa = pickMissions(7, '2026-11-05', new Set(['habito', 'tarefa']));
+  assert(usa.filter((m) => m.feature === 'habito' || m.feature === 'tarefa').length === 2 && usa.filter((m) => !['habito', 'tarefa'].includes(m.feature)).length === 1, '2 do que já usa + 1 descoberta');
+  const prog = missionProgress([MISSION_POOL.find((m) => m.id === 'habito3')!, MISSION_POOL.find((m) => m.id === 'lembrete')!], { habito: 5, lembrete: 0 });
+  assert(prog[0].progress === 3 && prog[0].done && !prog[1].done, 'progresso limitado à meta');
+  const bau = chestReward(7, '2026-11-05');
+  assert(bau.xp >= 10 && bau.xp <= 75 && JSON.stringify(bau) === JSON.stringify(chestReward(7, '2026-11-05')), 'baú fixo por dia');
+  const act = new Set(['2026-11-05', '2026-11-04', '2026-11-02', '2026-11-01', '2026-10-31']);
+  const stk = computeStreak(act, '2026-11-05');
+  assert(stk.days === 5 && stk.weekRestUsed && stk.restDays.join() === '2026-11-03' && stk.todayDone, 'falta de 1 dia usa o descanso da semana');
+  const st2 = computeStreak(new Set(['2026-11-05', '2026-11-02', '2026-11-01']), '2026-11-05');
+  assert(st2.days === 1, '2 faltas na mesma semana quebram a ofensiva');
+  const st3 = computeStreak(new Set(['2026-11-05', '2026-11-02', '2026-11-01']), '2026-11-05', ['2026-10-20']);
+  assert(st3.days === 3 && st3.extraRests === 0, 'descanso extra do baú cobre a segunda falta');
+  const st4 = computeStreak(new Set(['2026-11-04', '2026-11-03']), '2026-11-05');
+  assert(st4.days === 2 && !st4.todayDone, 'ofensiva continua viva até o fim do dia');
+  assert(nextMilestone(5) === 7 && nextMilestone(365) === null && mondayOf('2026-11-05') === '2026-11-02', 'marcos e segunda-feira');
+  const ws = weekSummary({ '2026-11-02': { xp: 30, raw: { habito: 3 } }, '2026-11-04': { xp: 0, raw: {} }, '2026-10-27': { xp: 15, raw: { diario: 1 } } }, '2026-11-02');
+  assert(ws.xp === 30 && ws.activeDays === 1 && ws.counts.habito === 3 && ws.vsPrevious === 100 && ws.bestDay?.day === '2026-11-02' && ws.end === '2026-11-08', 'resumo da semana');
+  assert(nextTier(0, 1, 20, 50) === 1 && nextTier(0, 1, 20, 0) === 0 && nextTier(2, 18, 20, 10) === 1 && nextTier(2, 8, 8, 10) === 2 && nextTier(5, 1, 20, 99) === 5, 'sobe/desce de liga');
+  assert(rankInGroup([{ userId: 1, xp: 10 }, { userId: 2, xp: 30 }, { userId: 3, xp: 10 }], 3).rank === 3, 'empate: quem entrou antes fica na frente');
+  const xb = computeXp({ habitLogs: [], tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], bonus: [{ day: '2026-11-05', xp: 500 }, { day: '2026-11-05', xp: 25 }, { day: '2026-11-06', xp: 25 }], today: '2026-11-05' });
+  assert(xb.total === 100 && xb.todayXp === 100 && xb.bonusXp === 100, 'baú: no máximo 100 pontos e 1 por dia, nada no futuro');
+  console.log('✓ Todos os testes de missões e ligas passaram com sucesso!');
+
+  console.log('21. Testando lembretes que se repetem...');
+  const nowR = new Date(2026, 10, 5, 10, 0); // quinta, 10h
+  const rp = (t: string) => parseCommand(t, nowR) as any;
+  const rr1 = rp('me lembra toda segunda às 8 de levar o lixo');
+  assert(rr1.kind === 'reminder' && rr1.repeat === 'weekly:1' && rr1.time === '08:00' && rr1.text === 'Levar o lixo', 'toda segunda');
+  assert(rp('me lembra de pagar o aluguel todo dia 10').repeat === 'monthly:10', 'todo dia 10');
+  assert(rp('me lembra todo dia às 22h de tomar água').repeat === 'daily', 'todo dia');
+  assert(rp('me lembra todo dia 8 da manhã de meditar').repeat === 'daily', '"todo dia 8 da manhã" é diário, não dia 8');
+  assert(rp('lembrete toda segunda e quarta às 7 academia').repeat === 'weekly:1,3', 'segunda e quarta');
+  assert(rp('me lembra de dias úteis às 9 bater ponto').repeat === 'weekly:1,2,3,4,5', 'dias úteis');
+  assert(!rp('me lembra amanhã às 9 de ligar').repeat, 'lembrete normal não repete');
+  assert(repeatLabel('weekly:1,3') === 'toda segunda e quarta' && repeatLabel('monthly:10') === 'todo dia 10' && repeatLabel('weekly:1,2,3,4,5') === 'de segunda a sexta' && repeatLabel('weekly:6') === 'todo sábado', 'textos');
+  assert(isValidRepeat('weekly:1,3') && !isValidRepeat('weekly:9') && !isValidRepeat('monthly:40') && !isValidRepeat('qualquer'), 'só formatos válidos');
+  assert(firstOccurrence('weekly:1', '08:00', nowR)!.getDate() === 9 && firstOccurrence('daily', '22:00', nowR)!.getDate() === 5 && firstOccurrence('monthly:31', '09:00', nowR)!.getDate() === 30, 'primeira vez');
+  const seg = new Date('2026-11-09T11:00:00Z'); // segunda, 8h em São Paulo
+  assert(nextOccurrence('weekly:1', seg, 'America/Sao_Paulo', new Date('2026-11-09T11:01:00Z'))!.toISOString() === '2026-11-16T11:00:00.000Z', 'próxima segunda');
+  assert(nextOccurrence('weekly:1,3', seg, 'America/Sao_Paulo', new Date('2026-11-09T11:01:00Z'))!.toISOString() === '2026-11-11T11:00:00.000Z', 'próxima quarta');
+  assert(nextOccurrence('daily', new Date('2026-03-07T13:00:00Z'), 'America/New_York', new Date('2026-03-07T13:01:00Z'))!.toISOString() === '2026-03-08T12:00:00.000Z', 'mantém o horário local com horário de verão');
+  assert(nextOccurrence('daily', seg, 'America/Sao_Paulo', new Date('2026-11-20T00:00:00Z'))!.toISOString() === '2026-11-20T11:00:00.000Z', 'pula os que ficaram para trás');
+  assert(findRepeat('pagar luz') === null, 'sem repetição');
+  console.log('✓ Todos os testes de lembretes repetidos passaram com sucesso!');
+
+  console.log('22. Testando pausa automática e recordes do treino...');
+  const gpsBase = { lat: -23.55, lng: -46.63 };
+  const parado = [0, 3, 6, 9, 11].map((s, i) => ({ lat: gpsBase.lat + (i % 2) * 0.00001, lng: gpsBase.lng, t: 1_000_000 + s * 1000, acc: 8 }));
+  assert(detectStop(parado, 'corrida', 1_011_000).stopped, 'parado no semáforo pausa');
+  const correndo = [0, 3, 6, 9, 11].map((s) => ({ lat: gpsBase.lat + s * 0.00003, lng: gpsBase.lng, t: 1_000_000 + s * 1000, acc: 8 }));
+  assert(!detectStop(correndo, 'corrida', 1_011_000).stopped, 'correndo não pausa');
+  assert(!detectStop(parado.slice(0, 2), 'corrida', 1_011_000).stopped, 'poucas leituras: não decide');
+  assert(!detectStop(parado, 'corrida', 1_030_000).stopped, 'sem GPS recente: não pausa');
+  assert(detectResume({ ...gpsBase, t: 0 }, { lat: gpsBase.lat + 0.0002, lng: gpsBase.lng, t: 0, acc: 8 }, 'corrida') && !detectResume({ ...gpsBase, t: 0 }, { lat: gpsBase.lat + 0.00003, lng: gpsBase.lng, t: 0, acc: 8 }, 'corrida'), 'volta sozinho ao andar');
+  const ws1 = [
+    { id: 1, sport: 'corrida' as const, distanceM: 5000, movingS: 1800, startedAt: '2026-10-01', splits: [{ km: 1, seconds: 350, meters: 1000 }] },
+    { id: 2, sport: 'corrida' as const, distanceM: 3000, movingS: 900, startedAt: '2026-10-05', splits: [{ km: 1, seconds: 290, meters: 1000 }] },
+    { id: 3, sport: 'bike' as const, distanceM: 20000, movingS: 3600, startedAt: '2026-10-06' },
+  ];
+  const prs = personalRecords(ws1);
+  const pr = (k: string, sp = 'corrida') => prs.find((r) => r.kind === k && r.sport === sp);
+  assert(pr('dist')?.workoutId === 1 && pr('pace1k')?.workoutId === 2 && pr('km')?.value === 290 && pr('pace5k')?.workoutId === 1 && pr('veloc', 'bike')?.value === 20, 'recordes por esporte');
+  const nova = { id: 4, sport: 'corrida' as const, distanceM: 6000, movingS: 2000, startedAt: '2026-11-01', splits: [] };
+  const nr = newRecords(ws1, nova).map((r) => r.kind).sort().join();
+  assert(nr === 'dist,pace5k,tempo', `novo recorde: ${nr}`);
+  assert(newRecords([], nova).length === 0, 'primeiro treino não conta como recorde');
+  assert(recordValueLabel({ kind: 'pace1k', value: 312 }) === '5:12 /km' && recordValueLabel({ kind: 'dist', value: 10520 }) === '10,52 km', 'textos dos recordes');
+  console.log('✓ Todos os testes de pausa automática e recordes passaram com sucesso!');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

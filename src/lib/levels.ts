@@ -130,6 +130,8 @@ export interface XpInput {
   comments: { createdAt: string }[];
   /** Data de criação da conta (YYYY-MM-DD). Nada antes dela conta, para não "inventar" passado. */
   since?: string | null;
+  /** Pontos extras do baú das missões (um por dia). */
+  bonus?: { day: string; xp: number }[];
   /** Hoje (YYYY-MM-DD) no fuso da pessoa. Nada depois de hoje conta. */
   today: string;
 }
@@ -140,6 +142,10 @@ export interface XpResult {
   breakdown: Record<XpSource, { count: number; xp: number }>;
   /** Dias diferentes em que a pessoa ganhou pontos. */
   activeDays: number;
+  /** Pontos extras do baú (já somados no total). */
+  bonusXp: number;
+  /** Dia a dia: pontos e quantas vezes fez cada coisa (sem o limite diário). */
+  days: Record<string, { xp: number; raw: Partial<Record<XpSource, number>> }>;
 }
 
 const ymd = (v: string | null | undefined) => String(v || '').slice(0, 10);
@@ -184,5 +190,26 @@ export function computeXp(input: XpInput): XpResult {
     if (dayXp > 0) activeDays++;
     if (day === today) todayXp = dayXp;
   }
-  return { total, todayXp, breakdown, activeDays };
+  const days: XpResult['days'] = {};
+  for (const [day, m] of perDay) {
+    let dayXp = 0;
+    const raw: Partial<Record<XpSource, number>> = {};
+    for (const [src, n] of m) {
+      raw[src] = n;
+      dayXp += Math.min(n, XP_RULES[src].dailyCap) * XP_RULES[src].xp;
+    }
+    days[day] = { xp: dayXp, raw };
+  }
+  let bonusXp = 0;
+  const bonusDays = new Set<string>();
+  for (const b of input.bonus || []) {
+    const day = ymd(b.day);
+    if (!validDay(day) || day < since || day > today || bonusDays.has(day)) continue;
+    const xp = Math.max(0, Math.min(100, Math.floor(Number(b.xp) || 0)));
+    bonusDays.add(day);
+    bonusXp += xp;
+    (days[day] ||= { xp: 0, raw: {} }).xp += xp;
+    if (day === today) todayXp += xp;
+  }
+  return { total: total + bonusXp, todayXp, breakdown, activeDays, bonusXp, days };
 }

@@ -141,6 +141,10 @@ export const Route = createFileRoute('/api/auth')({
               referredBy: referralCode || null,
             });
             const newUser = await promoteIfAdminEmail(createdUser);
+            // origem do cadastro (para o painel de números)
+            const rawSource = String(body.source || '').toLowerCase().replace(/[^a-z0-9:/._-]/g, '').slice(0, 60);
+            const signupSource = referralCode ? (rawSource.startsWith('ritus') ? 'ritus' : 'indicacao') : rawSource || 'direto';
+            await updateUserRecord(newUser.id, { signupSource } as any).catch(() => null);
             // registra o aceite (versão e data) dos Termos, da Política e do uso dos dados de bem-estar
             await grantConsent(newUser.id, 'termos').catch(() => null);
             await grantConsent(newUser.id, 'saude').catch(() => null);

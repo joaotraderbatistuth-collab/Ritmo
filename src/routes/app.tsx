@@ -61,6 +61,7 @@ import {
 import { localDateStr } from '../lib/chain.js';
 import { ScrollableNav } from '../components/ScrollableNav.js';
 import { LevelCard, LevelUpModal, XpToast, useXp } from '../components/LevelUp.js';
+import { MissionsCard, LastWeekBanner, LeagueCard, StreakCard, WeekSummaryCard } from '../components/Missions.js';
 import { ProfilePhotoCard } from '../components/ProfilePhotoCard.js';
 import { TabWorkout, WorkoutLiveBar } from '../components/TabWorkout.js';
 import { Assistant } from '../components/Assistant.js';
@@ -520,6 +521,16 @@ function RitmoApp() {
     }
   };
 
+  // Botão "Ir" das missões: abre a aba certa (ou o secretário)
+  const goMission = (tab: string) => {
+    if (tab === 'secretario') {
+      window.dispatchEvent(new Event('ritmo:open-assistant'));
+      return;
+    }
+    setActiveTab(tab as any);
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+  };
+
   // Navigation items definition
   const NAV_ITEMS = [
     { id: 'feed', label: 'Feed', icon: <UsersIcon className="w-4 h-4" /> },
@@ -620,6 +631,13 @@ function RitmoApp() {
 
         {/* Tab Content Display */}
         <main>
+          {(activeTab === 'feed' || activeTab === 'hoje') && user && (
+            <div className="max-w-5xl mx-auto">
+              {activeTab === 'feed' && <LastWeekBanner data={xp.data} />}
+              <MissionsCard data={xp.data} onGo={goMission} onChanged={() => xp.refresh()} />
+            </div>
+          )}
+
           {activeTab === 'hoje' && (
             <TabToday
               activeCycle={activeCycle}
@@ -730,6 +748,14 @@ function RitmoApp() {
           {activeTab === 'progresso' && user && (
             <div className="mb-6 max-w-5xl mx-auto">
               <LevelCard data={xp.data} initials={userInitials} onEditPhoto={() => setActiveTab('configuracoes')} />
+              <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                <div className="space-y-6">
+                  <StreakCard data={xp.data} />
+                  <WeekSummaryCard week={xp.data?.week} title="Esta semana" />
+                  {xp.data?.lastWeek && xp.data.lastWeek.xp > 0 && <WeekSummaryCard week={xp.data.lastWeek} title="Semana passada" shareable />}
+                </div>
+                <LeagueCard data={xp.data} onChanged={() => xp.refresh()} />
+              </div>
             </div>
           )}
 

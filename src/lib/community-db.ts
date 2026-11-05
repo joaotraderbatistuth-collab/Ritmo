@@ -1,6 +1,6 @@
 // Feed social, equipes pagas e repasses — camada de dados (somente com banco de dados).
 // As regras puras ficam em teams-plan.ts e feed-rules.ts (testadas à parte).
-import { and, desc, eq, gte, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { checkDb, findUserById, updateUserRecord } from './server-db.js';
@@ -474,6 +474,17 @@ export async function createPost(userId: number, input: { body?: unknown; teamId
   const body = normalizeText(input.body, FEED_LIMITS.postMax);
   const achievement = input.achievement ? sanitizeAchievement(input.achievement) : null;
   if (input.achievement && !achievement) throw new CommunityError(400, 'Conquista inválida.');
+  if (achievement?.type === 'ofensiva' || achievement?.type === 'semana') {
+    // confere no servidor: só dá para compartilhar o que a pessoa realmente fez
+    const { getUserXp } = await import('./xp-server.js');
+    const { buildGame } = await import('./game-server.js');
+    const xp = await getUserXp(userId);
+    const game = xp ? buildGame(userId, xp) : null;
+    if (achievement.type === 'ofensiva' && (!game || achievement.days > game.streak.days)) throw new CommunityError(400, 'Sua ofensiva ainda não chegou a esse número.');
+    if (achievement.type === 'semana' && (!game || achievement.xp > Math.max(game.week.xp, game.lastWeek.xp) || achievement.activeDays > Math.max(game.week.activeDays, game.lastWeek.activeDays))) {
+      throw new CommunityError(400, 'Esses números não batem com a sua semana.');
+    }
+  }
   if (achievement?.type === 'nivel') {
     // só compartilha um nível que a pessoa realmente alcançou
     const [u] = await db.select({ level: schema.users.level }).from(schema.users).where(eq(schema.users.id, userId));
@@ -498,7 +509,7 @@ function authorProfile(a: { avatarUrl?: string | null; level?: number | null } |
   return { avatarUrl, level, levelName: levelDef(level).name };
 }
 
-export async function listPosts(viewerId: number, opts: { teamId?: number | null; beforeId?: number; limit?: number; authorId?: number }) {
+export async function listPosts(viewerId: number, opts: { teamId?: number | null; beforeId?: number; limit?: number; authorId?: number; following?: boolean }) {
   await need();
   const limit = Math.min(Math.max(opts.limit || 20, 1), 50);
   if (opts.teamId) {
@@ -508,6 +519,10 @@ export async function listPosts(viewerId: number, opts: { teamId?: number | null
   const where = and(
     opts.teamId ? eq(schema.feedPosts.teamId, opts.teamId) : isNull(schema.feedPosts.teamId),
     opts.authorId ? eq(schema.feedPosts.userId, opts.authorId) : undefined,
+    // "Seguindo": quem a pessoa segue + as próprias publicações
+    opts.following && !opts.teamId
+      ? or(eq(schema.feedPosts.userId, viewerId), inArray(schema.feedPosts.userId, db.select({ id: schema.follows.followeeId }).from(schema.follows).where(eq(schema.follows.followerId, viewerId))))
+      : undefined,
     eq(schema.feedPosts.status, 'visible'),
     opts.beforeId ? lt(schema.feedPosts.id, opts.beforeId) : undefined
   );
@@ -575,6 +590,9 @@ export async function getPublicProfile(viewerId: number, userId: number) {
     .innerJoin(schema.feedPosts, eq(schema.feedLikes.postId, schema.feedPosts.id))
     .where(publicPosts);
   const prof = authorProfile(u);
+  const [fr] = await db.select({ n: count }).from(schema.follows).where(eq(schema.follows.followeeId, userId));
+  const [fg] = await db.select({ n: count }).from(schema.follows).where(eq(schema.follows.followerId, userId));
+  const [me] = viewerId === userId ? [] : await db.select({ n: count }).from(schema.follows).where(and(eq(schema.follows.followerId, viewerId), eq(schema.follows.followeeId, userId)));
   return {
     id: u.id,
     name: displayName(u.name),
@@ -586,8 +604,36 @@ export async function getPublicProfile(viewerId: number, userId: number) {
     memberSince: iso(u.createdAt),
     posts: Number(p?.n) || 0,
     likesReceived: Number(l?.n) || 0,
+    followers: Number(fr?.n) || 0,
+    following: Number(fg?.n) || 0,
+    followedByMe: Number(me?.n) > 0,
     isMe: u.id === viewerId,
   };
+}
+
+/** Seguir / deixar de seguir. Avisa a pessoa seguida (avisos repetidos do mesmo seguidor se substituem no celular). */
+const FOLLOW_MAX = 2000;
+
+export async function toggleFollow(viewerId: number, targetId: number) {
+  await need();
+  if (!Number.isInteger(targetId) || targetId <= 0) throw new CommunityError(400, 'Perfil inválido.');
+  if (targetId === viewerId) throw new CommunityError(400, 'Você não pode seguir a si mesmo.');
+  const [t] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.id, targetId));
+  if (!t) throw new CommunityError(404, 'Perfil não encontrado.');
+  const removed = await db.delete(schema.follows).where(and(eq(schema.follows.followerId, viewerId), eq(schema.follows.followeeId, targetId))).returning();
+  if (removed.length === 0) {
+    const [n] = await db.select({ n: count }).from(schema.follows).where(eq(schema.follows.followerId, viewerId));
+    if (Number(n?.n) >= FOLLOW_MAX) throw new CommunityError(429, `Você já segue ${FOLLOW_MAX} pessoas, o máximo do Ritmo.`);
+    const ins = await db.insert(schema.follows).values({ followerId: viewerId, followeeId: targetId }).onConflictDoNothing().returning();
+    if (ins.length) {
+      const [me] = await db.select({ name: schema.users.name }).from(schema.users).where(eq(schema.users.id, viewerId));
+      import('./push-server.js')
+        .then((m) => m.notifyUser(targetId, { title: 'Novo seguidor no Ritmo', body: `${displayName(me?.name)} começou a seguir você.`, tab: 'feed', tag: `ritmo-follow-${viewerId}` }))
+        .catch(() => null);
+    }
+  }
+  const [fr] = await db.select({ n: count }).from(schema.follows).where(eq(schema.follows.followeeId, targetId));
+  return { following: removed.length === 0, followers: Number(fr?.n) || 0 };
 }
 
 export async function setBio(userId: number, raw: unknown) {

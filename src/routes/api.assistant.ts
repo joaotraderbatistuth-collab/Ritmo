@@ -3,11 +3,12 @@ import { extractTokenFromRequest } from '../lib/auth.js';
 import { authorizeData } from '../lib/session.js';
 import { findUserById, updateUserRecord } from '../lib/server-db.js';
 import { cleanAssistantName } from '../lib/assistant-parser.js';
+import { isValidRepeat } from '../lib/recurrence.js';
 import { REMINDER_LIMITS, countRecentReminders, createReminder, finishReminder, listReminders } from '../lib/reminders-db.js';
 
 // GET  /api/assistant                                   → nome do secretário + lembretes ativos
 // POST /api/assistant { action: 'set_name', name }
-// POST /api/assistant { action: 'add_reminder', text, remindAt, taskId? }
+// POST /api/assistant { action: 'add_reminder', text, remindAt, taskId?, repeat? }
 // POST /api/assistant { action: 'done_reminder', id }
 export const Route = createFileRoute('/api/assistant')({
   server: {
@@ -41,7 +42,8 @@ export const Route = createFileRoute('/api/assistant')({
           }
           if ((await countRecentReminders(userId)) >= REMINDER_LIMITS.activeMax) return Response.json({ error: 'Você já tem muitos lembretes ativos.' }, { status: 429 });
           const taskId = Number.isInteger(body.taskId) ? body.taskId : null;
-          return Response.json({ success: true, reminder: await createReminder(userId, { text, remindAt: at, taskId }) });
+          const repeat = isValidRepeat(body.repeat) ? body.repeat : null;
+          return Response.json({ success: true, reminder: await createReminder(userId, { text, remindAt: at, taskId, repeat }) });
         }
 
         if (body.action === 'done_reminder') {

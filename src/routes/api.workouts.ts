@@ -2,9 +2,9 @@ import { createFileRoute } from '@tanstack/react-router';
 import { extractTokenFromRequest } from '../lib/auth.js';
 import { authorizeData } from '../lib/session.js';
 import { createWorkout, deleteWorkout, getWorkout, listWorkouts, recentWorkoutCount } from '../lib/workouts-db.js';
-import { decodePolyline, encodePolyline, simplifyTo, validateWorkout } from '../lib/workout.js';
+import { decodePolyline, encodePolyline, newRecords, personalRecords, simplifyTo, validateWorkout } from '../lib/workout.js';
 
-// GET  /api/workouts            → lista (rota reduzida, para os cartões)
+// GET  /api/workouts            → lista (rota reduzida, para os cartões) + recordes pessoais
 // GET  /api/workouts?id=12      → treino completo (rota inteira e parciais)
 // POST /api/workouts { action: 'create', workout }   → salva
 // POST /api/workouts { action: 'delete', id }        → apaga
@@ -22,6 +22,7 @@ export const Route = createFileRoute('/api/workouts')({
         }
         const list = await listWorkouts(userId);
         return Response.json({
+          records: personalRecords(list),
           workouts: list.map((w) => ({ ...w, route: w.route ? encodePolyline(simplifyTo(decodePolyline(w.route), 120)) : '', splits: [] })),
         });
       },
@@ -41,8 +42,9 @@ export const Route = createFileRoute('/api/workouts')({
           if ((await recentWorkoutCount(userId)) >= 20) return Response.json({ error: 'Muitos treinos salvos seguidos. Tente de novo daqui a pouco.' }, { status: 429 });
           const v = validateWorkout(body.workout);
           if (!v.ok) return Response.json({ error: v.error }, { status: 400 });
+          const previous = await listWorkouts(userId, 2000);
           const w = await createWorkout(userId, v.value);
-          return Response.json({ success: true, workout: w, message: 'Treino salvo!' });
+          return Response.json({ success: true, workout: w, records: newRecords(previous, w), message: 'Treino salvo!' });
         }
 
         return Response.json({ error: 'Ação não reconhecida.' }, { status: 400 });

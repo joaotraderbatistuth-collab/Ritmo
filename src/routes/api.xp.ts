@@ -6,10 +6,13 @@ import { CommunityError } from '../lib/community-db.js';
 import { mediaOwnedBy, parseMediaUrl, mediaUrl } from '../lib/media.js';
 import { updateUserRecord } from '../lib/server-db.js';
 import { getUserXp } from '../lib/xp-server.js';
+import { buildGame, openChest, syncLeague } from '../lib/game-server.js';
 
 // GET  /api/xp                          → pontos, nível, progresso e foto de perfil
 // POST /api/xp { action: 'set_avatar', imageUrl }   → define a foto de perfil (enviada antes em /api/media)
 // POST /api/xp { action: 'remove_avatar' }          → volta para as iniciais
+// POST /api/xp { action: 'open_chest' }             → abre o baú do dia (3 missões cumpridas)
+// POST /api/xp { action: 'league_opt_out', value }  → sai ou volta para as ligas semanais
 export const Route = createFileRoute('/api/xp')({
   server: {
     handlers: {
@@ -21,6 +24,7 @@ export const Route = createFileRoute('/api/xp')({
           const xp = await getUserXp(payload.userId);
           if (!xp) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
           return Response.json({
+            bonusXp: xp.bonusXp,
             xp: xp.total,
             todayXp: xp.todayXp,
             activeDays: xp.activeDays,
@@ -28,6 +32,10 @@ export const Route = createFileRoute('/api/xp')({
             level: xp.info,
             avatarUrl: xp.avatarUrl,
             bio: xp.bio,
+            today: xp.today,
+            ...buildGame(payload.userId, xp),
+            league: await syncLeague(payload.userId, xp),
+            leagueOptOut: xp.leagueOptOut,
           });
         } catch (e) {
           console.error('[xp]', e);
@@ -48,6 +56,17 @@ export const Route = createFileRoute('/api/xp')({
           if (body.action === 'remove_avatar') {
             await updateUserRecord(user.id, { avatarUrl: null } as any);
             return Response.json({ success: true, avatarUrl: null, message: 'Foto removida.' });
+          }
+          if (body.action === 'open_chest') {
+            const xp = await getUserXp(user.id);
+            if (!xp) throw new CommunityError(401, 'Sessão expirada.');
+            const r = await openChest(user.id, xp);
+            if (!r.ok) throw new CommunityError(400, r.error);
+            return Response.json({ success: true, reward: r.reward });
+          }
+          if (body.action === 'league_opt_out') {
+            await updateUserRecord(user.id, { leagueOptOut: Boolean(body.value) } as any);
+            return Response.json({ success: true, leagueOptOut: Boolean(body.value) });
           }
           throw new CommunityError(400, 'Ação não reconhecida.');
         } catch (e) {

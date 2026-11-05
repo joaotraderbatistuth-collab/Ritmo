@@ -71,6 +71,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           password,
           referralCode: referralCode.trim() || undefined,
           acceptedTerms,
+          source: (() => {
+            try {
+              return JSON.parse(localStorage.getItem('ritmo_source') || 'null')?.src || undefined;
+            } catch {
+              return undefined;
+            }
+          })(),
         });
         onLoginSuccess(data.user);
       } else if (resetStep === 'request') {
