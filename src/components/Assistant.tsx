@@ -53,7 +53,31 @@ const CATEGORY_LABEL: Record<string, string> = {
   outros: 'outros',
 };
 
-const EXAMPLES = ['Gastei 32 reais no almoço', 'Agenda dentista amanhã às 3 da tarde', 'Me lembra de pagar a luz dia 10', 'O que eu tenho hoje?', 'Quanto gastei este mês?', 'Começar corrida'];
+const EXAMPLES = [
+  'Gastei 32 reais no almoço',
+  'Recebi 2 mil de salário',
+  'Marca na agenda dentista amanhã às 3 da tarde',
+  'Me lembra de pagar a luz dia 10',
+  'Vou iniciar uma corrida agora',
+  'Cria um card revisar proposta',
+  'Concluí a tarefa enviar relatório',
+  'Anota no diário: hoje foi um dia produtivo',
+  'O que eu tenho hoje?',
+  'Quanto gastei este mês?',
+];
+
+/** Junta pedaços finais do reconhecimento sem repetir (o Chrome do Android às vezes manda o texto acumulado). */
+function joinHeard(prev: string, next: string): string {
+  const a = prev.trim();
+  const b = next.trim();
+  if (!a) return b;
+  if (!b) return a;
+  const fa = fold(a);
+  const fb = fold(b);
+  if (fb.startsWith(fa)) return b;
+  if (fa.endsWith(fb)) return a;
+  return `${a} ${b}`;
+}
 
 /* ---------------- Voz ---------------- */
 
@@ -121,7 +145,8 @@ export const Assistant: React.FC<{
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
   const pending = useRef<Intent | null>(null);
-  const recRef = useRef<any>(null);
+  const recRef = useRef<{ rec: any; finish: () => void; cancel: () => void } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const msgId = useRef(0);
   const listEnd = useRef<HTMLDivElement>(null);
   const supportsVoice = typeof window !== 'undefined' && Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
@@ -304,6 +329,11 @@ export const Assistant: React.FC<{
         const active = habits.filter((h) => h.isActive !== false);
         const want = fold(intent.name);
         const habit = active.find((h) => fold(h.name) === want) || active.find((h) => fold(h.name).includes(want) || want.includes(fold(h.name)));
+        if (!habit) {
+          const t = today();
+          const task = tasks.find((x) => !x.completed && x.date <= t && (fold(x.title) === want || fold(x.title).includes(want)));
+          if (task) return run({ kind: 'task_done', title: task.title });
+        }
         if (!habit) return say(active.length ? `Não achei esse hábito. Os seus são: ${active.map((h) => h.name).join(', ')}.` : 'Você ainda não tem hábitos cadastrados. Crie na aba Hábitos & Saúde.');
         const r = await callApi('/api/habits', { action: 'toggle_log', habitId: habit.id, date: today(), completed: true });
         if (!r.ok) return say((r.data as any).error || 'Não consegui marcar o hábito.');
@@ -312,6 +342,77 @@ export const Assistant: React.FC<{
           label: 'Desfazer',
           run: async () => { await callApi('/api/habits', { action: 'toggle_log', habitId: habit.id, date: today(), completed: false }); onDataChanged(); say('Desmarquei.'); },
         });
+      }
+
+      case 'task_done': {
+        const t = today();
+        const want = fold(intent.title);
+        const open = tasks.filter((x) => !x.completed).sort((a, b) => (a.date === t ? 0 : 1) - (b.date === t ? 0 : 1));
+        const task = open.find((x) => fold(x.title) === want) || open.find((x) => fold(x.title).includes(want) || (fold(x.title).length > 3 && want.includes(fold(x.title))));
+        if (!task) {
+          const todays = open.filter((x) => x.date === t);
+          return say(todays.length ? `Não achei essa tarefa. As de hoje em aberto são: ${todays.slice(0, 6).map((x) => x.title).join(', ')}.` : 'Não achei essa tarefa em aberto.');
+        }
+        const res = await fetch('/api/tasks', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: task.id, completed: true }) });
+        if (!res.ok) return say('Não consegui concluir a tarefa agora.');
+        onDataChanged();
+        return say(`Concluí "${task.title}". Boa!`, {
+          label: 'Desfazer',
+          run: async () => { await fetch('/api/tasks', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: task.id, completed: false }) }); onDataChanged(); say('Voltei a tarefa para pendente.'); },
+        });
+      }
+
+      case 'card': {
+        if (!intent.title) {
+          pending.current = intent;
+          return say('Qual o título do card?');
+        }
+        const lr = await callApi<{ boards?: { id: number; title: string }[] }>('/api/boards');
+        let boards = lr.ok ? lr.data.boards || [] : [];
+        let board = intent.board ? boards.find((b) => fold(b.title) === fold(intent.board!)) || boards.find((b) => fold(b.title).includes(fold(intent.board!)) || fold(intent.board!).includes(fold(b.title))) : undefined;
+        if (intent.board && !board && boards.length) return say(`Não achei o quadro "${intent.board}". Seus quadros: ${boards.map((b) => b.title).join(', ')}.`);
+        if (!board && !boards.length) {
+          const cr = await callApi<{ board?: { id: number; title: string } }>('/api/boards', { action: 'create_board', title: 'Meu quadro' });
+          if (!cr.ok || !cr.data.board) return say('Não consegui criar o quadro agora.');
+          boards = [cr.data.board];
+        }
+        board = board || boards[0];
+        const fr = await callApi<{ lists?: { id: number; title: string }[] }>(`/api/boards?boardId=${board.id}`);
+        const lists = fr.ok ? fr.data.lists || [] : [];
+        if (!lists.length) return say(`O quadro ${board.title} não tem listas. Crie uma na aba Quadros.`);
+        const list = (intent.list && (lists.find((l) => fold(l.title) === fold(intent.list!)) || lists.find((l) => fold(l.title).includes(fold(intent.list!))))) || lists[0];
+        const r = await callApi<{ card?: { id: number }; error?: string }>('/api/boards', { action: 'create_card', listId: list.id, title: intent.title, dueDate: intent.dueDate || undefined });
+        if (!r.ok || !r.data.card) return say(r.data.error || 'Não consegui criar o card.');
+        const cardId = r.data.card.id;
+        window.dispatchEvent(new Event('ritmo:boards-changed'));
+        return say(`Card "${intent.title}" criado no quadro ${board.title}, lista ${list.title}${intent.dueDate ? `, para ${dayLabel(intent.dueDate, now)}` : ''}.`, {
+          label: 'Desfazer',
+          run: async () => { await callApi('/api/boards', { action: 'delete_card', cardId }); window.dispatchEvent(new Event('ritmo:boards-changed')); say('Card apagado.'); },
+        });
+      }
+
+      case 'diary': {
+        if (!intent.text) {
+          pending.current = intent;
+          return say('Pode falar: o que você quer anotar no diário de hoje?');
+        }
+        const t = today();
+        const jr = await callApi<{ entries?: any[] }>('/api/journal');
+        const existing = (jr.ok ? jr.data.entries || [] : []).find((e) => e.date === t && e.entryType === 'daily_checkin');
+        const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const line = `[${time}] ${intent.text}`;
+        const body = existing
+          ? { ...existing, notes: existing.notes ? `${existing.notes}\n${line}` : line }
+          : { date: t, entryType: 'daily_checkin', energyScore: 3, moodScore: 3, focusScore: 3, workedWell: '', nextStep: '', notes: line };
+        const r = await callApi('/api/journal', body);
+        if (!r.ok) return say('Não consegui salvar no diário agora.');
+        onDataChanged();
+        return say(`Anotei no seu diário de hoje.${existing ? '' : ' Quando quiser, ajuste energia, humor e foco na aba Diário.'}`);
+      }
+
+      case 'workout_ask': {
+        pending.current = intent;
+        return say('Qual treino? Corrida, caminhada, pedal ou trilha?');
       }
 
       case 'agenda': {
@@ -424,7 +525,7 @@ export const Assistant: React.FC<{
       }
 
       case 'help':
-        return say(`Eu lanço gastos e entradas, agendo compromissos, crio lembretes e tarefas, marco hábitos, conto o que você tem no dia, quanto gastou e começo treinos e focos. Experimente: "${EXAMPLES[0]}", "${EXAMPLES[1]}" ou "${EXAMPLES[2]}".`);
+        return say(`Eu lanço gastos e entradas, agendo na sua agenda, crio lembretes, tarefas e cards, concluo tarefas, marco hábitos, anoto no diário, faço o resumo do dia, conto quanto você gastou e começo treinos e focos. Experimente: "${EXAMPLES[0]}", "${EXAMPLES[4]}" ou "${EXAMPLES[5]}".`);
       case 'thanks':
         return say(`Por nada${firstName ? `, ${firstName}` : ''}! Tô aqui.`);
       case 'cancel':
@@ -464,9 +565,17 @@ export const Assistant: React.FC<{
   useEffect(() => {
     loadConsents();
   }, []);
+  const stopMic = () => {
+    const cur = recRef.current;
+    if (!cur) return;
+    try { cur.rec.stop(); } catch {}
+    // alguns celulares não avisam o fim: envia mesmo assim
+    setTimeout(() => cur.finish(), 1200);
+  };
+
   const toggleMic = (skipConsent = false) => {
     if (listening) {
-      recRef.current?.stop();
+      stopMic();
       return;
     }
     if (!skipConsent && !hasConsent('voz')) {
@@ -475,41 +584,83 @@ export const Assistant: React.FC<{
     }
     const rec = getRecognition();
     if (!rec) {
-      say('Seu navegador não tem reconhecimento de voz. Digite aqui embaixo, ou use o Chrome no Android ou o Safari no iPhone.');
+      openPanel();
+      say('Este navegador não deixa eu ouvir direto. Toque na caixa de texto e use o microfone do teclado do celular: eu entendo do mesmo jeito.');
+      setTimeout(() => inputRef.current?.focus(), 300);
       return;
     }
     try { window.speechSynthesis?.cancel(); } catch {}
     rec.lang = 'pt-BR';
     rec.interimResults = true;
-    rec.continuous = false;
+    rec.continuous = true; // a pessoa pode falar com pausas; eu encerro sozinho no silêncio
     rec.maxAlternatives = 1;
-    let finalText = '';
-    rec.onresult = (e: any) => {
-      let inter = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i];
-        if (r.isFinal) finalText += r[0].transcript;
-        else inter += r[0].transcript;
+    let heard = '';
+    let done = false;
+    let silence: ReturnType<typeof setTimeout> | undefined;
+    let errored = false;
+    const maxTimer = setTimeout(() => { try { rec.stop(); } catch {} }, 90_000);
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(silence);
+      clearTimeout(maxTimer);
+      recRef.current = null;
+      setListening(false);
+      const text = heard.trim();
+      if (text) handle(text);
+      else {
+        setInterim('');
+        if (!errored) say('Não ouvi nada. Toque no microfone e fale perto do celular.');
       }
-      setInterim(inter || finalText);
+    };
+    const armSilence = () => {
+      clearTimeout(silence);
+      // ditados longos (diário, resumo) ganham mais tempo para respirar
+      const long = /\b(diario|resumo|meu dia)\b/.test(fold(heard));
+      silence = setTimeout(() => { try { rec.stop(); } catch {} setTimeout(finish, 900); }, heard ? (long ? 3500 : 2200) : 7000);
+    };
+    rec.onresult = (e: any) => {
+      let fin = '';
+      let inter = '';
+      for (let i = 0; i < e.results.length; i++) {
+        const r = e.results[i];
+        const tr = r[0]?.transcript || '';
+        if (r.isFinal) fin = joinHeard(fin, tr);
+        else inter = joinHeard(inter, tr);
+      }
+      heard = joinHeard(fin, inter).replace(/\s+/g, ' ').trim();
+      setInterim(heard);
+      armSilence();
     };
     rec.onerror = (e: any) => {
-      setListening(false);
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') say('Preciso de permissão para usar o microfone. Libere nas configurações do navegador.');
-      else if (e.error === 'no-speech') setInterim('');
+      const err = e?.error;
+      if (err === 'no-speech' || err === 'aborted') return;
+      errored = true;
+      if (err === 'not-allowed' || err === 'service-not-allowed') say('Preciso de permissão para usar o microfone. Toque no cadeado ao lado do endereço do site (ou nas configurações do app) e libere o microfone. Enquanto isso, você pode digitar.');
+      else if (err === 'audio-capture') say('Não encontrei um microfone funcionando neste aparelho.');
+      else if (err === 'network') say('O reconhecimento de voz precisa de internet. Confira a conexão e tente de novo.');
+      else say('O microfone falhou. Tente de novo ou digite.');
     };
-    rec.onend = () => {
+    rec.onend = () => finish();
+    const cancel = () => {
+      done = true;
+      clearTimeout(silence);
+      clearTimeout(maxTimer);
+      recRef.current = null;
+      try { rec.abort(); } catch {}
       setListening(false);
-      if (finalText.trim()) handle(finalText);
-      else setInterim('');
+      setInterim('');
     };
-    recRef.current = rec;
+    recRef.current = { rec, finish, cancel };
     setListening(true);
     setInterim('');
     try {
       rec.start();
+      armSilence();
     } catch {
+      recRef.current = null;
       setListening(false);
+      say('Não consegui ligar o microfone. Tente de novo.');
     }
   };
 
@@ -529,6 +680,20 @@ export const Assistant: React.FC<{
     const h = () => openPanelRef.current();
     window.addEventListener('ritmo:open-assistant', h);
     return () => window.removeEventListener('ritmo:open-assistant', h);
+  }, []);
+
+  // Botões "por voz" (missões etc.): liga o microfone direto
+  const toggleMicRef = useRef(toggleMic);
+  toggleMicRef.current = toggleMic;
+  const listeningRef = useRef(listening);
+  listeningRef.current = listening;
+  useEffect(() => {
+    const h = () => {
+      if (listeningRef.current) return;
+      toggleMicRef.current();
+    };
+    window.addEventListener('ritmo:assistant-listen', h);
+    return () => window.removeEventListener('ritmo:assistant-listen', h);
   }, []);
 
   const saveName = async (n: string) => {
@@ -614,34 +779,39 @@ export const Assistant: React.FC<{
         <div className="fixed z-50 bottom-5 left-5 flex items-end gap-2">
           {(listening || busy) && (
             <div className="absolute bottom-16 left-0 w-[min(80vw,320px)] rounded-2xl rounded-bl-md border border-[#30363d] bg-[#161b22]/95 backdrop-blur px-3.5 py-2.5 shadow-xl text-sm">
-              <p className="text-[11px] font-bold text-rose-300">{listening ? 'Ouvindo... fale agora' : 'Entendendo...'}</p>
-              <p className="text-[#f0f6fc] italic break-words">{interim || (listening ? 'Ex.: “gastei 30 reais no almoço”' : '')}</p>
+              <p className="text-[11px] font-bold text-rose-300">{listening ? 'Ouvindo... pode falar' : 'Entendendo...'}</p>
+              <p className="text-[#f0f6fc] italic break-words">{interim || (listening ? 'Ex.: “vou iniciar uma corrida agora” ou “gastei 30 no almoço”' : '')}</p>
+              {listening && (
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={stopMic} className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"><Send className="w-3.5 h-3.5" /> Enviar agora</button>
+                  <button type="button" onClick={() => recRef.current?.cancel()} className="px-3 py-1.5 rounded-lg border border-[#30363d] text-xs text-[#c9d1d9]">Cancelar</button>
+                </div>
+              )}
+              {listening && <p className="mt-1 text-[10px] text-[#6e7681]">Envio sozinho quando você parar de falar.</p>}
             </div>
           )}
           <button
             type="button"
             onPointerDown={() => {
               longPressed.current = false;
+              if (pressTimer.current) clearTimeout(pressTimer.current);
               pressTimer.current = setTimeout(() => {
                 longPressed.current = true;
                 openPanel();
               }, 650);
             }}
-            onPointerUp={() => {
-              if (pressTimer.current) clearTimeout(pressTimer.current);
-              if (longPressed.current) return;
-              if (name === '' || !supportsVoice) openPanel();
+            onPointerUp={() => pressTimer.current && clearTimeout(pressTimer.current)}
+            onPointerCancel={() => pressTimer.current && clearTimeout(pressTimer.current)}
+            onPointerLeave={() => pressTimer.current && clearTimeout(pressTimer.current)}
+            onClick={() => {
+              if (longPressed.current) {
+                longPressed.current = false;
+                return;
+              }
+              if (name === '') openPanel();
               else toggleMic();
             }}
-            onPointerLeave={() => pressTimer.current && clearTimeout(pressTimer.current)}
             onContextMenu={(e) => e.preventDefault()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (name === '' || !supportsVoice) openPanel();
-                else toggleMic();
-              }
-            }}
             aria-label={listening ? 'Parar e enviar' : `Falar com ${botName}`}
             className={`relative h-16 w-16 sm:w-auto sm:pl-3 sm:pr-5 rounded-full font-bold shadow-xl inline-flex items-center justify-center gap-2 select-none touch-manipulation transition-transform active:scale-95 ${
               listening ? 'bg-rose-500 text-white shadow-rose-500/30 animate-pulse' : 'bg-gradient-to-tr from-emerald-600 to-teal-400 text-[#0d1117] shadow-emerald-500/25'
@@ -670,7 +840,7 @@ export const Assistant: React.FC<{
               {voiceOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
             </button>
             <button type="button" onClick={() => { setSettings(!settings); setNameDraft(name || ''); }} aria-label="Ajustes do secretário" className="p-2 rounded-full text-[#8b949e] hover:text-white hover:bg-[#21262d]"><Settings2 className="w-5 h-5" /></button>
-            <button type="button" onClick={() => { setOpen(false); recRef.current?.stop(); window.speechSynthesis?.cancel(); }} aria-label="Fechar" className="p-2 rounded-full text-[#8b949e] hover:text-white hover:bg-[#21262d]"><X className="w-5 h-5" /></button>
+            <button type="button" onClick={() => { setOpen(false); recRef.current?.cancel(); window.speechSynthesis?.cancel(); }} aria-label="Fechar" className="p-2 rounded-full text-[#8b949e] hover:text-white hover:bg-[#21262d]"><X className="w-5 h-5" /></button>
           </header>
 
           {(naming || settings) && (
@@ -747,6 +917,7 @@ export const Assistant: React.FC<{
           <div className="px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-2 border-t border-[#21262d] space-y-2">
             <div className="flex items-center gap-2">
               <input
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handle(input)}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { addDays, localDateStr } from '../lib/chain.js';
 import {
   TaskItem,
   TaskCategory,
@@ -43,9 +44,8 @@ export const TabTasks: React.FC<TabTasksProps> = ({
   onUpdateTask,
   onDeleteTask,
 }) => {
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  // data no fuso do aparelho (toISOString usa UTC e virava o dia às 21h)
+  const [selectedDate, setSelectedDate] = useState<string>(localDateStr());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   const [categoryFilter, setCategoryFilter] = useState<string>('todas');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -136,7 +136,7 @@ export const TabTasks: React.FC<TabTasksProps> = ({
 
   // Reschedule incomplete task to today
   const handleRescheduleToToday = async (task: TaskItem) => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localDateStr();
     await onUpdateTask(task.id, {
       date: todayStr,
       notes: (task.notes ? task.notes + ' • ' : '') + `Reagendada de ${task.date} para hoje`,
@@ -145,9 +145,7 @@ export const TabTasks: React.FC<TabTasksProps> = ({
 
   // Day navigation
   const shiftDay = (days: number) => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + days);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(addDays(selectedDate, days));
   };
 
   // Filter tasks

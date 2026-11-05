@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Flame, Gift, Check, ChevronRight, Trophy, Lock, Sparkles, Share2, X, TrendingUp, TrendingDown, Moon, Crown, ArrowUp, ArrowDown, EyeOff, Eye } from 'lucide-react';
+import { Flame, Gift, Check, ChevronRight, ChevronDown, Trophy, Lock, Sparkles, Share2, X, TrendingUp, TrendingDown, Moon, Crown, ArrowUp, ArrowDown, EyeOff, Eye, Mic, Plus, Play } from 'lucide-react';
+import { addDays, localDateStr } from '../lib/chain.js';
+import type { HabitItem, HabitLogItem, TaskItem } from '../lib/types.js';
 import { callApi } from '../lib/client-api.js';
 import { shareToFeed } from '../lib/share-feed.js';
 import { LevelAvatar } from './LevelAvatar.js';
@@ -106,10 +108,145 @@ const ChestModal: React.FC<{ label: string; onClose: () => void }> = ({ label, o
 /* Cartão de missões (topo do Feed e da tela Hoje)                     */
 /* ------------------------------------------------------------------ */
 
-export const MissionsCard: React.FC<{ data: (XpData & GameData) | null; onGo: (tab: string) => void; onChanged: () => void; compact?: boolean }> = ({ data, onGo, onChanged, compact }) => {
+export interface MissionActions {
+  habits?: HabitItem[];
+  habitLogs?: HabitLogItem[];
+  tasks?: TaskItem[];
+  onToggleHabit?: (habitId: number, completed: boolean) => Promise<void> | void;
+  onToggleTask?: (taskId: number, completed: boolean) => Promise<void> | void;
+  onAddTask?: (task: Partial<TaskItem>) => Promise<void> | void;
+  onStartFocus?: (minutes: number, topic: string) => void;
+}
+
+const btn = 'inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-colors';
+const btnMain = `${btn} bg-emerald-600 hover:bg-emerald-500 text-white`;
+const btnGhost = `${btn} border border-[#30363d] text-[#c9d1d9] hover:text-white hover:border-emerald-500/50`;
+
+/** "Fazer agora": o atalho de cada missão, aberto ao tocar nela. */
+const MissionQuick: React.FC<{ m: MissionView; actions: MissionActions; onGo: (tab: string) => void; onDone: () => void }> = ({ m, actions, onGo, onDone }) => {
+  const [text, setText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const today = localDateStr();
+  const tomorrow = addDays(today, 1);
+  const listen = () => window.dispatchEvent(new Event('ritmo:assistant-listen'));
+
+  const addTask = async (date: string) => {
+    const title = text.trim();
+    if (!title || !actions.onAddTask) return;
+    setSaving(true);
+    await actions.onAddTask({ title, date, timeBlock: 'Flexível', category: 'geral', priority: 'media' } as Partial<TaskItem>);
+    setSaving(false);
+    setText('');
+    onDone();
+  };
+
+  const kind = m.id.replace(/\d+$/, '');
+
+  if (kind === 'habito') {
+    const habits = (actions.habits || []).filter((h) => h.isActive !== false);
+    const doneSet = new Set((actions.habitLogs || []).filter((l) => l.date === today && l.completed).map((l) => l.habitId));
+    if (!habits.length) {
+      return (
+        <div className="space-y-2">
+          <p className="text-xs text-[#8b949e]">Você ainda não tem hábitos. Crie um (ex.: beber água, ler 10 páginas) e marque aqui.</p>
+          <button type="button" className={btnMain} onClick={() => onGo('habitos')}><Plus className="w-3.5 h-3.5" /> Criar hábito</button>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-1.5">
+        <p className="text-[11px] text-[#8b949e]">Toque para marcar o que você já fez hoje:</p>
+        {habits.slice(0, 8).map((h) => {
+          const on = doneSet.has(h.id);
+          return (
+            <button
+              key={h.id}
+              type="button"
+              onClick={async () => { await actions.onToggleHabit?.(h.id, !on); onDone(); }}
+              className={`w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm border ${on ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-[#30363d] text-[#f0f6fc] hover:border-emerald-500/50'}`}
+            >
+              <span className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${on ? 'bg-emerald-500 text-[#0d1117]' : 'border-2 border-[#484f58]'}`}>{on && <Check className="w-3.5 h-3.5" strokeWidth={3} />}</span>
+              <span className="flex-1 min-w-0 truncate">{h.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (kind === 'tarefa') {
+    const open = (actions.tasks || []).filter((t) => !t.completed && t.date <= today).sort((a, b) => (b.date === today ? 1 : 0) - (a.date === today ? 1 : 0)).slice(0, 8);
+    return (
+      <div className="space-y-1.5">
+        {open.length > 0 ? <p className="text-[11px] text-[#8b949e]">Toque na tarefa que você concluiu:</p> : <p className="text-[11px] text-[#8b949e]">Nenhuma tarefa em aberto para hoje. Anote uma e conclua quando terminar:</p>}
+        {open.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={async () => { await actions.onToggleTask?.(t.id, true); onDone(); }}
+            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm border border-[#30363d] text-[#f0f6fc] hover:border-emerald-500/50"
+          >
+            <span className="w-5 h-5 rounded-md border-2 border-[#484f58] shrink-0" />
+            <span className="flex-1 min-w-0 truncate">{t.title}</span>
+            {t.date < today && <span className="text-[10px] text-amber-300">atrasada</span>}
+          </button>
+        ))}
+        <div className="flex gap-2 pt-1">
+          <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addTask(today)} placeholder="Nova tarefa para hoje" maxLength={120} className="flex-1 min-w-0 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#f0f6fc] focus:outline-none focus:border-emerald-500" />
+          <button type="button" disabled={!text.trim() || saving} onClick={() => addTask(today)} className={`${btnMain} disabled:opacity-40`}><Plus className="w-3.5 h-3.5" /> Anotar</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === 'planejar') {
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] text-[#8b949e]">O que você quer fazer amanhã?</p>
+        <div className="flex gap-2">
+          <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addTask(tomorrow)} placeholder="Ex.: ligar para o banco" maxLength={120} className="flex-1 min-w-0 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#f0f6fc] focus:outline-none focus:border-emerald-500" />
+          <button type="button" disabled={!text.trim() || saving} onClick={() => addTask(tomorrow)} className={`${btnMain} disabled:opacity-40`}><Plus className="w-3.5 h-3.5" /> Salvar</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === 'foco') {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={btnMain} onClick={() => actions.onStartFocus ? actions.onStartFocus(25, '') : onGo('foco')}><Play className="w-3.5 h-3.5" /> Foco de 25 min</button>
+        <button type="button" className={btnGhost} onClick={() => actions.onStartFocus ? actions.onStartFocus(50, '') : onGo('foco')}>50 min</button>
+        <button type="button" className={btnGhost} onClick={() => onGo('foco')}>Abrir Foco</button>
+      </div>
+    );
+  }
+
+  const shortcuts: Record<string, { hint: string; main: [string, () => void]; extra?: [string, () => void] }> = {
+    diario: { hint: 'Responda como foi o seu dia (leva 1 minuto). Ou fale para o secretário: "anota no diário que...".', main: ['Fazer check-in', () => onGo('diario')], extra: ['Ditar por voz', listen] },
+    financas: { hint: 'Fale, por exemplo: "gastei 32 no almoço" ou "recebi 200 de freela".', main: ['Lançar por voz', listen], extra: ['Abrir Finanças', () => onGo('financas')] },
+    treino: { hint: 'Corrida, caminhada, pedal ou trilha com GPS. Também dá para registrar sem GPS (esteira).', main: ['Começar treino', () => onGo('treino')], extra: ['Pedir por voz', listen] },
+    comentar: { hint: 'Comente em uma publicação de alguém no Feed.', main: ['Ir para o Feed', () => onGo('feed')] },
+    publicar: { hint: 'Compartilhe um hábito, tarefa, foco ou treino. Ou escreva um post no Feed.', main: ['Ir para o Feed', () => onGo('feed')] },
+    lembrete: { hint: 'Fale, por exemplo: "me lembra de beber água às 15h".', main: ['Falar com o secretário', listen], extra: ['Escrever', () => onGo('secretario')] },
+  };
+  const sc = shortcuts[kind];
+  if (!sc) return <button type="button" className={btnMain} onClick={() => onGo(m.tab)}>Fazer agora</button>;
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] text-[#8b949e]">{sc.hint}</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={btnMain} onClick={sc.main[1]}>{sc.main[0] === 'Lançar por voz' || sc.main[0] === 'Falar com o secretário' ? <Mic className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />} {sc.main[0]}</button>
+        {sc.extra && <button type="button" className={btnGhost} onClick={sc.extra[1]}>{sc.extra[0] === 'Ditar por voz' || sc.extra[0] === 'Pedir por voz' ? <Mic className="w-3.5 h-3.5" /> : null} {sc.extra[0]}</button>}
+      </div>
+    </div>
+  );
+};
+
+export const MissionsCard: React.FC<{ data: (XpData & GameData) | null; onGo: (tab: string) => void; onChanged: () => void; compact?: boolean; actions?: MissionActions }> = ({ data, onGo, onChanged, compact, actions = {} }) => {
   const [busy, setBusy] = useState(false);
   const [reward, setReward] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
   if (!data?.missions || !data.chest || !data.streak) {
     return <div className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4 text-sm text-[#8b949e] mb-5">Carregando suas missões de hoje...</div>;
   }
@@ -124,7 +261,16 @@ export const MissionsCard: React.FC<{ data: (XpData & GameData) | null; onGo: (t
     if (r.ok && r.data.reward) {
       setReward(r.data.reward.label);
       onChanged();
-    } else setError(r.data.error || 'Não foi possível abrir agora.');
+    } else {
+      setError(r.data.error || 'Não foi possível abrir agora.');
+      onChanged();
+    }
+  };
+
+  // depois de uma ação, confere de novo (o servidor recalcula as missões a partir dos dados)
+  const afterAction = () => {
+    setTimeout(onChanged, 400);
+    setTimeout(onChanged, 1800);
   };
 
   return (
@@ -139,29 +285,38 @@ export const MissionsCard: React.FC<{ data: (XpData & GameData) | null; onGo: (t
           {streak.days} {streak.days === 1 ? 'dia' : 'dias'}
         </div>
       </div>
+      {state === 'locked' && <p className="mt-1 text-[11px] text-[#8b949e]">Toque numa missão para fazer agora. Ela se marca sozinha quando você conclui.</p>}
 
-      <div className="mt-3 flex gap-4 items-stretch">
+      <div className="mt-3 flex gap-4 items-start">
         <ul className="flex-1 min-w-0 space-y-2">
-          {missions.map((m) => (
-            <li key={m.id}>
-              <button
-                type="button"
-                onClick={() => !m.done && onGo(m.tab)}
-                disabled={m.done}
-                className={`w-full flex items-center gap-3 rounded-xl px-3 py-2 text-left border transition-colors ${m.done ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-[#30363d] bg-[#0d1117] hover:border-emerald-500/50'}`}
-              >
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${m.done ? 'bg-emerald-500 text-[#0d1117]' : 'border-2 border-[#30363d]'}`}>{m.done && <Check className="w-4 h-4" strokeWidth={3} />}</span>
-                <span className="flex-1 min-w-0">
-                  <span className={`block text-sm leading-snug ${m.done ? 'text-emerald-300 line-through decoration-emerald-500/50' : 'text-[#f0f6fc]'}`}>{m.title}</span>
-                  {m.goal > 1 && !m.done && (
-                    <span className="mt-1 block h-1.5 rounded-full bg-[#21262d] overflow-hidden"><span className="block h-full bg-emerald-500" style={{ width: `${(m.progress / m.goal) * 100}%` }} /></span>
-                  )}
-                </span>
-                {m.goal > 1 && !m.done && <span className="text-[11px] text-[#8b949e] tabular-nums">{m.progress}/{m.goal}</span>}
-                {!m.done && <ChevronRight className="w-4 h-4 text-[#6e7681] shrink-0" />}
-              </button>
-            </li>
-          ))}
+          {missions.map((m) => {
+            const expanded = openId === m.id && !m.done;
+            return (
+              <li key={m.id} className={`rounded-xl border transition-colors ${m.done ? 'border-emerald-500/30 bg-emerald-500/10' : expanded ? 'border-emerald-500/60 bg-[#0d1117]' : 'border-[#30363d] bg-[#0d1117] hover:border-emerald-500/50'}`}>
+                <button
+                  type="button"
+                  onClick={() => !m.done && setOpenId(expanded ? null : m.id)}
+                  aria-expanded={expanded}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left ${m.done ? 'cursor-default' : ''}`}
+                >
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${m.done ? 'bg-emerald-500 text-[#0d1117]' : 'border-2 border-[#484f58]'}`}>{m.done && <Check className="w-4 h-4" strokeWidth={3} />}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className={`block text-sm leading-snug ${m.done ? 'text-emerald-300 line-through decoration-emerald-500/50' : 'text-[#f0f6fc]'}`}>{m.title}</span>
+                    {m.goal > 1 && !m.done && (
+                      <span className="mt-1 block h-1.5 rounded-full bg-[#21262d] overflow-hidden"><span className="block h-full bg-emerald-500" style={{ width: `${(m.progress / m.goal) * 100}%` }} /></span>
+                    )}
+                  </span>
+                  {m.goal > 1 && !m.done && <span className="text-[11px] text-[#8b949e] tabular-nums">{m.progress}/{m.goal}</span>}
+                  {m.done ? <span className="text-[11px] font-semibold text-emerald-400">Feita</span> : expanded ? <ChevronDown className="w-4 h-4 text-emerald-400 shrink-0" /> : <span className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-semibold text-emerald-400">Fazer <ChevronRight className="w-3.5 h-3.5" /></span>}
+                </button>
+                {expanded && (
+                  <div className="px-3 pb-3">
+                    <MissionQuick m={m} actions={actions} onGo={(t) => { setOpenId(null); onGo(t); }} onDone={afterAction} />
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
 
         <div className="w-24 sm:w-28 shrink-0 flex flex-col items-center justify-center text-center rounded-xl border border-[#30363d] bg-[#0d1117] p-2">

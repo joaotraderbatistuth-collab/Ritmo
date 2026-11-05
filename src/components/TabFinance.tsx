@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { localDateStr } from '../lib/chain.js';
 import {
   FinanceTransactionItem,
   FinanceCategory,
@@ -62,7 +63,7 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
   const [type, setType] = useState<TransactionType>('expense');
   const [description, setDescription] = useState('');
   const [amountInput, setAmountInput] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(localDateStr());
   const [category, setCategory] = useState<FinanceCategory>('alimentacao');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [accountWallet, setAccountWallet] = useState('Conta Principal');
@@ -88,7 +89,7 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
   const netBalance = totalIncome - totalExpense;
 
   // Overdue / pending bills
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
   const pendingBills = transactions.filter(
     (t) => t.status === 'pending' || (t.dueDate && t.dueDate >= todayStr && t.status !== 'paid')
   );

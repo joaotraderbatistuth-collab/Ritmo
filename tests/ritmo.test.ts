@@ -749,5 +749,37 @@ export function runTests() {
   }
   console.log('✓ Todos os testes de notificações do admin passaram com sucesso!');
 
+  console.log('24. Testando o secretário completo (cards, diário, tarefas, treino por voz)...');
+  {
+    const nowV = new Date(2026, 10, 5, 13, 10);
+    const pv = (t: string) => parseCommand(t, nowV, 'Rita') as any;
+    const w = pv('vou iniciar uma corrida agora');
+    assert(w.kind === 'start_workout' && w.sport === 'corrida', 'inicia corrida por voz');
+    assert(pv('começar treino').kind === 'workout_ask', 'treino sem modalidade pergunta qual');
+    assert((completeWith({ kind: 'workout_ask' } as any, 'pedal', nowV) as any)?.sport === 'bike', 'responde a modalidade');
+    assert(pv('resumo do dia').kind === 'briefing', '"resumo do dia" sozinho conta o dia');
+    const d1 = pv('Resumo do dia: hoje fechei o relatório e fiz uma caminhada boa');
+    assert(d1.kind === 'diary' && d1.text === 'Hoje fechei o relatório e fiz uma caminhada boa', `resumo ditado vai para o diário: ${JSON.stringify(d1)}`);
+    const d2 = pv('anota no diário que hoje foi um dia produtivo');
+    assert(d2.kind === 'diary' && d2.text === 'Hoje foi um dia produtivo', 'anota no diário');
+    assert(pv('abre o diário').kind === 'open_tab', 'abrir o diário continua abrindo a aba');
+    const c1 = pv('cria um card revisar proposta no quadro trabalho na lista fazendo');
+    assert(c1.kind === 'card' && c1.title === 'Revisar proposta' && c1.board === 'trabalho' && c1.list === 'fazendo', `card com quadro e lista: ${JSON.stringify(c1)}`);
+    const c2 = pv('adiciona um cartão ligar pro fornecedor amanhã');
+    assert(c2.kind === 'card' && c2.title === 'Ligar pro fornecedor' && c2.dueDate === '2026-11-06', 'card com prazo');
+    assert(pv('paguei 50 no cartão de crédito no mercado').kind === 'expense', 'cartão de crédito é pagamento, não card');
+    const t1 = pv('concluí a tarefa enviar relatório');
+    assert(t1.kind === 'task_done' && t1.title === 'Enviar relatório', 'conclui tarefa por voz');
+    const e1 = pv('lança na planilha um custo de 50 de gasolina');
+    assert(e1.kind === 'expense' && e1.amountCents === 5000 && e1.description === 'Gasolina', `custo na planilha: ${JSON.stringify(e1)}`);
+    const e2 = pv('saída de 80 reais de farmácia');
+    assert(e2.kind === 'expense' && e2.amountCents === 8000 && e2.category === 'saude', 'saída de dinheiro');
+    const e3 = pv('entrada de dinheiro de 200 reais do freela');
+    assert(e3.kind === 'income' && e3.amountCents === 20000 && e3.description === 'Freela', 'entrada de dinheiro');
+    const a1 = pv('marca na minha agenda reunião amanhã às 10');
+    assert(a1.kind === 'appointment' && a1.title === 'Reunião' && a1.date === '2026-11-06' && a1.time === '10:00', `agenda: ${JSON.stringify(a1)}`);
+  }
+  console.log('✓ Todos os testes do secretário completo passaram com sucesso!');
+
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

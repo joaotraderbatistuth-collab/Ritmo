@@ -16,7 +16,11 @@ export type Intent =
   | { kind: 'bills' }
   | { kind: 'points' }
   | { kind: 'reminders' }
+  | { kind: 'task_done'; title: string }
+  | { kind: 'card'; title: string; board: string | null; list: string | null; dueDate: string | null }
+  | { kind: 'diary'; text: string }
   | { kind: 'start_workout'; sport: 'corrida' | 'caminhada' | 'bike' | 'trilha' }
+  | { kind: 'workout_ask' }
   | { kind: 'start_focus'; minutes: number; topic: string }
   | { kind: 'open_tab'; tab: AssistantTab }
   | { kind: 'briefing' }
@@ -299,6 +303,50 @@ export function parseCommand(raw: string, now: Date = new Date(), assistantName 
 
   const p = new Phrase(fixHalfPast(text));
 
+  // diário: "anota no diário que hoje foi produtivo", "resumo do dia: fechei o relatório e caminhei"
+  const CREATE = /\b(anot\w*|registr\w*|escrev\w*|coloc\w*|salv\w*|grav\w*|adicion\w*|bota|botar|cri\w*|inclu\w*|faz|faca|nov[oa])\b/;
+  const diaryCmd = /\bdiario\b/.test(n0) && (CREATE.test(n0) || /^(meu )?diario\b/.test(n0)) && !/\b(abr\w*|abre|mostra\w*|vai (para|pra)|ir (para|pra))\b/.test(n0);
+  const summaryM = /^(?:resumo do (?:meu )?dia|meu resumo do dia|meu resumo|meu dia (?:hoje )?foi|hoje meu dia foi)\b[\s:,.-]*(.*)$/.exec(n0);
+  const summaryText = summaryM && /^meu dia|^hoje meu dia/.test(n0) ? n0 : summaryM?.[1] || '';
+  if (diaryCmd || (summaryM && summaryText.split(' ').filter(Boolean).length >= 4)) {
+    if (diaryCmd) {
+      p.cut(/^.*?\bdiario\b(?:\s+(?:de hoje|hoje))?(?:\s*[:,.-]\s*|\s+(?:que|isso|assim)\b)?/);
+    } else if (!/^meu dia|^hoje meu dia/.test(n0)) {
+      p.cut(/^(?:resumo do (?:meu )?dia|meu resumo do dia|meu resumo)\b[\s:,.-]*/);
+    }
+    const body = p.orig.replace(/^[\s:,.;-]+/, '').trim();
+    if (body.length >= 2) return { kind: 'diary', text: capitalize(body).slice(0, 2000) };
+    return { kind: 'diary', text: '' };
+  }
+
+  // card nos Quadros: "cria um card revisar proposta no quadro trabalho na lista fazendo"
+  const cardWord = /\b(card|cards|cartao|cartaozinho)\b/.test(n0) && !/\bcartao de (credito|debito)\b|\b(no|com o|pelo) cartao\b/.test(n0);
+  const boardWord = /\b(no|do|pro|para o) quadro\b/.test(n0);
+  if ((cardWord && (CREATE.test(n0) || /^(um |o )?(card|cartao)\b/.test(n0))) || (boardWord && CREATE.test(n0) && !/\b(abr\w*|abre|mostra)\b/.test(n0))) {
+    const when = extractWhen(p, now);
+    const listM = p.cut(/\b(?:na|pra|para a|em) (?:lista|coluna)\s+(?:de\s+|do\s+|da\s+)?(.+?)(?=\s+(?:no|do|pro|para o) quadro\b|$)/);
+    const boardM = p.cut(/\b(?:no|do|pro|para o) quadro\s+(?:de\s+|do\s+|da\s+)?(.+?)(?=\s+(?:na|pra|para a|em) (?:lista|coluna)\b|$)/);
+    const listM2 = listM || p.cut(/\b(?:na|pra|para a|em) (?:lista|coluna)\s+(?:de\s+|do\s+|da\s+)?(.+?)$/);
+    p.cut(/^(?:.*?\b(?:cri\w*|adicion\w*|coloc\w*|bota|botar|anot\w*|inclu\w*|faz|faca)\b)?\s*(?:um|uma|o|a)?\s*(?:novo|nova)?\s*(?:card|cartao|cartaozinho|tarefa)?\b(?:\s+(?:de|para|pra|com|chamado|chamada|sobre)\b)?/);
+    const title = tidy(p.orig);
+    return {
+      kind: 'card',
+      title,
+      board: boardM ? boardM[1].trim() : null,
+      list: listM2 ? listM2[1].trim() : null,
+      dueDate: when.date,
+    };
+  }
+
+  // tarefa concluída: "concluí a tarefa enviar relatório", "marca a tarefa ligar pro banco como feita"
+  if (/\btarefa\b/.test(n0) && /\b(conclu\w*|termin\w*|finaliz\w*|feit[ao]|fiz|complet\w*|cumpri\w*|ticar|tica)\b/.test(n0) && !/\b(adicion\w*|cria\w*|nova|anot\w*|coloc\w*)\b/.test(n0)) {
+    for (let i = 0; i < 8; i++) {
+      if (!p.cut(/\b(?:marca|marcar|marquei|ja|eu|conclui|concluir|concluida|concluido|terminei|terminar|termina|finalizei|finalizar|finaliza|fiz|feita|feito|completei|completar|cumpri|a tarefa|tarefa|como|de hoje|hoje|ticar|tica)\b/)) break;
+    }
+    const title = tidy(p.orig);
+    if (title) return { kind: 'task_done', title };
+  }
+
   // lembrete
   if (p.has(/\b(me lembr\w*|lembre-?me|lembrar de|lembrete|me avis\w*|nao (me )?deixa (eu )?esquecer|me alert\w*)\b/)) {
     p.cut(/\b(?:cria|criar|faz|fazer|coloca|colocar|adiciona|adicionar)?\s*(?:um\s+)?(?:me lembr\w*|lembre-?me|lembrar|lembrete|me avis\w*|nao (?:me )?deixa (?:eu )?esquecer|me alert\w*)\b(?:\s+(?:de|que|da|do|pra|para)\b)?/);
@@ -329,6 +377,7 @@ export function parseCommand(raw: string, now: Date = new Date(), assistantName 
   // começar treino / foco
   if (/\b(comec\w*|inici\w*|bora|vamos|vou|quero|liga|ligar|grava\w*)\b/.test(n0)) {
     for (const [re, sport] of SPORT_WORDS) if (re.test(n0)) return { kind: 'start_workout', sport };
+    if (/\b(treino|treinar|exercicio|atividade fisica)\b/.test(n0) && !/\b(abr\w*|abre|mostra)\b/.test(n0)) return { kind: 'workout_ask' };
     if (/\b(foco|pomodoro|concentrar|focar)\b/.test(n0)) {
       const mm = /(\d{1,3})\s*(?:min|minutos)/.exec(n0) || /\b(\d{1,3})\b/.exec(n0);
       const minutes = Math.min(180, Math.max(5, mm ? Number(mm[1]) : 25));
@@ -355,6 +404,7 @@ export function parseCommand(raw: string, now: Date = new Date(), assistantName 
 
   // compromisso
   if (/\b(agend\w*|agenda|marc\w*\s+(?:um |uma )?(?:compromisso|consulta|reuniao|horario|encontro)|compromisso|reuniao)\b/.test(n0) || /^(marca|marcar)\b/.test(n0)) {
+    p.cut(/\b(?:na|em|pra|para a|no)\s+(?:minha\s+|meu\s+)?(?:agenda|calendario)\b/);
     p.cut(/\b(?:agend\w*|agenda|marca|marcar|marque|cria|criar|coloca|colocar|anota|anotar)\b(?:\s+(?:um|uma|o|a)\b)?(?:\s+(?:compromisso|evento|horario)\b)?(?:\s+(?:de|com|no|na|pra|para)\b)?/);
     p.cut(/^\s*(?:um\s+|o\s+)?compromisso\b(?:\s+(?:de|com)\b)?/);
     const when = extractWhen(p, now);
@@ -372,16 +422,18 @@ export function parseCommand(raw: string, now: Date = new Date(), assistantName 
   }
 
   // lançamentos (gasto / receita)
-  const isIncome = /\b(recebi|ganhei|entrou|entrada de|receita|caiu (o|meu)? ?(salario|pix|pagamento)|lanc\w*\s+(?:uma\s+)?(?:receita|entrada)|vendi)\b/.test(n0);
-  const isExpense = /\b(gastei|paguei|comprei|custo|custou|despesa|gasto|lanc\w*|debit\w*|saiu|conta de|pagar)\b/.test(n0);
+  const isIncome = /\b(recebi|ganhei|entrou|entrada de|entrada|receita|caiu (o|meu)? ?(salario|pix|pagamento)|lanc\w*\s+(?:uma\s+)?(?:receita|entrada)|vendi)\b/.test(n0);
+  const isExpense = /\b(gastei|paguei|comprei|custo|custou|despesa|gasto|lanc\w*|debit\w*|saiu|saida|conta de|pagar)\b/.test(n0);
   const hasMoney = /(r\$|\breais\b|\breal\b|\bcontos?\b|\b\d+,\d{2}\b)/.test(n0);
   if (isIncome || isExpense || hasMoney) {
-    const kind = isIncome && !/\b(gastei|paguei|comprei|custo|despesa)\b/.test(n0) ? 'income' : 'expense';
+    const kind = isIncome && !/\b(gastei|paguei|comprei|custo|despesa|saida|saiu)\b/.test(n0) ? 'income' : 'expense';
     const when = extractWhen(p, now, true);
     const amountCents = extractAmount(p);
+    p.cut(/\b(?:na|da|pra|para a|nas|nas minhas)\s+(?:minha\s+)?(?:planilha|financas)\b/);
     p.cut(/\b(?:lanc\w*|registr\w*|anot\w*|coloc\w*|adicion\w*)\b(?:\s+(?:um|uma|o|a)\b)?(?:\s+(?:custo|gasto|despesa|receita|entrada|lancamento)\b)?(?:\s+(?:de|do|da|no|na|com)\b)?/);
-    for (let i = 0; i < 3; i++) p.cut(/\b(?:eu\s+)?(?:gastei|paguei|comprei|custou|custo|despesa|gasto|recebi|ganhei|entrou|entrada|receita|vendi|saiu|debitou|caiu)\b(?:\s+(?:o|a|um|uma)\b)?/);
+    for (let i = 0; i < 3; i++) p.cut(/\b(?:eu\s+)?(?:gastei|paguei|comprei|custou|custo|despesa|gasto|recebi|ganhei|entrou|entrada|receita|vendi|saiu|saida|debitou|caiu)\b(?:\s+(?:o|a|um|uma)\b)?/);
     p.cut(/\b(?:no|na)\s+(?:pix|cartao(?: de credito| de debito)?|credito|debito|dinheiro|boleto)\b/);
+    p.cut(/\b(?:de\s+)?dinheiro\b/);
     const description = tidy(p.orig) || (kind === 'income' ? 'Receita' : 'Gasto');
     return { kind, amountCents, description, category: guessCategory(description + ' ' + n0, kind), date: when.date || ymd(now) };
   }
@@ -392,6 +444,19 @@ export function parseCommand(raw: string, now: Date = new Date(), assistantName 
 /** Completa um pedido que ficou pela metade (ex.: lembrete sem horário, gasto sem valor). */
 export function completeWith(pending: Intent, raw: string, now: Date = new Date()): Intent | null {
   const p = new Phrase(fixHalfPast(raw));
+  if (pending.kind === 'workout_ask') {
+    for (const [re, sport] of SPORT_WORDS) if (re.test(p.n)) return { kind: 'start_workout', sport };
+    if (/\b(pedal|bike)\b/.test(p.n)) return { kind: 'start_workout', sport: 'bike' };
+    return null;
+  }
+  if (pending.kind === 'card' && !pending.title) {
+    const title = tidy(p.orig);
+    return title ? { ...pending, title } : null;
+  }
+  if (pending.kind === 'diary' && !pending.text) {
+    const text = p.orig.trim();
+    return text.length >= 2 ? { kind: 'diary', text: capitalize(text).slice(0, 2000) } : null;
+  }
   if (pending.kind === 'reminder' || pending.kind === 'appointment') {
     const when = extractWhen(p, now);
     if (!when.date && !when.time) return null;

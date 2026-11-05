@@ -636,7 +636,23 @@ function RitmoApp() {
           {(activeTab === 'feed' || activeTab === 'hoje') && user && (
             <div className="max-w-5xl mx-auto">
               {activeTab === 'feed' && <LastWeekBanner data={xp.data} />}
-              <MissionsCard data={xp.data} onGo={goMission} onChanged={() => xp.refresh()} />
+              <MissionsCard
+                data={xp.data}
+                onGo={goMission}
+                onChanged={() => xp.refresh()}
+                actions={{
+                  habits,
+                  habitLogs,
+                  tasks,
+                  onToggleHabit: (id, completed) => handleToggleHabit(id, completed),
+                  onToggleTask: handleToggleTask,
+                  onAddTask: handleAddTask,
+                  onStartFocus: (minutes, topic) => {
+                    handleQuickStartFocus(minutes, topic);
+                    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+                  },
+                }}
+              />
             </div>
           )}
 

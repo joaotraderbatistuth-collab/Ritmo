@@ -138,6 +138,16 @@ export const TabBoards: React.FC = () => {
     else setBoardData(null);
   }, [selectedBoardId, fetchBoard]);
 
+  // O secretário criou ou apagou um card por voz: recarrega o que está na tela
+  useEffect(() => {
+    const h = () => {
+      fetchBoards();
+      if (selectedBoardId) fetchBoard(selectedBoardId);
+    };
+    window.addEventListener('ritmo:boards-changed', h);
+    return () => window.removeEventListener('ritmo:boards-changed', h);
+  }, [selectedBoardId, fetchBoards, fetchBoard]);
+
   // -------------------------------------------------------------
   // Quadros
   // -------------------------------------------------------------
