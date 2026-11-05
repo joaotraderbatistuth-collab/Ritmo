@@ -514,7 +514,7 @@ export const Assistant: React.FC<{
           type="button"
           onClick={openPanel}
           aria-label={`Falar com ${botName}`}
-          className="fixed z-50 bottom-5 right-5 h-14 pl-3 pr-4 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-[#0d1117] font-bold shadow-xl shadow-emerald-500/25 inline-flex items-center gap-2 hover:scale-105 transition-transform"
+          className="fixed z-50 bottom-5 left-5 h-14 pl-3 pr-4 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-[#0d1117] font-bold shadow-xl shadow-emerald-500/25 inline-flex items-center gap-2 hover:scale-105 transition-transform"
         >
           <span className="w-9 h-9 rounded-full bg-[#0d1117]/15 flex items-center justify-center"><Mic className="w-5 h-5" /></span>
           <span className="hidden sm:inline text-sm">{name || 'Secretário'}</span>
@@ -524,7 +524,7 @@ export const Assistant: React.FC<{
 
       {/* painel */}
       {open && (
-        <div className="fixed z-[60] inset-x-0 bottom-0 sm:inset-auto sm:bottom-5 sm:right-5 sm:w-[400px] h-[78vh] sm:h-[620px] flex flex-col rounded-t-3xl sm:rounded-3xl border border-[#30363d] bg-[#0d1117] shadow-2xl shadow-black/60" role="dialog" aria-label={`Conversa com ${botName}`}>
+        <div className="fixed z-[60] inset-x-0 bottom-0 sm:inset-auto sm:bottom-5 sm:left-5 sm:w-[400px] h-[78vh] sm:h-[620px] flex flex-col rounded-t-3xl sm:rounded-3xl border border-[#30363d] bg-[#0d1117] shadow-2xl shadow-black/60" role="dialog" aria-label={`Conversa com ${botName}`}>
           <header className="flex items-center gap-3 px-4 py-3 border-b border-[#21262d]">
             <span className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-[#0d1117] flex items-center justify-center font-extrabold">{(name || 'S')[0].toUpperCase()}</span>
             <div className="flex-1 min-w-0">
