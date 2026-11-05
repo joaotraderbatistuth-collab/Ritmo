@@ -2,7 +2,7 @@
 // Importante: nunca armazena em cache chamadas de API (/api/*), que carregam
 // dados privados e autenticados do usuário — essas sempre vão direto à rede.
 
-const CACHE_VERSION = 'ritmo-v4';
+const CACHE_VERSION = 'ritmo-v5';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 const PRECACHE_URLS = [
@@ -89,18 +89,24 @@ self.addEventListener('push', (event) => {
       const visible = list.filter((c) => c.visibilityState === 'visible');
       // App aberto na tela: ele mesmo mostra o aviso no topo e toca o som do Ritmo.
       for (const c of visible) c.postMessage({ type: 'ritmo-push', title, body: data.body || '', tab: data.tab || 'hoje', url });
-      return self.registration.showNotification(title, {
+      const silent = visible.length > 0;
+      const options = {
         body: data.body || '',
         icon: '/icon-192.png',
         badge: '/icon-192.png',
         tag: data.tag || 'ritmo',
         renotify: Boolean(data.tag && String(data.tag).startsWith('ritmo-admin')),
-        // com o app aberto o som da marca já toca lá dentro: a notificação do sistema fica sem som
-        silent: visible.length > 0,
-        vibrate,
+        // com o app aberto o som da marca já toca lá dentro: a notificação do sistema fica sem som.
+        // Atenção: o Chrome RECUSA notificação silenciosa com vibração, por isso só vibra quando não é silenciosa.
+        silent,
         timestamp: Date.now(),
         data: { url },
-      });
+      };
+      if (!silent) options.vibrate = vibrate;
+      return self.registration
+        .showNotification(title, options)
+        // se o aparelho recusar alguma opção, mostra a versão mais simples (nunca deixa de aparecer)
+        .catch(() => self.registration.showNotification(title, { body: data.body || '', icon: '/icon-192.png', tag: data.tag || 'ritmo', data: { url } }));
     })
   );
 });

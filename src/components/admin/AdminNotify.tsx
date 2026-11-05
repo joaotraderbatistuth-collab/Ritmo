@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Send, Volume2, RefreshCw, Smartphone, User, Users, AlertTriangle, Info } from 'lucide-react';
 import { PushToggle } from '../PushToggle.js';
+import { pushSupported, subscribeThisDevice } from '../../lib/push-client.js';
 import { playRitmoSound } from '../../lib/notify-sound.js';
 import { NOTIFY_LIMITS, NOTIFY_TABS, type NotifyTarget } from '../../lib/admin-notify.js';
 
@@ -27,6 +28,38 @@ export function NotifyTab() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [soundBlocked, setSoundBlocked] = useState(false);
+  const [diag, setDiag] = useState<{ permission: string; sw: boolean; sub: boolean } | null>(null);
+  const [fixing, setFixing] = useState(false);
+
+  const checkDevice = useCallback(async () => {
+    if (!pushSupported()) return setDiag({ permission: 'sem suporte', sw: false, sub: false });
+    const reg = await navigator.serviceWorker.getRegistration().catch(() => undefined);
+    const sub = await reg?.pushManager.getSubscription().catch(() => null);
+    setDiag({ permission: Notification.permission, sw: Boolean(reg?.active), sub: Boolean(sub) });
+  }, []);
+
+  useEffect(() => {
+    checkDevice();
+  }, [checkDevice]);
+
+  const fixDevice = async () => {
+    setFixing(true);
+    setMsg(null);
+    try {
+      if (Notification.permission !== 'granted') {
+        const p = await Notification.requestPermission();
+        if (p !== 'granted') throw new Error('A permissão de notificação não foi dada neste navegador.');
+      }
+      await subscribeThisDevice({ auto: true });
+      setMsg({ ok: true, text: 'Este aparelho foi inscrito de novo. Agora envie o teste.' });
+      await load();
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message || 'Não foi possível inscrever este aparelho.' });
+    } finally {
+      setFixing(false);
+      checkDevice();
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -85,6 +118,16 @@ export function NotifyTab() {
           </button>
         </div>
         <div className="mt-3"><PushToggle compact /></div>
+        {diag && (
+          <div className="mt-3 rounded-xl bg-[#0d1117] border border-[#30363d] p-3 text-xs text-slate-400 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span>Permissão: <strong className={diag.permission === 'granted' ? 'text-emerald-300' : 'text-amber-300'}>{diag.permission === 'granted' ? 'liberada' : diag.permission === 'denied' ? 'bloqueada' : diag.permission === 'default' ? 'não pedida' : diag.permission}</strong></span>
+            <span>Serviço do app: <strong className={diag.sw ? 'text-emerald-300' : 'text-amber-300'}>{diag.sw ? 'ativo' : 'inativo'}</strong></span>
+            <span>Inscrição: <strong className={diag.sub ? 'text-emerald-300' : 'text-amber-300'}>{diag.sub ? 'ok' : 'nenhuma'}</strong></span>
+            <button type="button" onClick={fixDevice} disabled={fixing || diag.permission === 'denied' || diag.permission === 'sem suporte'} className="ml-auto px-3 py-1.5 rounded-lg border border-emerald-500/50 text-emerald-300 font-semibold disabled:opacity-40">
+              {fixing ? 'Inscrevendo…' : 'Reinscrever este aparelho'}
+            </button>
+          </div>
+        )}
         <div className="mt-4 grid grid-cols-2 gap-3 max-w-sm">
           <div className="rounded-xl bg-[#0d1117] border border-[#30363d] p-3"><div className="text-[11px] text-slate-500">Pessoas com notificação</div><div className="text-xl font-extrabold">{info?.people ?? '…'}</div></div>
           <div className="rounded-xl bg-[#0d1117] border border-[#30363d] p-3"><div className="text-[11px] text-slate-500">Aparelhos</div><div className="text-xl font-extrabold">{info?.devices ?? '…'}</div></div>

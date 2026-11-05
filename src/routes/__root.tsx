@@ -162,7 +162,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   if (window.caches) caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
                   return;
                 }
-                navigator.serviceWorker.register('/sw.js').catch(function () {});
+                navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function (r) { r.update().catch(function () {}); }).catch(function () {});
               })();
             `,
           }}

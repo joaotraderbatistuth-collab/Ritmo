@@ -87,6 +87,8 @@ export const Route = createFileRoute('/api/admin-notificacoes')({
           } else {
             message = `Enviada para ${r.sent} de ${r.devices} aparelho(s)${n.target === 'all' ? `, ${r.people} pessoa(s)` : ''}.`;
             if (r.removed) message += ` ${r.removed} aparelho(s) antigo(s) foram removidos.`;
+            if (r.removed && !r.sent) message += ' Abra o Ritmo nesse aparelho para inscrever de novo.';
+            if (r.failed) message += ` ${r.failed} falharam (${r.firstError}).`;
           }
           return Response.json({ success: r.sent > 0, message, ...r });
         } catch (e) {

@@ -77,12 +77,26 @@ function localParts(now: Date, timeZone: string) {
   }
 }
 
-async function sendOne(sub: { endpoint: string; p256dh: string; auth: string }, payload: object, keys: { publicKey: string; privateKey: string }) {
+type PushOpts = { urgency?: 'very-low' | 'low' | 'normal' | 'high'; ttl?: number };
+
+/**
+ * urgency 'high' = o serviço de push do Google/Apple entrega na hora, mesmo com o celular
+ * em economia de bateria. Lembretes motivacionais usam 'normal'; o resto (teste, admin,
+ * secretário, avisos) vai como 'high'.
+ */
+async function sendOne(sub: { endpoint: string; p256dh: string; auth: string }, payload: object, keys: { publicKey: string; privateKey: string }, opts: PushOpts = {}) {
   return webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, JSON.stringify(payload), {
     vapidDetails: { subject: 'mailto:contato@meu-ritmo.app', publicKey: keys.publicKey, privateKey: keys.privateKey },
-    TTL: 3 * 3600,
-    urgency: 'normal',
+    TTL: opts.ttl ?? 3 * 3600,
+    urgency: opts.urgency ?? 'high',
   });
+}
+
+/** Texto curto do erro do serviço de push, para o painel admin entender o que houve. */
+function pushErrorText(e: any): string {
+  const code = e?.statusCode ? `HTTP ${e.statusCode}` : '';
+  const body = String(e?.body || e?.message || '').replace(/\s+/g, ' ').slice(0, 140);
+  return [code, body].filter(Boolean).join(' · ') || 'erro desconhecido';
 }
 
 /** Envia uma notificação de teste para os aparelhos da pessoa. */
@@ -137,7 +151,7 @@ export async function sendDueNudges(now: Date = new Date()) {
     if (!slot) continue;
     const n = pickNudge(slot, ymd, s.userId);
     try {
-      await sendOne(s, { title: personalize(n.title, s.name), body: personalize(n.body, s.name), tab: n.tab, tag: `ritmo-${slot}` }, keys);
+      await sendOne(s, { title: personalize(n.title, s.name), body: personalize(n.body, s.name), tab: n.tab, tag: `ritmo-${slot}` }, keys, { urgency: 'normal' });
       sent++;
       done.push(s.id);
     } catch (e: any) {
@@ -195,10 +209,12 @@ export async function sendAdminPush(userIds: number[] | 'all', payload: { title:
   const subs = (userIds === 'all' ? await base.limit(5000) : userIds.length ? await base.where(inArray(schema.pushSubscriptions.userId, userIds)) : []).filter((s) => s.status !== 'suspended');
   let sent = 0;
   let removed = 0;
+  let failed = 0;
+  let firstError = '';
   const people = new Set<number>();
   for (let i = 0; i < subs.length; i += 25) {
     const batch = subs.slice(i, i + 25);
-    const results = await Promise.allSettled(batch.map((s) => sendOne(s, payload, keys)));
+    const results = await Promise.allSettled(batch.map((s) => sendOne(s, payload, keys, { urgency: 'high', ttl: 12 * 3600 })));
     for (let j = 0; j < results.length; j++) {
       const r = results[j];
       if (r.status === 'fulfilled') {
@@ -207,10 +223,13 @@ export async function sendAdminPush(userIds: number[] | 'all', payload: { title:
       } else if ((r.reason as any)?.statusCode === 404 || (r.reason as any)?.statusCode === 410) {
         await db.delete(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.id, batch[j].id));
         removed++;
+      } else {
+        failed++;
+        if (!firstError) firstError = pushErrorText(r.reason);
       }
     }
   }
-  return { devices: subs.length, sent, removed, people: people.size };
+  return { devices: subs.length, sent, removed, failed, firstError, people: people.size };
 }
 
 export async function sendDueReminders(now: Date = new Date()) {
