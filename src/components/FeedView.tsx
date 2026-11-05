@@ -1,8 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame } from 'lucide-react';
+import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame, Trophy } from 'lucide-react';
+import { LevelAvatar } from './LevelAvatar.js';
+import { frameForLevel } from '../lib/levels.js';
 import { callApi } from '../lib/client-api.js';
 import { uploadFile } from '../lib/upload.js';
 import { Achievement, FEED_LIMITS, REPORT_REASONS, achievementHeadline, timeAgo } from '../lib/feed-rules.js';
+
+export interface FeedAuthor {
+  id: number;
+  name: string;
+  initials: string;
+  isTeamOwner: boolean;
+  avatarUrl?: string | null;
+  level?: number;
+  levelName?: string;
+}
 
 export interface FeedPostData {
   id: number;
@@ -10,7 +22,7 @@ export interface FeedPostData {
   achievement: Achievement | null;
   imageUrl?: string | null;
   createdAt: string;
-  author: { id: number; name: string; initials: string; isTeamOwner: boolean };
+  author: FeedAuthor;
   likes: number;
   liked: boolean;
   comments: number;
@@ -18,7 +30,7 @@ export interface FeedPostData {
   canDelete: boolean;
 }
 
-const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2 };
+const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2, nivel: Trophy };
 
 /* ------------------------------------------------------------------ */
 /* Foto: escolher, enviar e mostrar                                    */
@@ -170,9 +182,21 @@ const Composer: React.FC<{ teamId: number | null; achievements: Achievement[]; p
 /* Publicação                                                          */
 /* ------------------------------------------------------------------ */
 
-const Avatar = ({ initials, owner }: { initials: string; owner?: boolean }) => (
-  <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${owner ? 'bg-amber-400/20 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>{initials}</span>
+const Avatar = ({ author, small }: { author: FeedAuthor; small?: boolean }) => (
+  <LevelAvatar initials={author.initials} avatarUrl={author.avatarUrl} level={author.level} size={small ? 'sm' : 'md'} />
 );
+
+/** Título do nível ao lado do nome (a partir do nível 2), na cor da moldura. */
+const LevelTag = ({ author }: { author: FeedAuthor }) => {
+  const lv = author.level || 1;
+  if (lv < 2) return null;
+  const frame = frameForLevel(lv);
+  return (
+    <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ color: frame.badge === '#484f58' ? '#8b949e' : frame.badge, background: 'rgba(255,255,255,0.05)' }}>
+      Nv {lv} · {author.levelName}
+    </span>
+  );
+};
 
 const PostCard: React.FC<{ post: FeedPostData; onChanged: () => void; onNotice: (t: string, ok: boolean) => void }> = ({ post, onChanged, onNotice }) => {
   const [liked, setLiked] = useState(post.liked);
@@ -232,9 +256,9 @@ const PostCard: React.FC<{ post: FeedPostData; onChanged: () => void; onNotice: 
   return (
     <article className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4">
       <header className="flex items-center gap-3">
-        <Avatar initials={post.author.initials} owner={post.author.isTeamOwner} />
+        <Avatar author={post.author} />
         <div className="min-w-0 flex-1">
-          <div className="font-semibold text-[#f0f6fc] flex items-center gap-1.5">{post.author.name}{post.author.isTeamOwner && <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-400/10 px-1.5 py-0.5 rounded-full"><Crown className="w-3 h-3" /> Criador</span>}</div>
+          <div className="font-semibold text-[#f0f6fc] flex items-center gap-1.5 flex-wrap">{post.author.name}<LevelTag author={post.author} />{post.author.isTeamOwner && <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-400/10 px-1.5 py-0.5 rounded-full"><Crown className="w-3 h-3" /> Criador</span>}</div>
           <div className="text-xs text-[#8b949e]">{timeAgo(post.createdAt)}</div>
         </div>
         {post.canDelete && <button type="button" onClick={del} aria-label="Excluir publicação" className="p-1.5 text-[#8b949e] hover:text-rose-400"><Trash2 className="w-4 h-4" /></button>}
@@ -255,9 +279,9 @@ const PostCard: React.FC<{ post: FeedPostData; onChanged: () => void; onNotice: 
           {comments === null && <p className="text-xs text-[#6e7681]">Carregando...</p>}
           {comments?.map((c) => (
             <div key={c.id} className="flex gap-2.5">
-              <Avatar initials={c.author.initials} owner={c.author.isTeamOwner} />
+              <Avatar author={c.author} small />
               <div className="flex-1 min-w-0 rounded-xl bg-[#0d1117] px-3 py-2">
-                <div className="flex items-center gap-2 text-xs"><strong className="text-[#f0f6fc]">{c.author.name}</strong><span className="text-[#6e7681]">{timeAgo(c.createdAt)}</span>
+                <div className="flex items-center gap-2 text-xs"><strong className="text-[#f0f6fc]">{c.author.name}</strong><LevelTag author={c.author} /><span className="text-[#6e7681]">{timeAgo(c.createdAt)}</span>
                   <span className="ml-auto flex items-center gap-1">
                     {c.canDelete && <button type="button" onClick={() => delComment(c.id)} aria-label="Excluir comentário" className="text-[#6e7681] hover:text-rose-400"><Trash2 className="w-3.5 h-3.5" /></button>}
                     {!c.mine && <button type="button" onClick={() => setReporting({ type: 'comment', id: c.id })} aria-label="Denunciar comentário" className="text-[#6e7681] hover:text-amber-300"><Flag className="w-3.5 h-3.5" /></button>}

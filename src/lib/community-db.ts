@@ -16,7 +16,8 @@ import {
 } from './teams-plan.js';
 import { FEED_LIMITS, displayName, initials, normalizeText, parsePayload, sanitizeAchievement } from './feed-rules.js';
 import { mediaOwnedBy } from './media.js';
-import { isBundledImage } from './media-url.js';
+import { isBundledImage, parseMediaUrl } from './media-url.js';
+import { levelDef, MAX_LEVEL } from './levels.js';
 
 export class CommunityError extends Error {
   constructor(public status: number, message: string) {
@@ -473,6 +474,11 @@ export async function createPost(userId: number, input: { body?: unknown; teamId
   const body = normalizeText(input.body, FEED_LIMITS.postMax);
   const achievement = input.achievement ? sanitizeAchievement(input.achievement) : null;
   if (input.achievement && !achievement) throw new CommunityError(400, 'Conquista inválida.');
+  if (achievement?.type === 'nivel') {
+    // só compartilha um nível que a pessoa realmente alcançou
+    const [u] = await db.select({ level: schema.users.level }).from(schema.users).where(eq(schema.users.id, userId));
+    if (!u || (u.level || 1) < achievement.level) throw new CommunityError(400, 'Você ainda não chegou a esse nível.');
+  }
   const imageUrl = await cleanImage(userId, input.imageUrl);
   if (!body && !achievement && !imageUrl) throw new CommunityError(400, 'Escreva algo, coloque uma foto ou escolha uma conquista para compartilhar.');
   if ((await recentCount(schema.feedPosts, schema.feedPosts.userId, schema.feedPosts.createdAt, userId, 3600000)) >= FEED_LIMITS.postsPerHour) {
@@ -483,6 +489,13 @@ export async function createPost(userId: number, input: { body?: unknown; teamId
     .values({ userId, teamId, kind: achievement ? 'achievement' : imageUrl ? 'photo' : 'text', body, payload: achievement ? JSON.stringify(achievement) : null, imageUrl })
     .returning();
   return post;
+}
+
+/** Foto de perfil e nível do autor (o nível define a moldura e o título no Feed). */
+function authorProfile(a: { avatarUrl?: string | null; level?: number | null } | null) {
+  const level = Math.min(Math.max(Number(a?.level) || 1, 1), MAX_LEVEL);
+  const avatarUrl = a?.avatarUrl && parseMediaUrl(a.avatarUrl) ? a.avatarUrl : null;
+  return { avatarUrl, level, levelName: levelDef(level).name };
 }
 
 export async function listPosts(viewerId: number, opts: { teamId?: number | null; beforeId?: number; limit?: number }) {
@@ -510,13 +523,14 @@ export async function listPosts(viewerId: number, opts: { teamId?: number | null
     .from(schema.feedComments)
     .where(and(inArray(schema.feedComments.postId, ids), eq(schema.feedComments.status, 'visible')))
     .groupBy(schema.feedComments.postId);
-  const authors = await db.select({ id: schema.users.id, name: schema.users.name }).from(schema.users).where(inArray(schema.users.id, [...new Set(page.map((p) => p.userId))]));
+  const authors = await db.select({ id: schema.users.id, name: schema.users.name, avatarUrl: schema.users.avatarUrl, level: schema.users.level }).from(schema.users).where(inArray(schema.users.id, [...new Set(page.map((p) => p.userId))]));
   const ownerOf = opts.teamId ? (await loadTeam(opts.teamId)).ownerUserId : null;
 
   const likeMap = new Map(likes.map((l) => [l.id, l.n]));
   const commentMap = new Map(comments.map((c) => [c.id, c.n]));
   const mineSet = new Set(mine.map((m) => m.id));
   const nameMap = new Map(authors.map((a) => [a.id, a.name]));
+  const profileMap = new Map(authors.map((a) => [a.id, authorProfile(a)]));
 
   return {
     hasMore,
@@ -528,7 +542,7 @@ export async function listPosts(viewerId: number, opts: { teamId?: number | null
       imageUrl: p.imageUrl && (isBundledImage(p.imageUrl) || p.imageUrl.startsWith('/api/media?k=')) ? p.imageUrl : null,
       createdAt: iso(p.createdAt),
       teamId: p.teamId,
-      author: { id: p.userId, name: displayName(nameMap.get(p.userId)), initials: initials(nameMap.get(p.userId)), isTeamOwner: ownerOf === p.userId },
+      author: { id: p.userId, name: displayName(nameMap.get(p.userId)), initials: initials(nameMap.get(p.userId)), isTeamOwner: ownerOf === p.userId, ...(profileMap.get(p.userId) || authorProfile(null)) },
       likes: likeMap.get(p.id) || 0,
       liked: mineSet.has(p.id),
       comments: commentMap.get(p.id) || 0,
@@ -586,14 +600,15 @@ export async function listComments(viewerId: number, postId: number) {
   await need();
   const { teamOwnerId } = await loadVisiblePost(viewerId, postId);
   const rows = await db.select().from(schema.feedComments).where(and(eq(schema.feedComments.postId, postId), eq(schema.feedComments.status, 'visible'))).orderBy(schema.feedComments.id).limit(200);
-  const authors = rows.length ? await db.select({ id: schema.users.id, name: schema.users.name }).from(schema.users).where(inArray(schema.users.id, [...new Set(rows.map((r) => r.userId))])) : [];
+  const authors = rows.length ? await db.select({ id: schema.users.id, name: schema.users.name, avatarUrl: schema.users.avatarUrl, level: schema.users.level }).from(schema.users).where(inArray(schema.users.id, [...new Set(rows.map((r) => r.userId))])) : [];
   const nameMap = new Map(authors.map((a) => [a.id, a.name]));
+  const profileMap = new Map(authors.map((a) => [a.id, authorProfile(a)]));
   return rows.map((c) => ({
     id: c.id,
     body: c.body,
     imageUrl: c.imageUrl || null,
     createdAt: iso(c.createdAt),
-    author: { id: c.userId, name: displayName(nameMap.get(c.userId)), initials: initials(nameMap.get(c.userId)), isTeamOwner: teamOwnerId === c.userId },
+    author: { id: c.userId, name: displayName(nameMap.get(c.userId)), initials: initials(nameMap.get(c.userId)), isTeamOwner: teamOwnerId === c.userId, ...(profileMap.get(c.userId) || authorProfile(null)) },
     mine: c.userId === viewerId,
     canDelete: c.userId === viewerId || teamOwnerId === viewerId,
   }));

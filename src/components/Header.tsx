@@ -2,6 +2,8 @@ import React from 'react';
 import { User, FocusCycle } from '../lib/types.js';
 import { Flame, Moon, Sun, LogOut, User as UserIcon, Sparkles } from 'lucide-react';
 import { InstallPwaButton } from './InstallPwaButton.js';
+import { LevelChip, XpData } from './LevelUp.js';
+import { initials as initialsOf } from '../lib/feed-rules.js';
 
 interface HeaderProps {
   user: User | null;
@@ -11,6 +13,8 @@ interface HeaderProps {
   onOpenAuth: () => void;
   onLogout: () => void;
   onOpenOnboarding: () => void;
+  xp?: XpData | null;
+  onOpenLevel?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,6 +25,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuth,
   onLogout,
   onOpenOnboarding,
+  xp = null,
+  onOpenLevel,
 }) => {
   // Calculate cycle day
   let cycleDayInfo = 'Sem ciclo ativo';
@@ -112,14 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
               <a href="/checkout" className="hidden sm:inline text-xs font-medium px-3 py-1.5 rounded-lg text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]">
                 Assinatura
               </a>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#161b22] border border-[#30363d]">
-                <div className="w-6 h-6 rounded-full bg-emerald-900/60 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-xs font-bold">
-                  {user.name.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-xs font-medium text-[#f0f6fc] hidden sm:inline max-w-[120px] truncate">
-                  {user.name}
-                </span>
-              </div>
+              <LevelChip data={xp} initials={initialsOf(user.name)} name={user.name} onClick={() => onOpenLevel?.()} />
               <button
                 onClick={onLogout}
                 title="Sair da conta"

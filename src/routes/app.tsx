@@ -58,6 +58,9 @@ import {
 
 import { localDateStr } from '../lib/chain.js';
 import { ScrollableNav } from '../components/ScrollableNav.js';
+import { LevelCard, LevelUpModal, XpToast, useXp } from '../components/LevelUp.js';
+import { ProfilePhotoCard } from '../components/ProfilePhotoCard.js';
+import { initials as initialsOf } from '../lib/feed-rules.js';
 
 export const Route = createFileRoute('/app')({
   component: RitmoApp,
@@ -115,6 +118,22 @@ function RitmoApp() {
     duration: 25,
     topic: '',
   });
+
+  // Pontos de Ritmo: recalcula quando a pessoa marca hábito, conclui tarefa, foca, escreve ou lança gasto
+  const xpSignature = useMemo(
+    () =>
+      [
+        habitLogs.filter((l) => l.completed).length,
+        tasks.filter((t) => t.completed).length,
+        sessions.length,
+        journalEntries.length,
+        transactions.length,
+        activeTab,
+      ].join('|'),
+    [habitLogs, tasks, sessions, journalEntries, transactions, activeTab]
+  );
+  const xp = useXp(user?.id ?? null, xpSignature);
+  const userInitials = initialsOf(user?.name);
 
   // 1. Initial Load & Referral Capture
   useEffect(() => {
@@ -533,6 +552,11 @@ function RitmoApp() {
         onOpenAuth={() => setIsAuthOpen(true)}
         onLogout={handleLogout}
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
+        xp={xp.data}
+        onOpenLevel={() => {
+          setActiveTab('progresso');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
 
       {/* Main Container */}
@@ -682,6 +706,12 @@ function RitmoApp() {
             />
           )}
 
+          {activeTab === 'progresso' && user && (
+            <div className="mb-6 max-w-5xl mx-auto">
+              <LevelCard data={xp.data} initials={userInitials} onEditPhoto={() => setActiveTab('configuracoes')} />
+            </div>
+          )}
+
           {activeTab === 'progresso' && (
             <TabProgress
               cycles={allCycles.length > 0 ? allCycles : activeCycle ? [activeCycle] : []}
@@ -691,6 +721,14 @@ function RitmoApp() {
               sessions={sessions}
               transactions={transactions}
               onDeleteAccount={handleDeleteAccount}
+            />
+          )}
+
+          {activeTab === 'configuracoes' && user && (
+            <ProfilePhotoCard
+              data={xp.data}
+              initials={userInitials}
+              onChanged={(avatarUrl) => xp.setData((d) => (d ? { ...d, avatarUrl } : d))}
             />
           )}
 
@@ -704,6 +742,9 @@ function RitmoApp() {
           )}
         </main>
       </div>
+
+      <XpToast gain={xp.gain} />
+      <LevelUpModal info={xp.levelUp} initials={userInitials} avatarUrl={xp.data?.avatarUrl} onClose={xp.closeLevelUp} />
 
       {/* Auth Modal */}
       <AuthModal

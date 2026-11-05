@@ -178,6 +178,11 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
     "updated_at" timestamp DEFAULT now() NOT NULL
   )`,
 
+  // ---- Pontos de Ritmo (XP), níveis e foto de perfil com moldura (atualização de 05/11/2026)
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text`,
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "xp_total" integer NOT NULL DEFAULT 0`,
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "level" integer NOT NULL DEFAULT 1`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

@@ -1,4 +1,5 @@
 // Regras PURAS do Feed (texto, conquistas, limites e datas), testadas em tests/.
+import { levelDef, MAX_LEVEL } from './levels.js';
 
 export const FEED_LIMITS = {
   postMax: 2000,
@@ -46,7 +47,8 @@ export type Achievement =
   | { type: 'sessao'; minutes: number; goal?: string }
   | { type: 'card'; title: string; board?: string }
   | { type: 'habito'; habit: string }
-  | { type: 'tarefa'; title: string };
+  | { type: 'tarefa'; title: string }
+  | { type: 'nivel'; level: number; name: string };
 
 const int = (v: unknown, min: number, max: number): number | null => {
   const n = Number(v);
@@ -96,6 +98,11 @@ export function sanitizeAchievement(raw: unknown): Achievement | null {
       const title = normalizeText(r.title, 100);
       return title ? { type: 'tarefa', title } : null;
     }
+    case 'nivel': {
+      // o nome vem sempre da tabela de níveis, nunca do navegador
+      const level = int(r.level, 2, MAX_LEVEL);
+      return level ? { type: 'nivel', level, name: levelDef(level).name } : null;
+    }
     default:
       return null;
   }
@@ -119,6 +126,8 @@ export function achievementHeadline(a: Achievement): string {
       return `Hábito de hoje cumprido: “${a.habit}”`;
     case 'tarefa':
       return `Tarefa concluída: “${a.title}”`;
+    case 'nivel':
+      return `Subiu para o nível ${a.level}: ${a.name}`;
   }
 }
 

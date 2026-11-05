@@ -18,6 +18,9 @@ export const users = pgTable("users", {
   whatsappPhone: text("whatsapp_phone"),
   adminPermissions: text("admin_permissions"), // JSON com as permissões do administrador; vazio = administrador antigo (acesso operacional completo)
   feedMuted: boolean("feed_muted").notNull().default(false), // silenciado pela moderação: não publica nem comenta
+  avatarUrl: text("avatar_url"), // foto de perfil (/api/media?k=...)
+  xpTotal: integer("xp_total").notNull().default(0), // Pontos de Ritmo (cópia do cálculo, para o Feed)
+  level: integer("level").notNull().default(1), // nível atual (1 a 12), define a moldura da foto
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

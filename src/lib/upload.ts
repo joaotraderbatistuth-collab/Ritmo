@@ -43,6 +43,26 @@ export async function compressImage(file: File): Promise<string> {
   return canvas.toDataURL('image/jpeg', 0.82);
 }
 
+/** Foto de perfil → quadrado de 512 px recortado no centro (JPEG ~85%). */
+export async function compressAvatar(file: File, side = 512): Promise<string> {
+  if (!file.type.startsWith('image/')) throw new Error('Escolha uma foto (JPG, PNG ou WEBP).');
+  if (file.size > MAX_INPUT_BYTES) throw new Error('Foto grande demais.');
+  const img = await loadImage(await readAsDataUrl(file));
+  const crop = Math.min(img.naturalWidth, img.naturalHeight);
+  const sx = Math.round((img.naturalWidth - crop) / 2);
+  const sy = Math.round((img.naturalHeight - crop) / 2);
+  const out = Math.min(side, crop);
+  const canvas = document.createElement('canvas');
+  canvas.width = out;
+  canvas.height = out;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Não foi possível preparar a foto.');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, out, out);
+  ctx.drawImage(img, sx, sy, crop, crop, 0, 0, out, out);
+  return canvas.toDataURL('image/jpeg', 0.85);
+}
+
 /** Sobe o arquivo e devolve a URL (/api/media?k=...). Comprovante aceita PDF além de foto. */
 export async function uploadFile(file: File, purpose: 'feed' | 'receipt' = 'feed'): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   try {

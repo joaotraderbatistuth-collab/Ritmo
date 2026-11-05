@@ -28,6 +28,7 @@ function assert(condition: boolean, message: string) {
   }
 }
 
+import { computeXp, levelInfo, LEVELS, XP_RULES, XP_DAILY_MAX, frameForLevel, MAX_LEVEL } from '../src/lib/levels.js';
 import { NUDGES, PUSH_HOURS, personalize, pickNudge, slotForHour } from '../src/lib/nudges.js';
 import { parseBRLToCents } from '../src/lib/money.js';
 import { isBundledImage, parseMediaUrl } from '../src/lib/media-url.js';
@@ -434,6 +435,29 @@ export function runTests() {
   assert(SEED_RITUS.every((r) => isValidTeamCodeT(r.code) && r.name.length <= 60 && r.description.length <= 600 && r.posts.every((p) => p.body.length <= 2000)), 'Ritus iniciais respeitam os limites do app');
   assert(seedRitusStatements('a@b.com').at(-1)!.includes('seed_ritus_v1'), 'seed grava o marcador por último');
   console.log('✓ Todos os testes de lembretes, valores, fotos e Ritus gratuitos passaram com sucesso!');
+
+  console.log('15. Testando Pontos de Ritmo, níveis e molduras...');
+  assert(LEVELS.length === 12 && LEVELS.every((l, i) => l.level === i + 1 && (i === 0 || l.minXp > LEVELS[i - 1].minXp)), '12 níveis em ordem crescente de pontos');
+  assert(levelInfo(0).level === 1 && levelInfo(99).level === 1 && levelInfo(100).level === 2 && levelInfo(15000).level === MAX_LEVEL && levelInfo(999999).nextXp === null, 'nível certo para cada faixa de pontos');
+  const li = levelInfo(450);
+  assert(li.level === 3 && li.name === 'Iniciante' && li.xpToNext === 150 && Math.abs(li.progress - 0.5) < 1e-9, 'progresso dentro do nível');
+  assert(levelInfo(-5).xp === 0 && levelInfo(NaN as any).level === 1, 'pontos inválidos viram zero');
+  assert(frameForLevel(1).id === 'simples' && frameForLevel(3).id === 'bronze' && frameForLevel(5).id === 'prata' && frameForLevel(7).id === 'ouro' && frameForLevel(9).id === 'diamante' && frameForLevel(12).id === 'lendaria' && frameForLevel(99).id === 'lendaria', 'molduras por nível');
+  const emptyXp = { habitLogs: [], tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: '2026-11-05' };
+  assert(computeXp(emptyXp).total === 0, 'sem atividade, zero pontos');
+  const manyHabits = Array.from({ length: 20 }, () => ({ date: '2026-11-05', completed: true }));
+  const rx = computeXp({ ...emptyXp, habitLogs: manyHabits });
+  assert(rx.total === XP_RULES.habito.xp * XP_RULES.habito.dailyCap && rx.todayXp === rx.total, 'limite diário de hábitos');
+  assert(computeXp({ ...emptyXp, habitLogs: [{ date: '2026-11-05', completed: false }] }).total === 0, 'hábito desmarcado não conta');
+  assert(computeXp({ ...emptyXp, habitLogs: [{ date: '2026-11-04', completed: true }, { date: '2026-11-05', completed: true }] }).activeDays === 2, 'conta dias ativos');
+  assert(computeXp({ ...emptyXp, since: '2026-11-01', habitLogs: [{ date: '2025-01-01', completed: true }, { date: '2026-12-01', completed: true }] }).total === 0, 'não conta antes da conta existir nem no futuro');
+  const mixed = computeXp({ ...emptyXp, tasks: [{ date: '2026-11-01', completed: true, completedAt: '2026-11-05' }], sessions: [{ date: '2026-11-05', status: 'completed' }, { date: '2026-11-05', status: 'interrupted' }], journal: [{ date: '2026-11-05', entryType: 'daily_checkin' }, { date: '2026-11-05', entryType: 'daily_checkin' }, { date: '2026-11-02', entryType: 'weekly_review' }] });
+  assert(mixed.breakdown.tarefa.xp === 5 && mixed.breakdown.foco.count === 1 && mixed.breakdown.diario.count === 1 && mixed.breakdown.revisao.xp === 30 && mixed.todayXp === 5 + 15 + 15, 'tarefa pelo dia de conclusão, foco só concluído, diário 1x por dia');
+  assert(XP_DAILY_MAX < 400, 'limite diário total equilibrado');
+  assert(sanitizeAchievementT({ type: 'nivel', level: 4, name: 'Hacker' })?.type === 'nivel' && (sanitizeAchievementT({ type: 'nivel', level: 4, name: 'Hacker' }) as any).name === 'Constante', 'nome do nível vem da tabela, não do navegador');
+  assert(sanitizeAchievementT({ type: 'nivel', level: 1 }) === null && sanitizeAchievementT({ type: 'nivel', level: 99 }) === null, 'nível inválido para compartilhar é recusado');
+  assert(achievementHeadline({ type: 'nivel', level: 5, name: 'Focado' }) === 'Subiu para o nível 5: Focado', 'texto da conquista de nível');
+  console.log('✓ Todos os testes de pontos, níveis e molduras passaram com sucesso!');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

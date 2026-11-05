@@ -18,6 +18,7 @@ import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiXpRouteImport } from './routes/api.xp'
 import { Route as ApiTeamsRouteImport } from './routes/api.teams'
 import { Route as ApiTasksRouteImport } from './routes/api.tasks'
 import { Route as ApiPushRouteImport } from './routes/api.push'
@@ -82,6 +83,11 @@ const AdminRoute = AdminRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiXpRoute = ApiXpRouteImport.update({
+  id: '/api/xp',
+  path: '/api/xp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTeamsRoute = ApiTeamsRouteImport.update({
@@ -212,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
+  '/api/xp': typeof ApiXpRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByTo {
   '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
+  '/api/xp': typeof ApiXpRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
@@ -275,6 +283,7 @@ export interface FileRoutesById {
   '/api/push': typeof ApiPushRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
+  '/api/xp': typeof ApiXpRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
@@ -308,6 +317,7 @@ export interface FileRouteTypes {
     | '/api/push'
     | '/api/tasks'
     | '/api/teams'
+    | '/api/xp'
     | '/api/cron/lembretes'
     | '/api/cron/notificacoes'
     | '/api/webhooks/mercadopago'
@@ -339,6 +349,7 @@ export interface FileRouteTypes {
     | '/api/push'
     | '/api/tasks'
     | '/api/teams'
+    | '/api/xp'
     | '/api/cron/lembretes'
     | '/api/cron/notificacoes'
     | '/api/webhooks/mercadopago'
@@ -370,6 +381,7 @@ export interface FileRouteTypes {
     | '/api/push'
     | '/api/tasks'
     | '/api/teams'
+    | '/api/xp'
     | '/api/cron/lembretes'
     | '/api/cron/notificacoes'
     | '/api/webhooks/mercadopago'
@@ -402,6 +414,7 @@ export interface RootRouteChildren {
   ApiPushRoute: typeof ApiPushRoute
   ApiTasksRoute: typeof ApiTasksRoute
   ApiTeamsRoute: typeof ApiTeamsRoute
+  ApiXpRoute: typeof ApiXpRoute
   ApiCronLembretesRoute: typeof ApiCronLembretesRoute
   ApiCronNotificacoesRoute: typeof ApiCronNotificacoesRoute
   ApiWebhooksMercadopagoRoute: typeof ApiWebhooksMercadopagoRoute
@@ -470,6 +483,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/xp': {
+      id: '/api/xp'
+      path: '/api/xp'
+      fullPath: '/api/xp'
+      preLoaderRoute: typeof ApiXpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/teams': {
@@ -642,6 +662,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPushRoute: ApiPushRoute,
   ApiTasksRoute: ApiTasksRoute,
   ApiTeamsRoute: ApiTeamsRoute,
+  ApiXpRoute: ApiXpRoute,
   ApiCronLembretesRoute: ApiCronLembretesRoute,
   ApiCronNotificacoesRoute: ApiCronNotificacoesRoute,
   ApiWebhooksMercadopagoRoute: ApiWebhooksMercadopagoRoute,
