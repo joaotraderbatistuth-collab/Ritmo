@@ -132,6 +132,11 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS "team_members_user_idx" ON "team_members" ("user_id")`,
   `CREATE INDEX IF NOT EXISTS "team_earnings_owner_idx" ON "team_earnings" ("owner_user_id","status")`,
 
+  // ---- Ritus (antigas "equipes"): vitrine pública e ranking de acessos
+  `ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "listed" boolean NOT NULL DEFAULT true`,
+  `ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "view_count" integer NOT NULL DEFAULT 0`,
+  `CREATE INDEX IF NOT EXISTS "teams_listed_views_idx" ON "teams" ("active","listed","view_count")`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

@@ -619,14 +619,14 @@ function SalesTab({ finance, teamsFinance, payments, act, canRefund }: { finance
       </div>
       {teamsFinance && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-          <div className="text-sm font-bold text-amber-300">Equipes (marketplace)</div>
+          <div className="text-sm font-bold text-amber-300">Ritus (marketplace)</div>
           <div className="mt-2 grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
             <div><div className="text-xs text-slate-400">Vendas</div><div className="font-bold">{teamsFinance.salesCount}</div></div>
             <div><div className="text-xs text-slate-400">Valor vendido</div><div className="font-bold">{brl(teamsFinance.grossCents)}</div></div>
             <div><div className="text-xs text-slate-400">Comissão da plataforma (40%)</div><div className="font-bold text-emerald-300">{brl(teamsFinance.platformFeeCents)}</div></div>
             <div><div className="text-xs text-slate-400">Repassado aos criadores (60%)</div><div className="font-bold">{brl(teamsFinance.ownerCents)}</div></div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-2">Vendas de equipes aparecem na lista abaixo como pagamentos comuns; um estorno também reverte o repasse do criador e remove o acesso comprado.</p>
+          <p className="text-[11px] text-slate-500 mt-2">Vendas de Ritus aparecem na lista abaixo como pagamentos comuns; um estorno também reverte o repasse do criador e remove o acesso comprado.</p>
         </div>
       )}
       <div className="flex flex-wrap gap-3 items-center">
@@ -864,7 +864,7 @@ function ModerationTab({ data, act }: { data: any; act: Act }) {
           {data.reports.map((r: any) => (
             <div key={`${r.targetType}-${r.targetId}`} className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-                <span>{r.targetType === 'post' ? 'Publicação' : 'Comentário'} #{r.targetId}{r.teamId ? ' (equipe)' : ''} · {r.reportCount} denúncia(s) · {r.status === 'hidden' ? <b className="text-amber-300">escondido</b> : 'visível'}</span>
+                <span>{r.targetType === 'post' ? 'Publicação' : 'Comentário'} #{r.targetId}{r.teamId ? ' (Ritus)' : ''} · {r.reportCount} denúncia(s) · {r.status === 'hidden' ? <b className="text-amber-300">escondido</b> : 'visível'}</span>
                 <span>{dateTimeBR(r.lastReportAt)}</span>
               </div>
               <p className="mt-2 text-sm whitespace-pre-wrap break-words">{r.body || '(sem texto)'}</p>
@@ -882,11 +882,11 @@ function ModerationTab({ data, act }: { data: any; act: Act }) {
       </section>
 
       <section>
-        <h2 className="font-bold mb-3">Equipes ({data.teams.length})</h2>
+        <h2 className="font-bold mb-3">Ritus ({data.teams.length})</h2>
         <Table>
-          <Thead cols={['Equipe', 'Criador', 'Preço', 'Membros', 'Vendas', 'Plataforma (40%)', 'Situação', 'Ações']} />
+          <Thead cols={['Ritus', 'Criador', 'Preço', 'Assinantes', 'Vendas', 'Plataforma (40%)', 'Situação', 'Ações']} />
           <tbody>
-            {data.teams.length === 0 && <Empty cols={8} text="Nenhuma equipe criada." />}
+            {data.teams.length === 0 && <Empty cols={8} text="Nenhum Ritus criado." />}
             {data.teams.map((t: any) => (
               <tr key={t.id} className="border-t border-[#30363d]">
                 <td className={td}>{t.name}<div className="text-[11px] text-slate-500 font-mono">{t.code}</div></td>
@@ -897,7 +897,7 @@ function ModerationTab({ data, act }: { data: any; act: Act }) {
                 <td className={`${td} text-emerald-300`}>{brl(t.platformFeeCents)}</td>
                 <td className={td}>{t.active ? 'Ativa' : <span className="text-rose-300">Suspensa</span>}</td>
                 <td className={td}>
-                  <button className={t.active ? 'text-rose-400 hover:underline' : 'text-emerald-400 hover:underline'} onClick={() => (t.active ? confirm(`Suspender a equipe ${t.name}? Os membros perdem o acesso até ela ser reativada.`) : true) && act({ action: 'set_team_active', teamId: t.id, active: !t.active })}>
+                  <button className={t.active ? 'text-rose-400 hover:underline' : 'text-emerald-400 hover:underline'} onClick={() => (t.active ? confirm(`Suspender o Ritus ${t.name}? Os assinantes perdem o acesso até ele ser reativado.`) : true) && act({ action: 'set_team_active', teamId: t.id, active: !t.active })}>
                     {t.active ? 'Suspender' : 'Reativar'}
                   </button>
                 </td>

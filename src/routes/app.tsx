@@ -61,7 +61,7 @@ export const Route = createFileRoute('/app')({
 });
 
 function RitmoApp() {
-  const [activeTab, setActiveTab] = useState<string>('hoje');
+  const [activeTab, setActiveTab] = useState<string>('feed');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -112,8 +112,8 @@ function RitmoApp() {
         if (storedRef) setRefParam(storedRef);
       }
 
-      // Link de equipe (?equipe=codigo): guarda e abre a equipe depois do login
-      const equipe = urlParams.get('equipe');
+      // Link de Ritus (?ritus=codigo, ou o antigo ?equipe=codigo): guarda e abre o Ritus depois do login
+      const equipe = urlParams.get('ritus') || urlParams.get('equipe');
       try {
         if (equipe && /^[a-z0-9-]{3,40}$/.test(equipe)) localStorage.setItem('ritmo_team_invite', equipe);
       } catch {}
@@ -459,6 +459,7 @@ function RitmoApp() {
 
   // Navigation items definition
   const NAV_ITEMS = [
+    { id: 'feed', label: 'Feed', icon: <UsersIcon className="w-4 h-4" /> },
     { id: 'hoje', label: 'Hoje', icon: <Flame className="w-4 h-4" /> },
     { id: 'roteiro', label: 'Roteiro de Metas', icon: <MapIcon className="w-4 h-4" /> },
     { id: 'rotina', label: 'Rotina & Tarefas', icon: <Calendar className="w-4 h-4" /> },
@@ -470,7 +471,6 @@ function RitmoApp() {
     { id: 'whatsapp', label: 'WhatsApp Bot', icon: <Smartphone className="w-4 h-4" /> },
     { id: 'planilha', label: 'Planilhas', icon: <FileSpreadsheet className="w-4 h-4" /> },
     { id: 'afiliados', label: 'Indique e Ganhe', icon: <Share2 className="w-4 h-4" /> },
-    { id: 'feed', label: 'Feed', icon: <UsersIcon className="w-4 h-4" /> },
     { id: 'progresso', label: 'Progresso', icon: <TrendingUp className="w-4 h-4" /> },
     { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4" /> },
   ];

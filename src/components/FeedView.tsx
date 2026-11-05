@@ -68,7 +68,7 @@ const Composer: React.FC<{ teamId: number | null; achievements: Achievement[]; p
         onChange={(e) => setText(e.target.value)}
         maxLength={FEED_LIMITS.postMax}
         rows={3}
-        placeholder={teamId ? 'Compartilhe um treino, um aviso ou uma conquista com a equipe...' : 'Compartilhe uma conquista ou escreva algo para a comunidade...'}
+        placeholder={teamId ? 'Publique um conteúdo exclusivo, um aviso ou uma conquista para os assinantes...' : 'Compartilhe uma conquista ou escreva algo para a comunidade...'}
         className="w-full bg-[#0d1117] border border-[#30363d] rounded-xl px-3 py-2 text-sm text-[#f0f6fc] focus:outline-none focus:border-emerald-500 resize-y"
         aria-label="Nova publicação"
       />

@@ -27,7 +27,7 @@ const iso = (v: any) => (v instanceof Date ? v.toISOString() : v || null);
 const count = sql<number>`count(*)::int`;
 
 async function need() {
-  if (!(await checkDb())) throw new CommunityError(503, 'O Feed e as Equipes precisam do banco de dados configurado.');
+  if (!(await checkDb())) throw new CommunityError(503, 'O Feed e os Ritus precisam do banco de dados configurado.');
 }
 
 /* ================================================================== */
@@ -37,15 +37,15 @@ async function need() {
 const MAX_TEAMS_PER_USER = 5;
 
 async function loadTeamByCode(code: string) {
-  if (!isValidTeamCode(code)) throw new CommunityError(404, 'Equipe não encontrada.');
+  if (!isValidTeamCode(code)) throw new CommunityError(404, 'Ritus não encontrado.');
   const [team] = await db.select().from(schema.teams).where(eq(schema.teams.code, code));
-  if (!team) throw new CommunityError(404, 'Equipe não encontrada.');
+  if (!team) throw new CommunityError(404, 'Ritus não encontrado.');
   return team;
 }
 
 async function loadTeam(teamId: number) {
   const [team] = await db.select().from(schema.teams).where(eq(schema.teams.id, teamId));
-  if (!team) throw new CommunityError(404, 'Equipe não encontrada.');
+  if (!team) throw new CommunityError(404, 'Ritus não encontrado.');
   return team;
 }
 
@@ -78,9 +78,9 @@ export async function teamAccess(userId: number, teamId: number) {
 export async function createTeam(ownerId: number, raw: Record<string, unknown>) {
   await need();
   const v = validateTeamInput(raw as any);
-  if (!v.ok || !v.value) throw new CommunityError(400, v.error || 'Dados da equipe inválidos.');
+  if (!v.ok || !v.value) throw new CommunityError(400, v.error || 'Dados do Ritus inválidos.');
   const [{ n }] = await db.select({ n: count }).from(schema.teams).where(eq(schema.teams.ownerUserId, ownerId));
-  if (n >= MAX_TEAMS_PER_USER) throw new CommunityError(400, `Você pode ter até ${MAX_TEAMS_PER_USER} equipes.`);
+  if (n >= MAX_TEAMS_PER_USER) throw new CommunityError(400, `Você pode ter até ${MAX_TEAMS_PER_USER} Ritus.`);
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = teamCodeFrom(v.value.name);
@@ -92,15 +92,15 @@ export async function createTeam(ownerId: number, raw: Record<string, unknown>) 
       if (!/teams_code_unique|23505/.test(String(e?.message) + String(e?.code))) throw e;
     }
   }
-  throw new CommunityError(500, 'Não foi possível gerar o link da equipe. Tente novamente.');
+  throw new CommunityError(500, 'Não foi possível gerar o link do Ritus. Tente novamente.');
 }
 
 export async function updateTeam(ownerId: number, teamId: number, raw: Record<string, unknown>) {
   await need();
   const team = await loadTeam(teamId);
-  if (team.ownerUserId !== ownerId) throw new CommunityError(403, 'Só o criador pode editar a equipe.');
+  if (team.ownerUserId !== ownerId) throw new CommunityError(403, 'Só o criador pode editar o Ritus.');
   const v = validateTeamInput({ ...raw } as any);
-  if (!v.ok || !v.value) throw new CommunityError(400, v.error || 'Dados da equipe inválidos.');
+  if (!v.ok || !v.value) throw new CommunityError(400, v.error || 'Dados do Ritus inválidos.');
   const [updated] = await db.update(schema.teams).set({ ...v.value }).where(eq(schema.teams.id, teamId)).returning();
   return updated;
 }
@@ -111,10 +111,22 @@ export async function getTeamPreview(code: string, viewerId: number) {
   const viewer = await findUserById(viewerId);
   const owner = await findUserById(team.ownerUserId);
   const isOwner = team.ownerUserId === viewerId;
-  if (!team.active && !isOwner) throw new CommunityError(404, 'Equipe não encontrada.');
+  if (!team.active && !isOwner) throw new CommunityError(404, 'Ritus não encontrado.');
   const membership = await getMembership(team.id, viewerId);
   const isMember = isOwner || membershipActive(membership, todayBR());
   const free = team.priceCents === 0 || qualifiesForFreeAccess(team, owner?.referralCode || '', viewer?.referredBy);
+  // conta um acesso (o criador abrindo o próprio Ritus não conta)
+  if (!isOwner) {
+    try {
+      await db.update(schema.teams).set({ viewCount: sql`${schema.teams.viewCount} + 1` }).where(eq(schema.teams.id, team.id));
+    } catch {
+      /* o contador nunca impede de abrir o Ritus */
+    }
+  }
+  const [posts] = await db
+    .select({ n: count })
+    .from(schema.feedPosts)
+    .where(and(eq(schema.feedPosts.teamId, team.id), eq(schema.feedPosts.status, 'visible')));
   return {
     id: team.id,
     code: team.code,
@@ -125,6 +137,9 @@ export async function getTeamPreview(code: string, viewerId: number) {
     freeForReferred: team.freeForReferred,
     membersCanPost: team.membersCanPost,
     active: team.active,
+    listed: team.listed,
+    viewCount: (team.viewCount || 0) + (isOwner ? 0 : 1),
+    postsCount: posts?.n || 0,
     ownerName: displayName(owner?.name),
     ownerReferralCode: isOwner ? owner?.referralCode : undefined,
     membersCount: await activeMembersCount(team.id),
@@ -168,6 +183,78 @@ export async function listMyTeams(userId: number) {
   return { owned: ownedOut, joined };
 }
 
+/**
+ * Vitrine "Achar Ritus": Ritus ativos e públicos, do mais acessado para o menos acessado.
+ * Com `query`, pesquisa no nome, na descrição e no nome do criador.
+ */
+export async function discoverTeams(viewerId: number, query: string) {
+  await need();
+  const q = String(query || '').replace(/[%_\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const like = `%${q}%`;
+  const rows = await db
+    .select({
+      id: schema.teams.id,
+      code: schema.teams.code,
+      name: schema.teams.name,
+      description: schema.teams.description,
+      priceCents: schema.teams.priceCents,
+      periodDays: schema.teams.periodDays,
+      viewCount: schema.teams.viewCount,
+      ownerUserId: schema.teams.ownerUserId,
+      ownerName: schema.users.name,
+    })
+    .from(schema.teams)
+    .innerJoin(schema.users, eq(schema.users.id, schema.teams.ownerUserId))
+    .where(
+      and(
+        eq(schema.teams.active, true),
+        eq(schema.teams.listed, true),
+        q ? sql`(${schema.teams.name} ILIKE ${like} OR ${schema.teams.description} ILIKE ${like} OR ${schema.users.name} ILIKE ${like})` : undefined
+      )
+    )
+    .orderBy(desc(schema.teams.viewCount), desc(schema.teams.id))
+    .limit(30);
+  if (rows.length === 0) return { ritus: [] };
+
+  const ids = rows.map((r) => r.id);
+  const members = await db
+    .select({ id: schema.teamMembers.teamId, n: count })
+    .from(schema.teamMembers)
+    .where(and(inArray(schema.teamMembers.teamId, ids), eq(schema.teamMembers.status, 'active'), ne(schema.teamMembers.source, 'owner')))
+    .groupBy(schema.teamMembers.teamId);
+  const posts = await db
+    .select({ id: schema.feedPosts.teamId, n: count })
+    .from(schema.feedPosts)
+    .where(and(inArray(schema.feedPosts.teamId, ids), eq(schema.feedPosts.status, 'visible')))
+    .groupBy(schema.feedPosts.teamId);
+  const mine = await db
+    .select({ id: schema.teamMembers.teamId, status: schema.teamMembers.status, expiresAt: schema.teamMembers.expiresAt })
+    .from(schema.teamMembers)
+    .where(and(inArray(schema.teamMembers.teamId, ids), eq(schema.teamMembers.userId, viewerId)));
+  const memberMap = new Map(members.map((m) => [m.id, m.n]));
+  const postMap = new Map(posts.map((p) => [p.id, p.n]));
+  const mineMap = new Map(mine.map((m) => [m.id, m]));
+  const today = todayBR();
+
+  return {
+    ritus: rows.map((r, i) => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      description: r.description.length > 220 ? `${r.description.slice(0, 217)}...` : r.description,
+      priceCents: r.priceCents,
+      periodDays: r.periodDays,
+      viewCount: r.viewCount,
+      rank: q ? null : i + 1,
+      ownerName: displayName(r.ownerName),
+      membersCount: memberMap.get(r.id) || 0,
+      postsCount: postMap.get(r.id) || 0,
+      isOwner: r.ownerUserId === viewerId,
+      isMember: r.ownerUserId === viewerId || membershipActive(mineMap.get(r.id) as any, today),
+    })),
+  };
+}
+
 async function upsertMembership(teamId: number, userId: number, source: string, expiresAt: string | null) {
   const existing = await getMembership(teamId, userId);
   if (existing) {
@@ -181,12 +268,12 @@ async function upsertMembership(teamId: number, userId: number, source: string, 
 export async function joinTeamFree(userId: number, code: string) {
   await need();
   const team = await loadTeamByCode(code);
-  if (!team.active) throw new CommunityError(404, 'Equipe não encontrada.');
+  if (!team.active) throw new CommunityError(404, 'Ritus não encontrado.');
   const owner = await findUserById(team.ownerUserId);
   const user = await findUserById(userId);
   const referral = qualifiesForFreeAccess(team, owner?.referralCode || '', user?.referredBy);
   if (team.priceCents > 0 && !referral) {
-    throw new CommunityError(402, 'Esta equipe é paga. Você pode comprar o acesso pelo link da equipe.');
+    throw new CommunityError(402, 'Este Ritus é pago. Assine para ter acesso.');
   }
   const m = await getMembership(team.id, userId);
   if (membershipActive(m, todayBR())) return { team, alreadyMember: true };
@@ -198,16 +285,16 @@ export async function joinTeamFree(userId: number, code: string) {
 export async function createTeamPayment(userId: number, code: string) {
   await need();
   const team = await loadTeamByCode(code);
-  if (!team.active) throw new CommunityError(404, 'Equipe não encontrada.');
-  if (team.ownerUserId === userId) throw new CommunityError(400, 'Você é o criador desta equipe.');
-  if (team.priceCents === 0) throw new CommunityError(400, 'Esta equipe é grátis: basta entrar.');
+  if (!team.active) throw new CommunityError(404, 'Ritus não encontrado.');
+  if (team.ownerUserId === userId) throw new CommunityError(400, 'Você é o criador deste Ritus.');
+  if (team.priceCents === 0) throw new CommunityError(400, 'Este Ritus é grátis: basta entrar.');
   const owner = await findUserById(team.ownerUserId);
   const user = await findUserById(userId);
   if (qualifiesForFreeAccess(team, owner?.referralCode || '', user?.referredBy)) {
     throw new CommunityError(400, 'Você se cadastrou pelo link do criador: seu acesso é grátis, basta entrar.');
   }
   const m = await getMembership(team.id, userId);
-  if (membershipActive(m, todayBR()) && !team.periodDays) throw new CommunityError(400, 'Você já tem acesso a esta equipe.');
+  if (membershipActive(m, todayBR()) && !team.periodDays) throw new CommunityError(400, 'Você já assina este Ritus.');
 
   const orderReference = `ORD-EQP-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
   let pixCopiaECola: string | undefined;
@@ -219,7 +306,7 @@ export async function createTeamPayment(userId: number, code: string) {
     const mp = await createRealPixPayment({
       orderReference,
       amountCents: team.priceCents,
-      description: `Equipe ${team.name} — Ritmo`,
+      description: `Ritus ${team.name} — Ritmo`,
       payerEmail: user?.email || 'cliente@meu-ritmo.netlify.app',
     });
     if (mp.success) {
@@ -366,10 +453,10 @@ export async function createPost(userId: number, input: { body?: unknown; teamId
   await assertCanWrite(userId);
   const teamId = input.teamId ? Number(input.teamId) : null;
   if (teamId !== null) {
-    if (!Number.isInteger(teamId)) throw new CommunityError(400, 'Equipe inválida.');
+    if (!Number.isInteger(teamId)) throw new CommunityError(400, 'Ritus inválido.');
     const a = await teamAccess(userId, teamId);
-    if (!a.ok) throw new CommunityError(403, 'Você não tem acesso a esta equipe.');
-    if (!a.isOwner && !a.team.membersCanPost) throw new CommunityError(403, 'Nesta equipe só o criador publica. Você pode comentar nas publicações.');
+    if (!a.ok) throw new CommunityError(403, 'Conteúdo exclusivo para assinantes deste Ritus.');
+    if (!a.isOwner && !a.team.membersCanPost) throw new CommunityError(403, 'Neste Ritus só o criador publica. Você pode comentar nas publicações.');
   }
   const body = normalizeText(input.body, FEED_LIMITS.postMax);
   const achievement = input.achievement ? sanitizeAchievement(input.achievement) : null;
@@ -390,7 +477,7 @@ export async function listPosts(viewerId: number, opts: { teamId?: number | null
   const limit = Math.min(Math.max(opts.limit || 20, 1), 50);
   if (opts.teamId) {
     const a = await teamAccess(viewerId, opts.teamId);
-    if (!a.ok) throw new CommunityError(403, 'Você não tem acesso a esta equipe.');
+    if (!a.ok) throw new CommunityError(403, 'Conteúdo exclusivo para assinantes deste Ritus.');
   }
   const where = and(
     opts.teamId ? eq(schema.feedPosts.teamId, opts.teamId) : isNull(schema.feedPosts.teamId),
@@ -442,7 +529,7 @@ async function loadVisiblePost(viewerId: number, postId: number) {
   if (!post || post.status !== 'visible') throw new CommunityError(404, 'Publicação não encontrada.');
   if (post.teamId) {
     const a = await teamAccess(viewerId, post.teamId);
-    if (!a.ok) throw new CommunityError(403, 'Você não tem acesso a esta equipe.');
+    if (!a.ok) throw new CommunityError(403, 'Conteúdo exclusivo para assinantes deste Ritus.');
     return { post, teamOwnerId: a.team.ownerUserId };
   }
   return { post, teamOwnerId: null as number | null };
@@ -520,7 +607,7 @@ export async function reportContent(userId: number, targetType: string, targetId
     authorId = p?.userId ?? null;
     if (p?.teamId) {
       const a = await teamAccess(userId, p.teamId);
-      if (!a.ok) throw new CommunityError(403, 'Você não tem acesso a esta equipe.');
+      if (!a.ok) throw new CommunityError(403, 'Conteúdo exclusivo para assinantes deste Ritus.');
     }
   } else {
     const [c] = await db.select().from(schema.feedComments).where(eq(schema.feedComments.id, targetId));

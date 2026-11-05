@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { requireMember, communityError } from '../lib/community-auth.js';
 import {
-  CommunityError, createTeam, createTeamPayment, getOwnTeamPayment, getTeamPreview, joinTeamFree,
+  CommunityError, createTeam, createTeamPayment, discoverTeams, getOwnTeamPayment, getTeamPreview, joinTeamFree,
   listMyTeams, listTeamMembers, removeTeamMember, updateTeam,
 } from '../lib/community-db.js';
 import { checkRealPaymentStatus, confirmCheckoutPayment } from '../lib/server-db.js';
@@ -23,6 +23,7 @@ export const Route = createFileRoute('/api/teams')({
         try {
           const user = await requireMember(request);
           const q = new URL(request.url).searchParams;
+          if (q.get('discover') !== null) return Response.json(await discoverTeams(user.id, String(q.get('q') || '')));
           if (q.get('code')) return Response.json({ team: await getTeamPreview(String(q.get('code')), user.id) });
           if (q.get('members')) return Response.json({ members: await listTeamMembers(user.id, Number(q.get('members'))) });
           return Response.json(await listMyTeams(user.id));
@@ -38,15 +39,15 @@ export const Route = createFileRoute('/api/teams')({
           switch (body.action) {
             case 'create_team': {
               const team = await createTeam(user.id, body);
-              return Response.json({ success: true, message: 'Equipe criada! Copie o link e compartilhe com seus alunos.', team });
+              return Response.json({ success: true, message: 'Ritus criado! Copie o link e divulgue para o seu público.', team });
             }
             case 'update_team': {
               const team = await updateTeam(user.id, Number(body.teamId), body);
-              return Response.json({ success: true, message: 'Equipe atualizada. O novo preço vale para as próximas vendas.', team });
+              return Response.json({ success: true, message: 'Ritus atualizado. O novo preço vale para as próximas vendas.', team });
             }
             case 'join_free': {
               const r = await joinTeamFree(user.id, String(body.code));
-              return Response.json({ success: true, message: r.alreadyMember ? 'Você já está nesta equipe.' : 'Bem-vindo à equipe!' });
+              return Response.json({ success: true, message: r.alreadyMember ? 'Você já está neste Ritus.' : 'Bem-vindo ao Ritus!' });
             }
             case 'buy': {
               const { payment } = await createTeamPayment(user.id, String(body.code));

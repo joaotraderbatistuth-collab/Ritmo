@@ -370,6 +370,8 @@ export const teams = pgTable("teams", {
   freeForReferred: boolean("free_for_referred").notNull().default(true),
   membersCanPost: boolean("members_can_post").notNull().default(false),
   active: boolean("active").notNull().default(true),
+  listed: boolean("listed").notNull().default(true), // aparece em "Achar Ritus"
+  viewCount: integer("view_count").notNull().default(0), // acessos à página do Ritus (ranking dos mais acessados)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

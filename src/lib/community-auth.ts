@@ -18,7 +18,7 @@ export async function requireMember(request: Request) {
     trialEndsAt: user.trialEndsAt,
     subscriptionRenewalDate: user.subscriptionRenewalDate,
   });
-  if (!access.hasAccess) throw new CommunityError(402, 'Seu acesso ao Ritmo expirou. Renove para usar o Feed e as Equipes.');
+  if (!access.hasAccess) throw new CommunityError(402, 'Seu acesso ao Ritmo expirou. Renove para usar o Feed e os Ritus.');
   return user;
 }
 

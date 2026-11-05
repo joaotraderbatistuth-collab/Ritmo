@@ -1,4 +1,4 @@
-// Equipes pagas — regras PURAS (sem banco, sem React), testadas em tests/.
+// Ritus (antigas "equipes") pagos — regras PURAS (sem banco, sem React), testadas em tests/.
 // Qualquer usuário pode criar uma equipe e definir o preço de entrada.
 // A plataforma retém 40% de cada venda; o criador recebe o restante (60%).
 
@@ -29,6 +29,8 @@ export interface TeamInput {
   freeForReferred: boolean;
   /** Os membros também podem publicar na equipe? Padrão: não (só o criador publica; membros comentam). */
   membersCanPost: boolean;
+  /** Aparece na vitrine "Achar Ritus"? Padrão: sim. */
+  listed: boolean;
 }
 
 export interface TeamValidation {
@@ -41,10 +43,10 @@ const clean = (s: unknown) => String(s ?? '').replace(/[\u0000-\u0008\u000B\u000
 
 export function validateTeamInput(raw: Partial<TeamInput> & Record<string, unknown>): TeamValidation {
   const name = clean(raw.name).replace(/\s+/g, ' ');
-  if (name.length < 3) return { ok: false, error: 'Dê um nome à equipe, com pelo menos 3 letras.' };
-  if (name.length > TEAM_NAME_MAX) return { ok: false, error: `O nome da equipe pode ter até ${TEAM_NAME_MAX} caracteres.` };
+  if (name.length < 3) return { ok: false, error: 'Dê um nome ao Ritus, com pelo menos 3 letras.' };
+  if (name.length > TEAM_NAME_MAX) return { ok: false, error: `O nome do Ritus pode ter até ${TEAM_NAME_MAX} caracteres.` };
   const description = clean(raw.description).replace(/\n{3,}/g, '\n\n');
-  if (description.length > TEAM_DESCRIPTION_MAX) return { ok: false, error: `A descrição pode ter até ${TEAM_DESCRIPTION_MAX} caracteres.` };
+  if (description.length > TEAM_DESCRIPTION_MAX) return { ok: false, error: `A descrição do serviço pode ter até ${TEAM_DESCRIPTION_MAX} caracteres.` };
   const priceCents = Number(raw.priceCents);
   if (!Number.isInteger(priceCents)) return { ok: false, error: 'Preço inválido.' };
   if (priceCents !== 0 && (priceCents < TEAM_MIN_PRICE_CENTS || priceCents > TEAM_MAX_PRICE_CENTS)) {
@@ -61,6 +63,7 @@ export function validateTeamInput(raw: Partial<TeamInput> & Record<string, unkno
       periodDays,
       freeForReferred: raw.freeForReferred === undefined ? true : Boolean(raw.freeForReferred),
       membersCanPost: raw.membersCanPost === undefined ? false : Boolean(raw.membersCanPost),
+      listed: raw.listed === undefined ? true : Boolean(raw.listed),
     },
   };
 }
@@ -78,7 +81,7 @@ export function teamCodeFrom(name: string, random: () => number = Math.random): 
   const suffix = Math.floor(random() * 36 ** 4)
     .toString(36)
     .padStart(4, '0');
-  return `${base || 'equipe'}-${suffix}`;
+  return `${base || 'ritus'}-${suffix}`;
 }
 
 export const isValidTeamCode = (c: unknown): c is string => typeof c === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(c) && c.length <= 40;
@@ -116,6 +119,6 @@ export const TEAM_TERMS = [
   `A plataforma retém ${TEAM_PLATFORM_FEE_PERCENT}% do valor de cada venda; o criador recebe o restante.`,
   'O repasse entra no seu saldo e é sacado por Pix, com o mesmo prazo semanal das comissões: pedido até quarta-feira, 23:59, pago na quinta e na sexta.',
   'Reembolso ou contestação de um pagamento desfaz o repasse correspondente.',
-  'Você é responsável pelo conteúdo que publica na equipe e pelas obrigações fiscais e profissionais da sua atividade. Conteúdo ilegal, enganoso ou que ofenda pessoas pode ser removido e a equipe, suspensa.',
+  'Você é responsável pelo conteúdo que publica no Ritus e pelas obrigações fiscais e profissionais da sua atividade. Conteúdo ilegal, enganoso ou que ofenda pessoas pode ser removido e o Ritus, suspenso.',
   'Não prometa resultado de saúde, financeiro ou de qualquer outro tipo.',
 ];

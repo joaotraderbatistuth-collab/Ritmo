@@ -99,12 +99,12 @@ export const GUIDE_STEPS: GuideStep[] = [
   {
     id: 'feed',
     tab: 'feed',
-    title: 'Feed e Equipes',
-    intro: 'Compartilhe o que você conquistou e participe de equipes. Nada é publicado sozinho: você escolhe.',
+    title: 'Feed e Ritus',
+    intro: 'O Feed é a sua rede social dentro do Ritmo: compartilhe conquistas, acompanhe a comunidade e assine Ritus com conteúdo exclusivo. Nada é publicado sozinho: você escolhe.',
     tasks: [
       'No Feed, escolha uma conquista sua (corrente, foco, tarefas ou meta) e toque em “Publicar”.',
-      'Na sub-aba Equipes, entre em uma equipe pelo link que recebeu.',
-      'Se você é professor, personal ou mentor, crie a sua equipe, defina o preço e copie o link. A plataforma retém 40% de cada venda.',
+      'Na sub-aba Achar Ritus, veja os mais acessados ou pesquise por tema e assine o que fizer sentido para você.',
+      'Se você é professor, personal ou mentor, crie o seu Ritus em Meus Ritus: defina o preço, descreva o serviço e publique conteúdo exclusivo para assinantes. A plataforma retém 40% de cada venda.',
     ],
   },
   {

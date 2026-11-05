@@ -18,7 +18,7 @@ export const PERMISSIONS = [
   { key: 'withdrawals', label: 'Saques', description: 'Aprovar, pagar ou recusar saques de afiliados.' },
   { key: 'refunds', label: 'Estornos', description: 'Estornar pedidos (reverte as comissões e pode encerrar o acesso).' },
   { key: 'exports', label: 'Planilhas', description: 'Baixar planilhas de dados (usuários, vendas, comissões...).' },
-  { key: 'moderation', label: 'Moderação do Feed', description: 'Analisar denúncias do Feed, esconder conteúdo, silenciar usuários e suspender equipes.' },
+  { key: 'moderation', label: 'Moderação do Feed', description: 'Analisar denúncias do Feed, esconder conteúdo, silenciar usuários e suspender Ritus.' },
   { key: 'audit', label: 'Auditoria', description: 'Ver o histórico de tudo o que os administradores fizeram.' },
 ] as const;
 

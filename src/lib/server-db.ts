@@ -1898,7 +1898,7 @@ export async function confirmCheckoutPayment(orderReference: string) {
   if (payment.kind === 'team') {
     const { finalizeTeamPurchase } = await import('./community-db.js');
     await finalizeTeamPurchase(payment);
-    return { success: true, payment, message: 'Pagamento confirmado! Seu acesso à equipe foi liberado.' };
+    return { success: true, payment, message: 'Pagamento confirmado! Sua assinatura do Ritus foi liberada.' };
   }
 
   // Renovação: soma 30 dias ao que sobrou da assinatura (ou a partir de hoje se já venceu)

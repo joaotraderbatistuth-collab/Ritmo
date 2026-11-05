@@ -2,7 +2,9 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Flame, ArrowRight, Check, X, ChevronDown, Link2, Timer, ShieldCheck, Clock, Quote, Sparkles, Wallet, Share2, BadgeCheck, Banknote,
+  Heart, MessageCircle, Search, Eye, Users, Lock, Crown, Trophy, Newspaper, Megaphone,
 } from 'lucide-react';
+import { TEAM_PLATFORM_FEE_PERCENT, splitTeamPayment } from '../lib/teams-plan.js';
 import {
   COMMISSION_DIRECT_PERCENT, COMMISSION_NETWORK_PERCENT, COMMISSION_TOTAL_PERCENT, MAX_COMMISSION_LEVELS,
   MIN_PAYOUT_CENTS, PLAN_PRICE_CENTS, brl, commissionCentsFor, levelPercent,
@@ -460,6 +462,145 @@ function EarningsSimulator() {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Feed e Ritus (dados de exemplo)                                     */
+/* ------------------------------------------------------------------ */
+
+const FEED_SAMPLE = [
+  { who: 'Mariana S.', ini: 'MS', icon: Trophy, color: 'text-amber-300', text: 'Bati 4 semanas seguidas de treino. A corrente não quebrou nem no feriado.', likes: 38, comments: 9 },
+  { who: 'Rafael T.', ini: 'RT', icon: Timer, color: 'text-emerald-300', text: '12 horas de foco nesta semana. Primeira vez que eu sei exatamente no que trabalhei.', likes: 24, comments: 5 },
+  { who: 'Camila R.', ini: 'CR', icon: Wallet, color: 'text-teal-300', text: 'Fechei o mês com as contas pagas e sobrou para a reserva. Planilha nenhuma fez isso por mim.', likes: 51, comments: 14 },
+];
+
+function FeedDemo() {
+  const { ref, step } = useLoop(12, 900);
+  const visible = Math.min(FEED_SAMPLE.length, Math.floor(step / 3) + 1);
+  return (
+    <div ref={ref} className={frame}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
+          <Newspaper className="w-4 h-4" /> Feed do Ritmo
+        </div>
+        {tagExemplo}
+      </div>
+      <div className="space-y-3">
+        {FEED_SAMPLE.slice(0, visible).map((p, i) => {
+          const liked = step % 3 === 2 && i === visible - 1;
+          return (
+            <div key={p.who} className="v-pop rounded-xl bg-[#0d1117] border border-[#30363d] p-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-[11px] font-bold text-slate-950 flex items-center justify-center">{p.ini}</span>
+                <div className="text-sm font-semibold">{p.who}</div>
+                <p.icon className={`w-4 h-4 ml-auto ${p.color}`} />
+              </div>
+              <p className="mt-2 text-sm text-slate-300">{p.text}</p>
+              <div className="mt-2 flex gap-4 text-xs text-slate-500">
+                <span className={`inline-flex items-center gap-1 transition-colors ${liked ? 'text-rose-400' : ''}`}><Heart className={`w-3.5 h-3.5 ${liked ? 'fill-rose-400 v-pop' : ''}`} /> {p.likes + (liked ? 1 : 0)}</span>
+                <span className="inline-flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" /> {p.comments}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const RITUS_SAMPLE = [
+  { name: 'Treino em casa · 20 min', by: 'Personal Bruno', price: 'R$ 29,90 / 30 dias', views: 1840, members: 212 },
+  { name: 'Inglês do zero em 90 dias', by: 'Prof. Lia', price: 'R$ 39,90 / 30 dias', views: 1415, members: 167 },
+  { name: 'Finanças sem planilha', by: 'Diego M.', price: 'R$ 19,90 acesso único', views: 990, members: 134 },
+];
+
+function RitusDemo() {
+  const { ref, step } = useLoop(16, 700);
+  const query = 'treino'.slice(0, Math.max(0, step - 9));
+  const typing = step >= 10;
+  const list = typing ? RITUS_SAMPLE.filter((r) => r.name.toLowerCase().includes(query)) : RITUS_SAMPLE;
+  const bump = Math.min(step, 9) * 7;
+  return (
+    <div ref={ref} className={frame}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-300">
+          <Search className="w-4 h-4" /> Achar Ritus
+        </div>
+        {tagExemplo}
+      </div>
+      <div className="rounded-xl bg-[#0d1117] border border-[#30363d] px-3 py-2 text-sm text-slate-300 flex items-center gap-2">
+        <Search className="w-4 h-4 text-slate-500" />
+        {typing ? <span>{query}<span className="v-caret">|</span></span> : <span className="text-slate-500">Pesquisar por tema, nome ou criador</span>}
+      </div>
+      <div className="mt-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">{typing ? 'Resultados' : <><Flame className="w-3.5 h-3.5 text-amber-300" /> Mais acessados</>}</div>
+      <div className="mt-2 space-y-2 min-h-[220px]">
+        {list.map((r, i) => (
+          <div key={r.name} className="rounded-xl bg-[#0d1117] border border-[#30363d] p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="text-sm font-bold">{!typing && <span className="text-amber-300 mr-1">#{i + 1}</span>}{r.name}</div>
+              <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-semibold">{r.price}</span>
+            </div>
+            <div className="text-[11px] text-slate-500">por {r.by}</div>
+            <div className="mt-2 flex gap-3 text-[11px] text-slate-400">
+              <span className="inline-flex items-center gap-1 tabular-nums"><Eye className="w-3.5 h-3.5" /> {(r.views + (i === 0 ? bump : 0)).toLocaleString('pt-BR')}</span>
+              <span className="inline-flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {r.members}</span>
+              <span className="inline-flex items-center gap-1"><Lock className="w-3.5 h-3.5" /> conteúdo exclusivo</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CreatorSimulator() {
+  const [price, setPrice] = useState(29.9);
+  const [subs, setSubs] = useState(30);
+  const cents = Math.round(price * 100);
+  const perSale = splitTeamPayment(cents).ownerCents;
+  const monthly = (perSale * subs) / 100;
+  const fmt = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return (
+    <div className={`${frame} max-w-2xl mx-auto`}>
+      <p className="text-sm font-bold text-amber-300 uppercase tracking-wider">Simulador do criador: faça a conta</p>
+      <div className="mt-4 space-y-5">
+        <div>
+          <div className="flex justify-between text-sm text-slate-200">
+            <label htmlFor="rprice">Preço do seu Ritus (a cada 30 dias)</label>
+            <strong className="tabular-nums">{fmt(price)}</strong>
+          </div>
+          <input id="rprice" type="range" min={5} max={200} step={0.1} value={price} onChange={(e) => setPrice(Number(e.target.value))} className="mt-2 w-full accent-emerald-500" />
+        </div>
+        <div>
+          <div className="flex justify-between text-sm text-slate-200">
+            <label htmlFor="rsubs">Assinantes</label>
+            <strong className="tabular-nums">{subs}</strong>
+          </div>
+          <input id="rsubs" type="range" min={1} max={500} value={subs} onChange={(e) => setSubs(Number(e.target.value))} className="mt-2 w-full accent-amber-400" />
+        </div>
+      </div>
+      <div className="mt-6 grid sm:grid-cols-2 gap-3">
+        <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-4">
+          <div className="text-xs uppercase font-bold text-emerald-300">Você recebe por mês</div>
+          <div className="text-3xl font-extrabold text-emerald-300 tabular-nums">{fmt(monthly)}</div>
+        </div>
+        <div className="rounded-xl bg-amber-400/10 border border-amber-400/30 p-4">
+          <div className="text-xs uppercase font-bold text-amber-300">Em 12 meses</div>
+          <div className="text-3xl font-extrabold text-amber-300 tabular-nums">{fmt(monthly * 12)}</div>
+        </div>
+      </div>
+      <p className="mt-4 text-xs text-slate-500">
+        Você fica com {100 - TEAM_PLATFORM_FEE_PERCENT}% de cada venda ({fmt(perSale / 100)} por assinante); a plataforma retém {TEAM_PLATFORM_FEE_PERCENT}% e cuida do Pix, da liberação do acesso e da vitrine. Conta considerando que todos renovem nos 12 meses. <strong className="text-slate-300">Não é promessa de ganho:</strong> o resultado depende de pessoas reais assinarem o seu Ritus.
+      </p>
+    </div>
+  );
+}
+
+const RITUS_STEPS = [
+  { icon: Crown, title: 'Crie o seu Ritus', text: 'Dê um nome, defina o preço e escreva a descrição do serviço: o que o assinante recebe.' },
+  { icon: Lock, title: 'Publique o exclusivo', text: 'Treinos, aulas, desafios, planilhas e avisos que só quem assina enxerga.' },
+  { icon: Megaphone, title: 'Apareça na vitrine', text: 'Seu Ritus entra em Achar Ritus. Cada acesso conta no ranking dos mais acessados.' },
+  { icon: Banknote, title: 'Receba por Pix', text: `Cada venda cai no seu saldo (${100 - TEAM_PLATFORM_FEE_PERCENT}% para você) e é sacada por Pix toda semana.` },
+];
+
 const AFF_STEPS = [
   { icon: Sparkles, title: 'Crie sua conta', text: 'É grátis para começar. Seu link exclusivo já nasce com ela.' },
   { icon: Link2, title: 'Pegue o seu link', text: 'Fica na aba Afiliados do painel, pronto para copiar e compartilhar.' },
@@ -486,6 +627,8 @@ const COMPARE = [
   ['Dinheiro some no fim do mês', 'Cada gasto e cada conta à vista'],
   ['Falhou um dia = desistiu', 'Dia incompleto não é fracasso: retoma amanhã'],
   ['Dez apps soltos', 'Tudo no mesmo painel, no celular ou no PC'],
+  ['Sozinho, sem ninguém vendo seu progresso', 'Um feed de gente em movimento, que comemora com você'],
+  ['O que você sabe fica só com você', 'Seu conhecimento vira um Ritus por assinatura'],
 ];
 
 const FAQ = [
@@ -495,6 +638,9 @@ const FAQ = [
   { q: 'Não tenho tempo. Isso vai me dar mais trabalho?', a: 'A ideia é o contrário: cerca de 10 minutos por dia para planejar, marcar o que fez e fechar o dia. O resto do tempo é para executar, não para se organizar.' },
   { q: 'E se eu não gostar?', a: 'Você usa 7 dias inteiros sem pagar nada. Se não fizer sentido, não paga e pronto. Seus dados podem ser exportados ou excluídos pelo próprio app.' },
   { q: 'Dá mesmo para ganhar dinheiro indicando? Quanto?', a: `Dá, se pessoas reais assinarem pelo seu link. Para cada pagamento confirmado, quem indicou diretamente recebe ${COMMISSION_DIRECT_PERCENT}% (${brl(lvlCents(1))} no plano de ${brl(PLAN_PRICE_CENTS)}), todo mês em que a pessoa continuar pagando, e a rede até o ${MAX_COMMISSION_LEVELS}º nível divide mais ${COMMISSION_NETWORK_PERCENT}%. O saque é por Pix a partir de ${brl(MIN_PAYOUT_CENTS)}. Não existe ganho garantido: se ninguém assinar pelo seu link, você não recebe nada.` },
+  { q: 'O que é o Feed?', a: 'É a rede social dentro do Ritmo, e a primeira tela quando você entra. Você compartilha conquistas (semanas de corrente, horas de foco, metas batidas), curte e comenta o progresso de outras pessoas. Nada é publicado sozinho: você escolhe o que mostrar.' },
+  { q: 'O que é um Ritus?', a: `É um espaço de conteúdo por assinatura que qualquer usuário pode criar: um personal com treinos, um professor com aulas, um mentor com desafios. O criador define o preço, descreve o serviço e publica conteúdo exclusivo para quem assinar. O pagamento é por Pix, o acesso é liberado na hora e o criador fica com ${100 - TEAM_PLATFORM_FEE_PERCENT}% de cada venda.` },
+  { q: 'Como encontro um Ritus para assinar?', a: 'Na aba Achar Ritus, dentro do Feed. Ela mostra os Ritus mais acessados e tem pesquisa por tema, nome ou criador. Antes de assinar, você vê a descrição do serviço, o preço, quantos assinantes e quantos conteúdos exclusivos ele tem.' },
   { q: 'O Ritmo me garante resultado?', a: 'Não, e desconfie de quem garante. Ele é uma ferramenta: mostra o que você fez, o que falta e para onde o seu dinheiro e o seu tempo estão indo. O resultado depende de você abrir o app e agir.' },
 ];
 
@@ -516,7 +662,7 @@ function SalesPage() {
         /* ignora */
       }
     }
-    const equipe = new URLSearchParams(window.location.search).get('equipe');
+    const equipe = new URLSearchParams(window.location.search).get('ritus') || new URLSearchParams(window.location.search).get('equipe');
     try {
       if (equipe && /^[a-z0-9-]{3,40}$/.test(equipe)) localStorage.setItem('ritmo_team_invite', equipe);
     } catch {
@@ -538,7 +684,8 @@ function SalesPage() {
       <style>{css}</style>
 
       <div className="bg-emerald-500 text-slate-950 text-center text-xs sm:text-sm font-bold py-2 px-4">
-        7 dias grátis · sem cartão de crédito · sem renovação automática
+        <span className="inline-flex items-center gap-1.5 mr-2 px-2 py-0.5 rounded-full bg-slate-950 text-emerald-300 text-[10px] uppercase tracking-wider">Novo</span>
+        Feed + Ritus chegaram · 7 dias grátis · sem cartão · sem renovação automática
       </div>
 
       <header className="border-b border-[#30363d]">
@@ -571,6 +718,9 @@ function SalesPage() {
             <p className="mt-3 text-slate-400">
               Treino que morre na terceira semana. Meta que fica “para segunda”. Dinheiro que some. Foco roubado pelo celular.
               Você não é preguiçoso. Você está tentando vencer o jogo sem placar.
+            </p>
+            <p className="mt-3 text-slate-300">
+              No Ritmo você ganha o placar, uma <strong className="text-white">comunidade que te vê cumprindo</strong> e, se quiser, um <strong className="text-white">Ritus</strong> para transformar o que você sabe em renda.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <a href={cta} className={`${btn} v-glow`}>
@@ -693,6 +843,111 @@ function SalesPage() {
         </div>
       </section>
 
+      {/* FEED: A REDE SOCIAL */}
+      <section className="border-y border-emerald-500/20 bg-gradient-to-b from-emerald-500/[0.07] to-transparent">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+          <Reveal>
+            <p className="text-center text-sm font-bold text-emerald-400 uppercase tracking-wider">Novo · A primeira tela do app</p>
+            <h2 className="mt-2 text-3xl sm:text-5xl font-extrabold text-center leading-tight">
+              Disciplina pega.{' '}
+              <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">Por isso o Ritmo agora é uma rede social.</span>
+            </h2>
+            <p className="mt-5 text-center text-lg text-slate-300 max-w-3xl mx-auto">
+              Você abre o app e cai direto no Feed: gente real batendo meta, fechando semana de treino, organizando o dinheiro. É difícil furar o combinado
+              <strong className="text-white"> quando você vê o outro cumprindo o dele.</strong>
+            </p>
+          </Reveal>
+          <div className="mt-12 grid lg:grid-cols-2 gap-10 items-center">
+            <Reveal>
+              <ul className="space-y-4">
+                {[
+                  ['Compartilhe conquistas com um toque', 'Semanas de corrente, horas de foco, metas batidas. O app monta o card; você decide se publica.'],
+                  ['Curta, comente, puxe o outro para cima', 'Um “bora!” na hora certa vale mais do que mil frases motivacionais.'],
+                  ['Sem algoritmo de fofoca', 'Aqui o assunto é progresso. Conteúdo ofensivo é denunciado e removido pela moderação.'],
+                  ['Você no controle', 'Os outros veem só seu primeiro nome e a inicial. Nada é publicado sozinho.'],
+                ].map(([t, d]) => (
+                  <li key={t} className="flex gap-3">
+                    <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/10 text-emerald-300 flex items-center justify-center"><Check className="w-5 h-5" /></span>
+                    <div>
+                      <div className="font-bold">{t}</div>
+                      <p className="text-sm text-slate-400">{d}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+            <Reveal delay={100}>
+              <FeedDemo />
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* RITUS */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+        <Reveal>
+          <p className="text-center text-sm font-bold text-amber-300 uppercase tracking-wider">Ritus · conteúdo exclusivo por assinatura</p>
+          <h2 className="mt-2 text-3xl sm:text-5xl font-extrabold text-center leading-tight">
+            O que você sabe pode virar{' '}
+            <span className="bg-gradient-to-r from-amber-300 to-emerald-400 bg-clip-text text-transparent">renda todo mês.</span>
+          </h2>
+          <p className="mt-5 text-center text-lg text-slate-300 max-w-3xl mx-auto">
+            Personal, professor, nutricionista, mentor, quem domina uma planilha ou um idioma: crie o seu <strong className="text-white">Ritus</strong>, defina o preço,
+            descreva o serviço e publique conteúdo que <strong className="text-white">só quem paga enxerga</strong>. O Pix, a liberação do acesso e a vitrine ficam por nossa conta.
+          </p>
+        </Reveal>
+
+        <div className="mt-12 grid lg:grid-cols-2 gap-10 items-center">
+          <Reveal>
+            <h3 className="text-2xl font-extrabold">Em quatro passos, no seu celular</h3>
+            <ol className="mt-5 space-y-4">
+              {RITUS_STEPS.map((st, i) => (
+                <li key={st.title} className="flex gap-4">
+                  <span className="w-10 h-10 shrink-0 rounded-xl bg-amber-400/10 text-amber-300 flex items-center justify-center"><st.icon className="w-5 h-5" /></span>
+                  <div>
+                    <div className="font-bold">{i + 1}. {st.title}</div>
+                    <p className="text-sm text-slate-400">{st.text}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-400/5 p-4 text-sm text-slate-300">
+              <strong className="text-amber-300">Quem chega primeiro, aparece primeiro.</strong> A vitrine Achar Ritus ordena pelos mais acessados. Cada pessoa que você
+              manda para o seu Ritus empurra ele para cima, e quem está no topo é visto por todo mundo que entra no Feed.
+            </div>
+          </Reveal>
+          <Reveal delay={100}>
+            <RitusDemo />
+          </Reveal>
+        </div>
+
+        <Reveal className="mt-14">
+          <CreatorSimulator />
+        </Reveal>
+
+        <Reveal>
+          <div className="mt-14 grid sm:grid-cols-3 gap-4 text-sm">
+            {[
+              [Search, 'Para quem quer aprender', 'Ache Ritus pelos mais acessados ou pesquise por tema. Veja descrição, preço e número de assinantes antes de pagar.'],
+              [Lock, 'Exclusivo de verdade', 'O conteúdo do Ritus só aparece para assinantes com acesso em dia. Venceu, renova; o resto da comunidade não vê.'],
+              [ShieldCheck, 'Pagamento protegido', 'Pix pelo Mercado Pago, acesso liberado na hora e reembolso dentro das regras. Estorno desfaz o repasse ao criador.'],
+            ].map(([Icon, t, d]: any) => (
+              <div key={t} className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5">
+                <Icon className="w-6 h-6 text-emerald-300" />
+                <div className="mt-2 font-bold">{t}</div>
+                <p className="mt-1 text-slate-400">{d}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-10 text-center">
+            <a href={cta} className={`${btn} v-glow`}>
+              {loggedIn ? 'Criar meu Ritus agora' : 'Testar grátis e criar meu Ritus'} <ArrowRight className="w-5 h-5" />
+            </a>
+            <p className="mt-3 text-xs text-slate-500">Criar um Ritus não tem custo extra: a plataforma só retém {TEAM_PLATFORM_FEE_PERCENT}% quando você vende.</p>
+          </div>
+        </Reveal>
+      </section>
+
       {/* E TEM MAIS: PROGRAMA DE INDICAÇÃO */}
       <section className="border-y border-amber-500/20 bg-gradient-to-b from-amber-500/[0.06] to-transparent">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
@@ -812,6 +1067,8 @@ function SalesPage() {
             <ul className="mt-6 text-left max-w-sm mx-auto space-y-2 text-sm text-slate-300">
               {[
                 '7 dias grátis, sem cartão',
+                'Feed: a rede social de quem está em movimento',
+                `Ritus: assine conteúdo exclusivo ou crie o seu e fique com ${100 - TEAM_PLATFORM_FEE_PERCENT}% de cada venda`,
                 'Metas, rotina, quadros, hábitos, foco, diário e finanças',
                 'Celular e computador',
                 `Programa de indicação: ${COMMISSION_DIRECT_PERCENT}% recorrente por assinatura, mais a sua rede até o ${MAX_COMMISSION_LEVELS}º nível`,
@@ -851,6 +1108,7 @@ function SalesPage() {
                 <div className="flex items-center gap-2 text-emerald-300 font-bold"><Sparkles className="w-5 h-5" /> Se você começar hoje</div>
                 <ul className="mt-3 space-y-2 text-sm text-slate-300">
                   <li>Em 7 dias: você sabe quanto focou, quantos dias cumpriu e quanto gastou.</li>
+                  <li>Em 30 dias: você faz parte de uma comunidade que cobra e comemora junto.</li>
                   <li>Em 40 dias: o dinheiro tem destino e o treino tem frequência.</li>
                   <li>Em 90 dias: você tem registro de tudo o que fez. Não é sorte: é sistema.</li>
                 </ul>
@@ -898,7 +1156,7 @@ function SalesPage() {
           </div>
         </Reveal>
         <p className="max-w-3xl mx-auto mt-8 text-center text-xs text-slate-600">
-          O Ritmo é uma ferramenta de organização pessoal. Não oferece recomendação médica, nutricional ou de investimento, e não garante resultados: eles dependem do uso. Os dados nas animações são exemplos. Ganhos do programa de indicação não são garantidos e dependem de assinaturas reais confirmadas.{' '}
+          O Ritmo é uma ferramenta de organização pessoal. Não oferece recomendação médica, nutricional ou de investimento, e não garante resultados: eles dependem do uso. Os dados nas animações são exemplos. Ganhos do programa de indicação e das vendas de Ritus não são garantidos e dependem de assinaturas reais confirmadas. Os Ritus são criados por usuários, que respondem pelo próprio conteúdo.{' '}
           <a href="/termos" className="underline">Termos</a> · <a href="/privacidade" className="underline">Privacidade</a>
         </p>
       </section>

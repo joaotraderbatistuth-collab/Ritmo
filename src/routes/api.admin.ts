@@ -238,7 +238,7 @@ export const Route = createFileRoute('/api/admin')({
           if (action === 'set_team_active') {
             await adminSetTeamActive(Number(body.teamId), Boolean(body.active));
             await logAdminAction(user, body.active ? 'reativar_equipe' : 'suspender_equipe', { type: 'equipe', id: body.teamId });
-            return Response.json({ success: true, message: body.active ? 'Equipe reativada.' : 'Equipe suspensa.' });
+            return Response.json({ success: true, message: body.active ? 'Ritus reativado.' : 'Ritus suspenso.' });
           }
 
           // 8. Administradores (somente master)
