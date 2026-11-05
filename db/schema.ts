@@ -20,6 +20,7 @@ export const users = pgTable("users", {
   feedMuted: boolean("feed_muted").notNull().default(false), // silenciado pela moderação: não publica nem comenta
   avatarUrl: text("avatar_url"), // foto de perfil (/api/media?k=...)
   bio: text("bio"), // frase curta do perfil (até 160 caracteres), visível para outros membros
+  assistantName: text("assistant_name"), // nome que a pessoa deu ao secretário (vazio = ainda não batizou)
   xpTotal: integer("xp_total").notNull().default(0), // Pontos de Ritmo (cópia do cálculo, para o Feed)
   level: integer("level").notNull().default(1), // nível atual (1 a 12), define a moldura da foto
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -496,5 +497,17 @@ export const workouts = pgTable("workouts", {
   route: text("route").notNull().default(""), // rota completa (polyline do Google, 5 casas)
   splits: text("splits").notNull().default("[]"), // JSON: parciais por km
   source: text("source").notNull().default("gps"), // gps | manual
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Lembretes do secretário: tocam no celular (Web Push) e no app na hora marcada.
+export const reminders = pgTable("reminders", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  remindAt: timestamp("remind_at").notNull(),
+  taskId: integer("task_id"), // compromisso da agenda ligado ao lembrete (opcional)
+  sentAt: timestamp("sent_at"),
+  doneAt: timestamp("done_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

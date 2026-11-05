@@ -28,6 +28,7 @@ function assert(condition: boolean, message: string) {
   }
 }
 
+import { parseCommand, completeWith, resolveDateTime, extractAmount as _ea, dayLabel, timeLabel, cleanAssistantName, guessCategory, tidy, fold } from '../src/lib/assistant-parser.js';
 import { haversine, classifyPoint, trackStats, currentPace, formatDuration, formatPace, formatKm, encodePolyline, decodePolyline, simplify, simplifyTo, trimRoute, validateWorkout, autoTitle, totals as workoutTotals, SPORTS } from '../src/lib/workout.js';
 import { computeXp, levelInfo, LEVELS, XP_RULES, XP_DAILY_MAX, frameForLevel, MAX_LEVEL } from '../src/lib/levels.js';
 import { NUDGES, PUSH_HOURS, personalize, pickNudge, slotForHour } from '../src/lib/nudges.js';
@@ -528,6 +529,71 @@ export function runTests() {
   const xpW = computeXp({ ...emptyXp, workouts: [{ date: '2026-11-05' }, { date: '2026-11-05' }, { date: '2026-11-05' }] });
   assert(xpW.breakdown.treino.count === 2 && xpW.total === 40, 'treino vale 20 pontos, até 2 por dia');
   console.log('✓ Todos os testes de treinos passaram com sucesso!');
+
+  console.log('17. Testando o secretário (frases faladas)...');
+  const nowA = new Date(2026, 10, 5, 13, 10); // quinta, 05/11/2026 13:10
+  const pc = (t: string) => parseCommand(t, nowA, 'Rita') as any;
+  const ex = (t: string, cents: number, desc: string, cat?: string, date = '2026-11-05') => {
+    const r = pc(t);
+    assert(r.kind === 'expense' && r.amountCents === cents && r.description === desc && (!cat || r.category === cat) && r.date === date, `gasto: "${t}" → ${JSON.stringify(r)}`);
+  };
+  ex('gastei 32 reais no almoço', 3200, 'Almoço', 'alimentacao');
+  ex('lança custo de 45 no mercado', 4500, 'Mercado', 'alimentacao');
+  ex('paguei R$ 150,90 de luz ontem', 15090, 'Luz', 'moradia', '2026-11-04');
+  ex('gastei 2 mil e 500 no aluguel', 250000, 'Aluguel', 'moradia');
+  ex('uber 18,50', 1850, 'Uber', 'transporte');
+  ex('comprei um livro por 59 reais e 90 centavos', 5990, 'Livro', 'educacao');
+  ex('Rita, gastei 1.234,56 na farmácia', 123456, 'Farmácia', 'saude');
+  const inc = pc('recebi 2000 de salário');
+  assert(inc.kind === 'income' && inc.amountCents === 200000 && inc.category === 'renda', 'receita');
+  const noVal = pc('paguei a conta de luz');
+  assert(noVal.kind === 'expense' && noVal.amountCents === null, 'gasto sem valor pede o valor');
+  assert((completeWith(noVal, 'foi 180 reais', nowA) as any)?.amountCents === 18000, 'completa o valor depois');
+  const ap = (t: string, title: string, date: string | null, time: string | null) => {
+    const r = pc(t);
+    assert(r.kind === 'appointment' && r.title === title && r.date === date && r.time === time, `agenda: "${t}" → ${JSON.stringify(r)}`);
+  };
+  ap('agenda dentista amanhã às 3 da tarde', 'Dentista', '2026-11-06', '15:00');
+  ap('marca reunião com o Carlos sexta às 10h', 'Reunião com o Carlos', '2026-11-06', '10:00');
+  ap('agenda consulta médica dia 12 às 9 e meia', 'Consulta médica', '2026-11-12', '09:30');
+  ap('agendar corte de cabelo 20/11 às 18:30', 'Corte de cabelo', '2026-11-20', '18:30');
+  ap('compromisso jantar com a Ana hoje às 20 horas', 'Jantar com a Ana', '2026-11-05', '20:00');
+  ap('agenda academia na próxima segunda de manhã', 'Academia', '2026-11-09', '09:00');
+  ap('agenda reunião dia 3', 'Reunião', '2026-12-03', null);
+  const rm = (t: string, text: string, date: string | null, time: string | null) => {
+    const r = pc(t);
+    assert(r.kind === 'reminder' && r.text === text && r.date === date && r.time === time, `lembrete: "${t}" → ${JSON.stringify(r)}`);
+  };
+  rm('me lembra de pagar a luz dia 10', 'Pagar a luz', '2026-11-10', null);
+  rm('me lembra de tomar água daqui a 30 minutos', 'Tomar água', '2026-11-05', '13:40');
+  rm('Rita, me lembre de ligar pra minha mãe amanhã de manhã', 'Ligar pra minha mãe', '2026-11-06', '09:00');
+  rm('me avisa às 15 e 30 para buscar as crianças', 'Buscar as crianças', null, '15:30');
+  rm('lembrete comprar pão', 'Comprar pão', null, null);
+  rm('me lembra de levar o lixo às 8 da noite', 'Levar o lixo', null, '20:00');
+  rm('me lembra do aniversário da Bia 15 de dezembro', 'Aniversário da Bia', '2026-12-15', null);
+  const pend = pc('lembrete comprar pão');
+  assert((completeWith(pend, 'amanhã às 7', nowA) as any)?.date === '2026-11-06' && (completeWith(pend, 'amanhã às 7', nowA) as any)?.time === '07:00', 'completa o horário do lembrete');
+  assert(completeWith(pend, 'sei lá', nowA) === null, 'resposta sem horário não completa');
+  const rdt = resolveDateTime(null, '09:00', nowA);
+  assert(rdt.date === '2026-11-06', 'hora que já passou hoje vai para amanhã');
+  assert(resolveDateTime('2026-11-10', null, nowA).time === '09:00', 'lembrete sem hora toca às 9h');
+  assert(pc('adiciona tarefa revisar contrato amanhã').kind === 'task' && pc('adiciona tarefa revisar contrato amanhã').date === '2026-11-06', 'tarefa');
+  assert(pc('o que eu tenho amanhã').kind === 'agenda' && pc('o que eu tenho amanhã').date === '2026-11-06', 'agenda de amanhã');
+  assert(pc('minha agenda de hoje').date === '2026-11-05', 'agenda de hoje');
+  assert(pc('quanto gastei este mês').period === 'mes' && pc('quanto gastei hoje').period === 'hoje' && pc('quanto gastei essa semana').period === 'semana', 'quanto gastei');
+  assert(pc('qual meu saldo').kind === 'balance' && pc('quais contas vencem').kind === 'bills' && pc('quantos pontos eu tenho').kind === 'points' && pc('quais são meus lembretes').kind === 'reminders', 'consultas');
+  assert(pc('começar corrida').sport === 'corrida' && pc('bora pedalar').sport === 'bike' && pc('iniciar caminhada').sport === 'caminhada', 'começar treino');
+  assert(pc('iniciar foco de 50 minutos no relatório').minutes === 50 && pc('iniciar foco de 50 minutos no relatório').topic === 'Relatório' && pc('começar um pomodoro').minutes === 25, 'começar foco');
+  assert(pc('abre finanças').tab === 'financas' && pc('vai para o treino').tab === 'treino', 'abrir aba');
+  assert(pc('marca leitura como feita').name === 'Leitura' && pc('fiz o hábito de meditação').name === 'Meditação', 'hábito feito');
+  assert(pc('bom dia').kind === 'briefing' && pc('Rita, resumo do dia').kind === 'briefing' && pc('obrigado').kind === 'thanks' && pc('o que você faz').kind === 'help' && pc('esquece').kind === 'cancel' && pc('blablabla').kind === 'unknown', 'conversa');
+  assert(pc('quanto gastei hoje').kind === 'spent', '"quanto gastei" não vira lançamento');
+  assert(dayLabel('2026-11-05', nowA) === 'hoje' && dayLabel('2026-11-06', nowA) === 'amanhã' && dayLabel('2026-11-10', nowA).startsWith('terça'), 'rótulo do dia');
+  assert(timeLabel('15:00') === '15h' && timeLabel('09:30') === '9h30', 'rótulo da hora');
+  assert(cleanAssistantName('  Rita<script>  ') === 'Ritascript' && cleanAssistantName('Léo') === 'Léo' && cleanAssistantName('x'.repeat(50)).length === 20, 'nome do secretário limpo');
+  assert(guessCategory('Uber', 'expense') === 'transporte' && guessCategory('freela', 'income') === 'renda', 'categoria');
+  assert(tidy('de pagar a luz no') === 'Pagar a luz' && fold('Ação') === 'acao', 'limpeza de texto');
+  console.log('✓ Todos os testes do secretário passaram com sucesso!');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

@@ -1,4 +1,5 @@
 @import "tailwindcss" source("../");
+@import "leaflet/dist/leaflet.css";
 
 @layer base {
   :root {
@@ -94,4 +95,22 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ritmo-frame-spin, .ritmo-xp-float, .ritmo-level-pop, .ritmo-confetti { animation: none; }
+}
+
+/* ---- Mapa do treino ---- */
+/* OpenStreetMap (reserva) escurecido para combinar com o app */
+.ritmo-map-darken .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6);
+}
+.leaflet-container {
+  font-family: inherit;
+  background: #161b22;
+}
+.leaflet-control-attribution {
+  font-size: 10px;
+  background: rgba(13, 17, 23, 0.75) !important;
+  color: #8b949e;
+}
+.leaflet-control-attribution a {
+  color: #8b949e;
 }

@@ -3,7 +3,7 @@
 // não é preciso configurar nada na Netlify.
 import { createHash } from 'node:crypto';
 import webpush from 'web-push';
-import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lt, lte, or } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { checkDb } from './server-db.js';
@@ -142,4 +142,38 @@ export async function sendDueNudges(now: Date = new Date()) {
   }
   if (done.length) await db.update(schema.pushSubscriptions).set({ lastSentAt: now }).where(inArray(schema.pushSubscriptions.id, done));
   return { checked: subs.length, sent, removed };
+}
+
+/**
+ * Lembretes do secretário: chamado a cada 5 minutos pelo agendador.
+ * Envia os lembretes que já venceram (até 3 horas de atraso) para os aparelhos da pessoa.
+ */
+export async function sendDueReminders(now: Date = new Date()) {
+  if (!(await checkDb())) return { due: 0, sent: 0 };
+  const due = await db
+    .select({ id: schema.reminders.id, userId: schema.reminders.userId, text: schema.reminders.text, assistantName: schema.users.assistantName, status: schema.users.subscriptionStatus })
+    .from(schema.reminders)
+    .innerJoin(schema.users, eq(schema.users.id, schema.reminders.userId))
+    .where(and(isNull(schema.reminders.sentAt), isNull(schema.reminders.doneAt), lte(schema.reminders.remindAt, now), gte(schema.reminders.remindAt, new Date(now.getTime() - 3 * 3600_000))));
+  if (!due.length) return { due: 0, sent: 0 };
+  const keys = await getVapidKeys();
+  const ids = due.map((r) => r.id);
+  // marca antes de enviar: se duas execuções se cruzarem, ninguém recebe o lembrete duas vezes
+  await db.update(schema.reminders).set({ sentAt: now }).where(inArray(schema.reminders.id, ids));
+  if (!keys) return { due: due.length, sent: 0 };
+  const userIds = [...new Set(due.filter((r) => r.status !== 'suspended').map((r) => r.userId))];
+  const subs = userIds.length ? await db.select().from(schema.pushSubscriptions).where(inArray(schema.pushSubscriptions.userId, userIds)) : [];
+  let sent = 0;
+  for (const r of due) {
+    if (r.status === 'suspended') continue;
+    for (const s of subs.filter((x) => x.userId === r.userId)) {
+      try {
+        await sendOne(s, { title: `⏰ ${r.assistantName || 'Seu secretário'} lembrando`, body: r.text, tab: 'hoje', tag: `ritmo-lembrete-${r.id}` }, keys);
+        sent++;
+      } catch (e: any) {
+        if (e?.statusCode === 404 || e?.statusCode === 410) await db.delete(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.id, s.id));
+      }
+    }
+  }
+  return { due: due.length, sent };
 }

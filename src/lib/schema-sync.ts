@@ -204,6 +204,21 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS "workouts_user_started_idx" ON "workouts" ("user_id","started_at")`,
 
+  // ---- secretário: nome e lembretes
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "assistant_name" text`,
+  `CREATE TABLE IF NOT EXISTS "reminders" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "text" text NOT NULL,
+    "remind_at" timestamp NOT NULL,
+    "task_id" integer,
+    "sent_at" timestamp,
+    "done_at" timestamp,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "reminders_due_idx" ON "reminders" ("sent_at","remind_at")`,
+  `CREATE INDEX IF NOT EXISTS "reminders_user_idx" ON "reminders" ("user_id","remind_at")`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

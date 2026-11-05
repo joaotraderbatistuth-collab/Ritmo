@@ -36,10 +36,12 @@ import { Route as ApiCyclesRouteImport } from './routes/api.cycles'
 import { Route as ApiCheckoutRouteImport } from './routes/api.checkout'
 import { Route as ApiBoardsRouteImport } from './routes/api.boards'
 import { Route as ApiAuthRouteImport } from './routes/api.auth'
+import { Route as ApiAssistantRouteImport } from './routes/api.assistant'
 import { Route as ApiAffiliatesRouteImport } from './routes/api.affiliates'
 import { Route as ApiAdminRouteImport } from './routes/api.admin'
 import { Route as ApiWebhooksMercadopagoRouteImport } from './routes/api.webhooks.mercadopago'
 import { Route as ApiCronNotificacoesRouteImport } from './routes/api.cron.notificacoes'
+import { Route as ApiCronLembretesSecretarioRouteImport } from './routes/api.cron.lembretes-secretario'
 import { Route as ApiCronLembretesRouteImport } from './routes/api.cron.lembretes'
 
 const VendasRoute = VendasRouteImport.update({
@@ -177,6 +179,11 @@ const ApiAuthRoute = ApiAuthRouteImport.update({
   path: '/api/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAssistantRoute = ApiAssistantRouteImport.update({
+  id: '/api/assistant',
+  path: '/api/assistant',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAffiliatesRoute = ApiAffiliatesRouteImport.update({
   id: '/api/affiliates',
   path: '/api/affiliates',
@@ -197,6 +204,12 @@ const ApiCronNotificacoesRoute = ApiCronNotificacoesRouteImport.update({
   path: '/api/cron/notificacoes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronLembretesSecretarioRoute =
+  ApiCronLembretesSecretarioRouteImport.update({
+    id: '/api/cron/lembretes-secretario',
+    path: '/api/cron/lembretes-secretario',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCronLembretesRoute = ApiCronLembretesRouteImport.update({
   id: '/api/cron/lembretes',
   path: '/api/cron/lembretes',
@@ -215,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/vendas': typeof VendasRoute
   '/api/admin': typeof ApiAdminRoute
   '/api/affiliates': typeof ApiAffiliatesRoute
+  '/api/assistant': typeof ApiAssistantRoute
   '/api/auth': typeof ApiAuthRoute
   '/api/boards': typeof ApiBoardsRoute
   '/api/checkout': typeof ApiCheckoutRoute
@@ -234,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
+  '/api/cron/lembretes-secretario': typeof ApiCronLembretesSecretarioRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
 }
@@ -249,6 +264,7 @@ export interface FileRoutesByTo {
   '/vendas': typeof VendasRoute
   '/api/admin': typeof ApiAdminRoute
   '/api/affiliates': typeof ApiAffiliatesRoute
+  '/api/assistant': typeof ApiAssistantRoute
   '/api/auth': typeof ApiAuthRoute
   '/api/boards': typeof ApiBoardsRoute
   '/api/checkout': typeof ApiCheckoutRoute
@@ -268,6 +284,7 @@ export interface FileRoutesByTo {
   '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
+  '/api/cron/lembretes-secretario': typeof ApiCronLembretesSecretarioRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
 }
@@ -284,6 +301,7 @@ export interface FileRoutesById {
   '/vendas': typeof VendasRoute
   '/api/admin': typeof ApiAdminRoute
   '/api/affiliates': typeof ApiAffiliatesRoute
+  '/api/assistant': typeof ApiAssistantRoute
   '/api/auth': typeof ApiAuthRoute
   '/api/boards': typeof ApiBoardsRoute
   '/api/checkout': typeof ApiCheckoutRoute
@@ -303,6 +321,7 @@ export interface FileRoutesById {
   '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
+  '/api/cron/lembretes-secretario': typeof ApiCronLembretesSecretarioRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
   '/api/webhooks/mercadopago': typeof ApiWebhooksMercadopagoRoute
 }
@@ -320,6 +339,7 @@ export interface FileRouteTypes {
     | '/vendas'
     | '/api/admin'
     | '/api/affiliates'
+    | '/api/assistant'
     | '/api/auth'
     | '/api/boards'
     | '/api/checkout'
@@ -339,6 +359,7 @@ export interface FileRouteTypes {
     | '/api/workouts'
     | '/api/xp'
     | '/api/cron/lembretes'
+    | '/api/cron/lembretes-secretario'
     | '/api/cron/notificacoes'
     | '/api/webhooks/mercadopago'
   fileRoutesByTo: FileRoutesByTo
@@ -354,6 +375,7 @@ export interface FileRouteTypes {
     | '/vendas'
     | '/api/admin'
     | '/api/affiliates'
+    | '/api/assistant'
     | '/api/auth'
     | '/api/boards'
     | '/api/checkout'
@@ -373,6 +395,7 @@ export interface FileRouteTypes {
     | '/api/workouts'
     | '/api/xp'
     | '/api/cron/lembretes'
+    | '/api/cron/lembretes-secretario'
     | '/api/cron/notificacoes'
     | '/api/webhooks/mercadopago'
   id:
@@ -388,6 +411,7 @@ export interface FileRouteTypes {
     | '/vendas'
     | '/api/admin'
     | '/api/affiliates'
+    | '/api/assistant'
     | '/api/auth'
     | '/api/boards'
     | '/api/checkout'
@@ -407,6 +431,7 @@ export interface FileRouteTypes {
     | '/api/workouts'
     | '/api/xp'
     | '/api/cron/lembretes'
+    | '/api/cron/lembretes-secretario'
     | '/api/cron/notificacoes'
     | '/api/webhooks/mercadopago'
   fileRoutesById: FileRoutesById
@@ -423,6 +448,7 @@ export interface RootRouteChildren {
   VendasRoute: typeof VendasRoute
   ApiAdminRoute: typeof ApiAdminRoute
   ApiAffiliatesRoute: typeof ApiAffiliatesRoute
+  ApiAssistantRoute: typeof ApiAssistantRoute
   ApiAuthRoute: typeof ApiAuthRoute
   ApiBoardsRoute: typeof ApiBoardsRoute
   ApiCheckoutRoute: typeof ApiCheckoutRoute
@@ -442,6 +468,7 @@ export interface RootRouteChildren {
   ApiWorkoutsRoute: typeof ApiWorkoutsRoute
   ApiXpRoute: typeof ApiXpRoute
   ApiCronLembretesRoute: typeof ApiCronLembretesRoute
+  ApiCronLembretesSecretarioRoute: typeof ApiCronLembretesSecretarioRoute
   ApiCronNotificacoesRoute: typeof ApiCronNotificacoesRoute
   ApiWebhooksMercadopagoRoute: typeof ApiWebhooksMercadopagoRoute
 }
@@ -637,6 +664,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/assistant': {
+      id: '/api/assistant'
+      path: '/api/assistant'
+      fullPath: '/api/assistant'
+      preLoaderRoute: typeof ApiAssistantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/affiliates': {
       id: '/api/affiliates'
       path: '/api/affiliates'
@@ -665,6 +699,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronNotificacoesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/lembretes-secretario': {
+      id: '/api/cron/lembretes-secretario'
+      path: '/api/cron/lembretes-secretario'
+      fullPath: '/api/cron/lembretes-secretario'
+      preLoaderRoute: typeof ApiCronLembretesSecretarioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/lembretes': {
       id: '/api/cron/lembretes'
       path: '/api/cron/lembretes'
@@ -687,6 +728,7 @@ const rootRouteChildren: RootRouteChildren = {
   VendasRoute: VendasRoute,
   ApiAdminRoute: ApiAdminRoute,
   ApiAffiliatesRoute: ApiAffiliatesRoute,
+  ApiAssistantRoute: ApiAssistantRoute,
   ApiAuthRoute: ApiAuthRoute,
   ApiBoardsRoute: ApiBoardsRoute,
   ApiCheckoutRoute: ApiCheckoutRoute,
@@ -706,6 +748,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorkoutsRoute: ApiWorkoutsRoute,
   ApiXpRoute: ApiXpRoute,
   ApiCronLembretesRoute: ApiCronLembretesRoute,
+  ApiCronLembretesSecretarioRoute: ApiCronLembretesSecretarioRoute,
   ApiCronNotificacoesRoute: ApiCronNotificacoesRoute,
   ApiWebhooksMercadopagoRoute: ApiWebhooksMercadopagoRoute,
 }

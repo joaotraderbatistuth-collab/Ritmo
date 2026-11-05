@@ -565,7 +565,7 @@ export const WorkoutLiveBar: React.FC<{ onOpen: () => void }> = ({ onOpen }) => 
   const dist = useMemo(() => trackStats(s.segments).distanceM, [s.segments]);
   if (s.status === 'idle') return null;
   return (
-    <button type="button" onClick={onOpen} className="fixed z-50 bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-3 px-4 py-2.5 rounded-full bg-[#161b22] border border-emerald-500/50 shadow-xl shadow-black/40 text-sm">
+    <button type="button" onClick={onOpen} className="fixed z-50 bottom-24 sm:bottom-5 left-1/2 -translate-x-1/2 inline-flex items-center gap-3 px-4 py-2.5 rounded-full bg-[#161b22] border border-emerald-500/50 shadow-xl shadow-black/40 text-sm">
       <span className={`w-2.5 h-2.5 rounded-full ${s.status === 'recording' ? 'bg-rose-500 animate-pulse' : 'bg-amber-400'}`} />
       <span className="font-bold text-[#f0f6fc] tabular-nums">{formatDuration(rec.activeMsNow(s) / 1000)}</span>
       <span className="text-[#c9d1d9] tabular-nums">{formatKm(dist)} km</span>

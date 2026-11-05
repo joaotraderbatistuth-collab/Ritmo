@@ -63,6 +63,7 @@ import { ScrollableNav } from '../components/ScrollableNav.js';
 import { LevelCard, LevelUpModal, XpToast, useXp } from '../components/LevelUp.js';
 import { ProfilePhotoCard } from '../components/ProfilePhotoCard.js';
 import { TabWorkout, WorkoutLiveBar } from '../components/TabWorkout.js';
+import { Assistant } from '../components/Assistant.js';
 import { initials as initialsOf } from '../lib/feed-rules.js';
 
 export const Route = createFileRoute('/app')({
@@ -774,6 +775,27 @@ function RitmoApp() {
         <WorkoutLiveBar
           onOpen={() => {
             setActiveTab('treino');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+      )}
+      {user && (
+        <Assistant
+          userName={user.name}
+          tasks={tasks}
+          transactions={transactions}
+          habits={habits}
+          habitLogs={habitLogs}
+          xp={xp.data}
+          onDataChanged={() => {
+            loadSessionAndData();
+          }}
+          onNavigate={(tab) => {
+            setActiveTab(tab);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onStartFocus={(minutes, topic) => {
+            handleQuickStartFocus(minutes, topic);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
         />

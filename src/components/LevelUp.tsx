@@ -21,7 +21,7 @@ export interface XpData {
 export const XpToast: React.FC<{ gain: { id: number; amount: number } | null }> = ({ gain }) => {
   if (!gain || gain.amount <= 0) return null;
   return (
-    <div key={gain.id} className="fixed z-[60] bottom-24 right-5 sm:bottom-10 sm:right-10 pointer-events-none ritmo-xp-float" aria-live="polite">
+    <div key={gain.id} className="fixed z-[60] bottom-24 right-5 sm:bottom-24 sm:right-8 pointer-events-none ritmo-xp-float" aria-live="polite">
       <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 text-[#0d1117] font-extrabold text-base shadow-lg shadow-emerald-500/30">
         <Zap className="w-4 h-4 fill-[#0d1117]" /> +{gain.amount} XP
       </span>
