@@ -5,6 +5,7 @@ import {
   Heart, MessageCircle, Search, Eye, Users, Lock, Crown, Trophy, Newspaper, Megaphone,
   Bell, Smartphone, BookOpen, Gift,
   Mic, MapPin, Activity, Target, UserPlus, Moon,
+  CalendarCheck, LayoutGrid, ListChecks, NotebookPen, BarChart3, Settings, FileSpreadsheet, Home, Compass, Download, TrendingUp,
 } from 'lucide-react';
 import { InstallPwaButton } from '../components/InstallPwaButton.js';
 import { TEAM_PLATFORM_FEE_PERCENT, splitTeamPayment } from '../lib/teams-plan.js';
@@ -635,10 +636,10 @@ const RITUS_STEPS = [
 
 const AFF_STEPS = [
   { icon: Sparkles, title: 'Crie sua conta', text: 'É grátis para começar. Seu link exclusivo já nasce com ela.' },
-  { icon: Link2, title: 'Pegue o seu link', text: 'Fica na aba Afiliados do painel, pronto para copiar e compartilhar.' },
+  { icon: Link2, title: 'Pegue o seu link', text: 'Fica na aba Indique e Ganhe do painel, pronto para copiar e compartilhar.' },
   { icon: Share2, title: 'Compartilhe', text: 'Mande para quem vive dizendo “preciso me organizar”: amigos, colegas, grupo, redes sociais.' },
   { icon: BadgeCheck, title: 'Alguém assina', text: 'Quando o primeiro pagamento da pessoa é confirmado, a sua comissão é gerada e aprovada.' },
-  { icon: Banknote, title: 'Saque via Pix', text: `Com ${brl(MIN_PAYOUT_CENTS)} de saldo ou mais, você pede o saque e recebe na sua chave Pix.` },
+  { icon: Banknote, title: 'Saque via Pix', text: `Com ${brl(MIN_PAYOUT_CENTS)} de saldo liberado ou mais, você pede até quarta e recebe na sua chave Pix na quinta ou na sexta, com comprovante.` },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -661,6 +662,9 @@ const COMPARE = [
   ['Dez apps soltos', 'Tudo no mesmo painel, no celular ou no PC'],
   ['Sozinho, sem ninguém vendo seu progresso', 'Um feed de gente em movimento, que comemora com você'],
   ['O que você sabe fica só com você', 'Seu conhecimento vira um Ritus por assinatura'],
+  ['Anotar gasto é chato, então você não anota', 'Fala “gastei 32 no almoço” e está lançado'],
+  ['Corrida sem registro, evolução invisível', 'Rota no mapa, ritmo por km e recordes pessoais'],
+  ['Disciplina que dura uma semana', 'Missões, baú, ofensiva e liga puxando você de volta'],
 ];
 
 
@@ -798,6 +802,57 @@ function LevelsDemo() {
   );
 }
 
+function WeekDemo() {
+  const days = [
+    { d: 'Seg', v: 62 }, { d: 'Ter', v: 48 }, { d: 'Qua', v: 85 }, { d: 'Qui', v: 30 },
+    { d: 'Sex', v: 70 }, { d: 'Sáb', v: 0 }, { d: 'Dom', v: 40 },
+  ];
+  const max = 85;
+  return (
+    <div className="relative rounded-3xl border border-[#30363d] bg-[#161b22] p-5">
+      <ExampleTag />
+      <p className="font-extrabold inline-flex items-center gap-2"><CalendarCheck className="w-5 h-5 text-emerald-400" /> Sua semana no Ritmo</p>
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-xl bg-[#0d1117] border border-[#30363d] p-2"><div className="text-[11px] text-slate-500">Pontos</div><div className="text-xl font-extrabold text-emerald-300">335</div></div>
+        <div className="rounded-xl bg-[#0d1117] border border-[#30363d] p-2"><div className="text-[11px] text-slate-500">Dias ativos</div><div className="text-xl font-extrabold">6 de 7</div></div>
+        <div className="rounded-xl bg-[#0d1117] border border-[#30363d] p-2"><div className="text-[11px] text-slate-500">vs. anterior</div><div className="text-xl font-extrabold text-amber-300 inline-flex items-center gap-1"><TrendingUp className="w-4 h-4" />18%</div></div>
+      </div>
+      <div className="mt-4 flex items-end gap-2 h-28">
+        {days.map((x) => (
+          <div key={x.d} className="flex-1 flex flex-col items-center justify-end h-full">
+            <div className={`w-full rounded-t-md ${x.v === max ? 'bg-amber-400' : x.v === 0 ? 'bg-[#21262d]' : 'bg-emerald-500/70'}`} style={{ height: `${Math.max(6, (x.v / max) * 100)}%` }} />
+            <span className="mt-1 text-[10px] text-slate-500">{x.d}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-sm text-slate-300">Melhor dia: <strong className="text-amber-300">quarta</strong>. Sábado foi descanso, e está tudo bem.</p>
+    </div>
+  );
+}
+
+const ALL_FEATURES: { icon: typeof Flame; title: string; text: string }[] = [
+  { icon: Newspaper, title: 'Feed', text: 'Rede social de progresso: fotos, conquistas, curtidas, comentários e quem você segue.' },
+  { icon: Home, title: 'Hoje', text: 'Seu dia numa tela: tarefas, hábitos, contas e missões. Você escolhe os cards e a ordem.' },
+  { icon: Target, title: 'Roteiro de Metas', text: 'Ciclos de 7, 21, 40 ou 90 dias com metas, prazo e o próximo passo.' },
+  { icon: ListChecks, title: 'Rotina & Tarefas', text: 'Tarefas por manhã, tarde e noite, com horário e lembrete.' },
+  { icon: LayoutGrid, title: 'Quadros', text: 'Kanban com etapas e checklist para os projetos que não cabem na cabeça.' },
+  { icon: Link2, title: 'Hábitos & Saúde', text: 'Meta por semana, corrente que não quebra por um dia de folga.' },
+  { icon: MapPin, title: 'Treino com GPS', text: 'Corrida, caminhada, pedal e trilha com mapa, ritmo por km, pausa automática e recordes.' },
+  { icon: Timer, title: 'Sessões de Foco', text: 'Pomodoro 25/5, 50/10 ou do seu jeito, com o tempo focado registrado.' },
+  { icon: NotebookPen, title: 'Diário & Revisões', text: 'Check-in de 30 segundos e revisão semanal do que funcionou.' },
+  { icon: Wallet, title: 'Finanças Pessoais', text: 'Receitas, despesas, parcelas, orçamento e contas a vencer.' },
+  { icon: Mic, title: 'Secretário por voz', text: 'Fale e ele lança gastos, agenda, cria lembretes e conta como está o seu dia.' },
+  { icon: Gift, title: 'Missões, baú e ofensiva', text: '3 missões por dia, baú com prêmio e 1 descanso por semana sem perder a sequência.' },
+  { icon: Crown, title: 'Níveis e ligas', text: '12 níveis, molduras para a foto e ligas semanais (opcionais).' },
+  { icon: BarChart3, title: 'Progresso', text: 'Calendário de constância, resumo da semana, recordes e o caminho dos níveis.' },
+  { icon: Compass, title: 'Ritus', text: '10 Ritus gratuitos para começar, e você pode criar o seu e vender por assinatura.' },
+  { icon: FileSpreadsheet, title: 'Planilhas', text: 'Exporte seus lançamentos em CSV ou espelhe na sua planilha do Google.' },
+  { icon: Bell, title: 'Avisos e lembretes', text: 'Sino com contas a vencer e até 3 lembretes por dia no celular, no seu fuso.' },
+  { icon: Users, title: 'Indique e Ganhe', text: 'Link exclusivo, comissão recorrente e saque por Pix com comprovante.' },
+  { icon: Settings, title: 'Do seu jeito', text: 'Perfil com foto e bio, tela inicial personalizável e guia de primeiros passos.' },
+  { icon: ShieldCheck, title: 'Seus dados, suas regras', text: 'GPS e microfone só com o seu aceite. Exporte tudo em um clique.' },
+];
+
 const FAQ = [
   { q: 'Já tentei outros apps e larguei. Por que seria diferente?', a: 'A maioria cobra perfeição: perdeu um dia, zerou a sequência. No Ritmo, a corrente conta semanas cumpridas pela meta que você mesmo definiu, não dias seguidos. Quem treina três vezes por semana não quebra nada nos dias de descanso. E o teste é grátis justamente para você comprovar na prática.' },
   { q: 'Preciso de cartão para testar?', a: 'Não. Os 7 dias de teste começam assim que você cria a conta, sem cadastrar cartão.' },
@@ -815,6 +870,8 @@ const FAQ = [
   { q: 'Como funcionam os níveis e as ligas?', a: 'Tudo o que você faz (hábito, tarefa, foco, treino, diário, finanças) vira Pontos de Ritmo, com limite por dia para valer a constância e não o exagero. Os pontos sobem o seu nível e liberam molduras para a foto do perfil. Toda semana você entra numa liga com até 20 pessoas: os 5 primeiros sobem. Não quer competir? Dá para sair das ligas com um toque. Os pontos não valem dinheiro.' },
   { q: 'O treino com GPS funciona como os apps de corrida?', a: 'Você escolhe corrida, caminhada, pedal ou trilha, toca em Iniciar e o Ritmo desenha a rota no mapa, com cronômetro, distância, ritmo por km, pausa automática quando você para e recordes pessoais. Depois dá para compartilhar no Feed ou gerar uma imagem para Stories, escondendo o começo e o fim da rota. A localização só é usada com a sua permissão.' },
   { q: 'Como é o secretário por voz?', a: 'É um assistente que você batiza com o nome que quiser. Você toca no botão e fala: “gastei 32 no almoço”, “agenda dentista amanhã às 3”, “me lembra toda segunda de levar o lixo”. Ele lança o gasto, marca o compromisso, cria lembretes (inclusive os que se repetem) e avisa por notificação. Funciona no navegador do celular, sem instalar nada além do Ritmo.' },
+  { q: 'O que aparece no meu perfil para os outros?', a: 'A sua foto com a moldura do nível, o primeiro nome com a inicial do sobrenome, a bio (até 160 caracteres), os pontos, quantas publicações e curtidas você tem, desde quando está no Ritmo e o que você publicou no Feed geral. Hábitos, finanças, diário e conteúdo de Ritus nunca aparecem. Em Configurações, o botão “Ver como os outros veem” mostra exatamente isso.' },
+  { q: 'E a minha privacidade? Localização e microfone?', a: 'O GPS e o microfone só ligam depois que você aceita, e cada aceite fica registrado com data. Nas rotas compartilhadas, o começo e o fim (200 m) ficam escondidos por padrão para não mostrar onde você mora. A qualquer momento você baixa todos os seus dados em um arquivo ou pede a exclusão da conta.' },
   { q: 'O Ritmo me garante resultado?', a: 'Não, e desconfie de quem garante. Ele é uma ferramenta: mostra o que você fez, o que falta e para onde o seu dinheiro e o seu tempo estão indo. O resultado depende de você abrir o app e agir.' },
 ];
 
@@ -859,7 +916,7 @@ function SalesPage() {
 
       <div className="bg-emerald-500 text-slate-950 text-center text-xs sm:text-sm font-bold py-2 px-4">
         <span className="inline-flex items-center gap-1.5 mr-2 px-2 py-0.5 rounded-full bg-slate-950 text-emerald-300 text-[10px] uppercase tracking-wider">Novo</span>
-        Feed + Ritus chegaram · 7 dias grátis · sem cartão · sem renovação automática
+        Missões, ligas, treino com GPS e secretário por voz · 7 dias grátis · sem cartão · sem renovação automática
       </div>
 
       <header className="border-b border-[#30363d]">
@@ -902,6 +959,16 @@ function SalesPage() {
               </a>
             </div>
             <p className="mt-3 text-xs text-slate-500">Leva 1 minuto. Depois do teste: R$ 39,90 por 30 dias, pago por Pix ou cartão quando você quiser continuar.</p>
+            <div className="mt-6 flex flex-wrap gap-2">
+              {[
+                [Link2, 'Hábitos'], [Target, 'Metas'], [Timer, 'Foco'], [Wallet, 'Finanças'], [MapPin, 'Treino com GPS'],
+                [Mic, 'Secretário por voz'], [Gift, 'Missões e baú'], [Trophy, 'Ligas'], [Newspaper, 'Feed'], [Crown, 'Ritus'],
+              ].map(([Icon, t]: any) => (
+                <span key={t} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#30363d] bg-[#161b22] text-xs text-slate-300">
+                  <Icon className="w-3.5 h-3.5 text-emerald-400" /> {t}
+                </span>
+              ))}
+            </div>
           </div>
           <div className="v-float max-w-md w-full mx-auto">
             <ChainDemo />
@@ -1057,6 +1124,14 @@ function SalesPage() {
             </Reveal>
             <Reveal delay={100} className="lg:order-1"><LevelsDemo /></Reveal>
           </div>
+
+          <div className="mt-16 grid lg:grid-cols-2 gap-8 items-center">
+            <Reveal>
+              <h3 className="text-2xl font-extrabold inline-flex items-center gap-2"><CalendarCheck className="w-6 h-6 text-emerald-400" /> Toda segunda, o placar da sua semana.</h3>
+              <p className="mt-3 text-slate-400">Pontos, dias ativos, o que você fez, o seu melhor dia e a comparação com a semana anterior. Aparece no topo do Feed e na aba Progresso, e dá para compartilhar com um toque. Sem bronca: semana mais fraca é só informação para ajustar a próxima.</p>
+            </Reveal>
+            <Reveal delay={100}><WeekDemo /></Reveal>
+          </div>
           <p className="mt-10 text-center text-[11px] text-slate-600">As telas desta seção são demonstrações com dados de exemplo.</p>
         </div>
       </section>
@@ -1101,10 +1176,12 @@ function SalesPage() {
               <ul className="space-y-4">
                 {[
                   ['Poste fotos do seu dia', 'O treino, a marmita, a mesa arrumada. Foto no post e até nos comentários.'],
-                  ['Compartilhe conquistas com um toque', 'Terminou um ciclo de foco, fechou um card, cumpriu o hábito? Aparece o botão “Compartilhar no Feed”. Você decide se publica.'],
+                  ['Compartilhe conquistas com um toque', 'Ciclo de foco, card fechado, hábito cumprido, treino com a rota, novo nível, ofensiva ou o resumo da semana: aparece o botão “Compartilhar no Feed”. Você decide se publica.'],
                   ['Curta, comente, puxe o outro para cima', 'Um “bora!” na hora certa vale mais do que mil frases motivacionais.'],
                   ['Sem algoritmo de fofoca', 'Aqui o assunto é progresso. Conteúdo ofensivo é denunciado e removido pela moderação.'],
-                  ['Você no controle', 'Os outros veem só seu primeiro nome e a inicial. Nada é publicado sozinho.'],
+                  ['Perfil com foto, moldura e bio', 'Toque no nome de alguém e veja o nível, a bio e as publicações. Hábitos, finanças e diário nunca aparecem no perfil.'],
+                  ['Siga quem te inspira', 'Botão Seguir, contagem de seguidores e um filtro “Seguindo” para ver só quem você escolheu.'],
+                  ['Você no controle', 'Os outros veem só seu primeiro nome e a inicial do sobrenome. Nada é publicado sozinho.'],
                 ].map(([t, d]) => (
                   <li key={t} className="flex gap-3">
                     <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/10 text-emerald-300 flex items-center justify-center"><Check className="w-5 h-5" /></span>
@@ -1230,7 +1307,8 @@ function SalesPage() {
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-xs text-slate-500">Você liga e desliga quando quiser. Nada de spam: a ordem muda todo dia, para não ficar repetitivo.</p>
+            <p className="mt-4 text-sm text-slate-300">E os lembretes que <strong className="text-white">você</strong> pede ao secretário (“me lembra de pagar a luz dia 10”, “toda segunda às 8”) chegam na hora certa, mesmo com o app fechado.</p>
+            <p className="mt-2 text-xs text-slate-500">Você liga e desliga quando quiser. Nada de spam: a ordem muda todo dia, para não ficar repetitivo. No iPhone, as notificações chegam com o Ritmo instalado na Tela de Início.</p>
           </Reveal>
           <Reveal delay={120}>
             <Phone src="/vendas/notificacoes.webp" alt="Lembretes do Ritmo na tela de bloqueio" />
@@ -1328,7 +1406,7 @@ function SalesPage() {
                 ['Só paga quando o pagamento é confirmado', 'A comissão só nasce depois que o pagamento da pessoa é confirmado. Cada pagamento mensal confirmado gera uma nova comissão.'],
                 ['Atribuição pelo último link', 'Vale o último link válido antes do cadastro, com janela de 60 dias.'],
                 ['Reembolso desfaz a comissão', 'Se o pagamento for reembolsado ou contestado, as comissões daquele pedido são revertidas.'],
-                ['Saque por Pix', `Valor mínimo de ${brl(MIN_PAYOUT_CENTS)}. O pedido é feito no próprio painel, na aba Afiliados.`],
+                ['Saque por Pix, toda semana', `Valor mínimo de ${brl(MIN_PAYOUT_CENTS)}. Peça até quarta-feira 23:59 (Brasília) na aba Indique e Ganhe; o Pix é feito na quinta ou na sexta e o comprovante aparece no seu painel.`],
                 ['Autoindicação não vale', 'Indicar a si mesmo é bloqueado pelo sistema.'],
                 ['Sem promessa de renda', 'Quem ganha é quem consegue assinaturas reais. Ninguém é pago por cadastro, só por pagamento confirmado.'],
               ].map(([t, d]) => (
@@ -1344,6 +1422,30 @@ function SalesPage() {
               </a>
             </div>
           </Reveal>
+        </div>
+      </section>
+
+      {/* TUDO O QUE VEM NO RITMO */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+        <Reveal>
+          <p className="text-center text-sm font-bold text-emerald-400 uppercase tracking-wider">Tudo incluído no plano único</p>
+          <h2 className="mt-2 text-3xl sm:text-5xl font-extrabold text-center leading-tight">Dez apps soltos viram <span className="bg-gradient-to-r from-emerald-400 to-amber-300 bg-clip-text text-transparent">um só.</span></h2>
+          <p className="mt-4 text-center text-slate-400 max-w-2xl mx-auto">Tudo o que você encontra lá dentro, no celular e no computador, por R$ 39,90 a cada 30 dias.</p>
+        </Reveal>
+        <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {ALL_FEATURES.map((f, i) => (
+            <Reveal key={f.title} delay={(i % 4) * 60}>
+              <div className="h-full rounded-2xl border border-[#30363d] bg-[#161b22] p-4">
+                <f.icon className="w-5 h-5 text-emerald-400" />
+                <div className="mt-2 font-bold">{f.title}</div>
+                <p className="mt-1 text-sm text-slate-400">{f.text}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+        <div className="mt-10 text-center">
+          <a href={cta} className={`${btn} v-glow`}>{ctaLabel} <ArrowRight className="w-5 h-5" /></a>
+          <p className="mt-3 text-xs text-slate-500 inline-flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> Instala no celular sem loja de aplicativos.</p>
         </div>
       </section>
 
@@ -1384,6 +1486,10 @@ function SalesPage() {
                 'App no celular: instala em 10 segundos, sem loja',
                 `Ritus: assine conteúdo exclusivo ou crie o seu e fique com ${100 - TEAM_PLATFORM_FEE_PERCENT}% de cada venda`,
                 'Metas, rotina, quadros, hábitos, foco, diário e finanças',
+                'Treino com GPS: mapa da rota, ritmo por km, pausa automática e recordes',
+                'Secretário por voz: gastos, agenda e lembretes que se repetem',
+                'Missões do dia, baú, ofensiva, níveis, molduras e ligas semanais',
+                'Perfil com foto e bio, seguidores e resumo da semana',
                 'Celular e computador',
                 `Programa de indicação: ${COMMISSION_DIRECT_PERCENT}% recorrente por assinatura, mais a sua rede até o ${MAX_COMMISSION_LEVELS}º nível`,
                 'Pagamento manual por Pix ou cartão: sem renovação automática',
@@ -1421,7 +1527,7 @@ function SalesPage() {
               <div className="h-full rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6">
                 <div className="flex items-center gap-2 text-emerald-300 font-bold"><Sparkles className="w-5 h-5" /> Se você começar hoje</div>
                 <ul className="mt-3 space-y-2 text-sm text-slate-300">
-                  <li>Em 7 dias: você sabe quanto focou, quantos dias cumpriu e quanto gastou.</li>
+                  <li>Em 7 dias: você sabe quanto focou, quantos dias cumpriu e quanto gastou, e já abriu os primeiros baús.</li>
                   <li>Em 30 dias: você faz parte de uma comunidade que cobra e comemora junto.</li>
                   <li>Em 40 dias: o dinheiro tem destino e o treino tem frequência.</li>
                   <li>Em 90 dias: você tem registro de tudo o que fez. Não é sorte: é sistema.</li>
@@ -1470,7 +1576,7 @@ function SalesPage() {
           </div>
         </Reveal>
         <p className="max-w-3xl mx-auto mt-8 text-center text-xs text-slate-600">
-          O Ritmo é uma ferramenta de organização pessoal. Não oferece recomendação médica, nutricional ou de investimento, e não garante resultados: eles dependem do uso. Os dados nas animações são exemplos. Ganhos do programa de indicação e das vendas de Ritus não são garantidos e dependem de assinaturas reais confirmadas. Os Ritus são criados por usuários, que respondem pelo próprio conteúdo.{' '}
+          O Ritmo é uma ferramenta de organização pessoal. Não oferece recomendação médica, nutricional ou de investimento, e não garante resultados: eles dependem do uso. Os dados nas animações são exemplos. Pontos, níveis e ligas não valem dinheiro. Ganhos do programa de indicação e das vendas de Ritus não são garantidos e dependem de assinaturas reais confirmadas. Os Ritus são criados por usuários, que respondem pelo próprio conteúdo.{' '}
           <a href="/termos" className="underline">Termos</a> · <a href="/privacidade" className="underline">Privacidade</a>
         </p>
       </section>
