@@ -59,6 +59,29 @@ function sessionCookie(request: Request, token: string) {
   return `ritmo_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure}`;
 }
 
+// Hash bcrypt de uma senha aleatória: usado quando o e-mail não existe, para o login levar o mesmo tempo.
+const DUMMY_HASH = '$2b$10$WHe14fqQUg8zEs7QkPcFuupIb0Vj1hzAKleoSiUOtmPZBHlD3IEdy';
+
+// Limite de tentativas de login por e-mail (por servidor): 8 erros em 15 minutos bloqueiam por 15 minutos.
+const LOGIN_FAILS = new Map<string, number[]>();
+const LOGIN_WINDOW = 15 * 60_000;
+function recentFails(key: string) {
+  const now = Date.now();
+  const list = (LOGIN_FAILS.get(key) || []).filter((t) => now - t < LOGIN_WINDOW);
+  LOGIN_FAILS.set(key, list);
+  return list;
+}
+function loginLocked(key: string) {
+  return recentFails(key).length >= 8;
+}
+function registerLoginFailure(key: string) {
+  recentFails(key).push(Date.now());
+  if (LOGIN_FAILS.size > 5000) LOGIN_FAILS.clear();
+}
+function clearLoginFailures(key: string) {
+  LOGIN_FAILS.delete(key);
+}
+
 export const Route = createFileRoute('/api/auth')({
   server: {
     handlers: {
@@ -148,15 +171,21 @@ export const Route = createFileRoute('/api/auth')({
               return Response.json({ error: 'E-mail e senha são obrigatórios.' }, { status: 400 });
             }
 
-            const foundUser = await findUserByEmail(email);
-            if (!foundUser) {
-              return Response.json({ error: 'Credenciais inválidas. Verifique o e-mail ou crie uma conta.' }, { status: 401 });
+            // muitas tentativas erradas seguidas para o mesmo e-mail: espera um pouco
+            const lockKey = String(email).toLowerCase().trim();
+            if (loginLocked(lockKey)) {
+              return Response.json({ error: 'Muitas tentativas. Aguarde 15 minutos ou use "Esqueci a senha".' }, { status: 429 });
             }
 
-            const valid = await verifyPassword(password, foundUser.passwordHash);
-            if (!valid) {
-              return Response.json({ error: 'Credenciais inválidas. Senha incorreta.' }, { status: 401 });
+            // A mesma mensagem (e o mesmo tempo de resposta) para e-mail inexistente ou senha errada:
+            // assim ninguém descobre quem tem conta no Ritmo.
+            const foundUser = await findUserByEmail(email);
+            const valid = await verifyPassword(password, foundUser?.passwordHash || DUMMY_HASH);
+            if (!foundUser || !valid) {
+              registerLoginFailure(lockKey);
+              return Response.json({ error: 'E-mail ou senha incorretos.' }, { status: 401 });
             }
+            clearLoginFailures(lockKey);
             const user = await promoteIfAdminEmail(foundUser);
             if (user.subscriptionStatus === 'suspended') {
               return Response.json({ error: 'Esta conta está desativada. Fale com o suporte.' }, { status: 403 });
@@ -207,20 +236,28 @@ export const Route = createFileRoute('/api/auth')({
               message: 'Se este e-mail estiver cadastrado, enviamos um código de 6 dígitos. Confira também a caixa de spam.',
             };
 
+            // tempo de resposta igual para e-mail existente ou não (o envio do e-mail demora)
+            const started = Date.now();
+            const respond = async (body: object) => {
+              const wait = 1800 - (Date.now() - started);
+              if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+              return Response.json(body);
+            };
+
             const res = await createPasswordResetRequest(email);
-            if (!res.send) return Response.json(generic);
+            if (!res.send) return respond(generic);
 
             const emailResult = await sendPasswordResetEmail(res.email!, res.userName || '', res.code!);
-            if (emailResult.sent) return Response.json(generic);
+            if (emailResult.sent) return respond(generic);
 
             console.warn('[auth] Envio de e-mail de recuperação não configurado:', emailResult.error);
             // O código só volta na resposta em ambiente de desenvolvimento. Em produção NUNCA:
             // senão qualquer pessoa conseguiria trocar a senha de qualquer conta.
             const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.env.NETLIFY);
             if (!isProduction) {
-              return Response.json({ ...generic, demoMode: true, code: res.code });
+              return respond({ ...generic, demoMode: true, code: res.code });
             }
-            return Response.json(generic);
+            return respond(generic);
           }
 
           // 5. RESET PASSWORD WITH CODE
