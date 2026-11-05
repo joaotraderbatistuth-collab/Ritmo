@@ -21,6 +21,7 @@ export const PERMISSIONS = [
   { key: 'moderation', label: 'Moderação do Feed', description: 'Analisar denúncias do Feed, esconder conteúdo, silenciar usuários e suspender Ritus.' },
   { key: 'audit', label: 'Auditoria', description: 'Ver o histórico de tudo o que os administradores fizeram.' },
   { key: 'errors', label: 'Erros do sistema', description: 'Ver os erros que aconteceram no app e no servidor e marcar como resolvidos.' },
+  { key: 'notifications', label: 'Enviar notificações', description: 'Mandar notificações para o celular: teste para si, para uma pessoa ou para todos.' },
   { key: 'admins_create', label: 'Cadastrar administradores', description: 'Adicionar novos e-mails como administrador, só com as permissões que ele mesmo tem.' },
 ] as const;
 
@@ -32,7 +33,7 @@ export const ALL_PERMISSION_KEYS: PermissionKey[] = PERMISSIONS.map((p) => p.key
 export const PERMISSION_TEMPLATES: { id: string; label: string; permissions: PermissionKey[] }[] = [
   { id: 'suporte', label: 'Suporte', permissions: ['overview', 'users_view', 'users_manage', 'moderation'] },
   { id: 'financeiro', label: 'Financeiro', permissions: ['overview', 'finance', 'affiliates', 'withdrawals', 'refunds', 'exports'] },
-  { id: 'marketing', label: 'Marketing', permissions: ['overview', 'coupons', 'affiliates'] },
+  { id: 'marketing', label: 'Marketing', permissions: ['overview', 'coupons', 'affiliates', 'notifications'] },
   { id: 'total', label: 'Tudo (sem gerir administradores)', permissions: [...ALL_PERMISSION_KEYS] },
 ];
 

@@ -2,7 +2,7 @@
 // Importante: nunca armazena em cache chamadas de API (/api/*), que carregam
 // dados privados e autenticados do usuário — essas sempre vão direto à rede.
 
-const CACHE_VERSION = 'ritmo-v3';
+const CACHE_VERSION = 'ritmo-v4';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 const PRECACHE_URLS = [
@@ -81,14 +81,26 @@ self.addEventListener('push', (event) => {
     data = { title: 'Ritmo', body: event.data ? event.data.text() : '' };
   }
   const title = data.title || 'Ritmo';
+  const url = `/app?tab=${encodeURIComponent(data.tab || 'hoje')}`;
+  // Ritmo do som da marca na vibração: tum-tum-tiiim
+  const vibrate = [70, 70, 70, 90, 220];
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body || '',
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      tag: data.tag || 'ritmo',
-      renotify: false,
-      data: { url: `/app?tab=${encodeURIComponent(data.tab || 'hoje')}` },
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const visible = list.filter((c) => c.visibilityState === 'visible');
+      // App aberto na tela: ele mesmo mostra o aviso no topo e toca o som do Ritmo.
+      for (const c of visible) c.postMessage({ type: 'ritmo-push', title, body: data.body || '', tab: data.tab || 'hoje', url });
+      return self.registration.showNotification(title, {
+        body: data.body || '',
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: data.tag || 'ritmo',
+        renotify: Boolean(data.tag && String(data.tag).startsWith('ritmo-admin')),
+        // com o app aberto o som da marca já toca lá dentro: a notificação do sistema fica sem som
+        silent: visible.length > 0,
+        vibrate,
+        timestamp: Date.now(),
+        data: { url },
+      });
     })
   );
 });

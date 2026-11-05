@@ -1,3 +1,5 @@
+import { validateAdminNotification, broadcastWaitMinutes } from '../src/lib/admin-notify.js';
+import { RITMO_TONE, toneLength, RITMO_VIBRATE } from '../src/lib/notify-sound.js';
 import { parseWhatsAppMessage } from '../src/lib/whatsapp-parser.js';
 import { calculateAffiliateCommission, formatBRL } from '../src/lib/affiliate-engine.js';
 import { convertTransactionsToCSV, formatTransactionForSheet } from '../src/lib/sheets-sync.js';
@@ -726,6 +728,26 @@ export function runTests() {
   assert(newRecords([], nova).length === 0, 'primeiro treino não conta como recorde');
   assert(recordValueLabel({ kind: 'pace1k', value: 312 }) === '5:12 /km' && recordValueLabel({ kind: 'dist', value: 10520 }) === '10,52 km', 'textos dos recordes');
   console.log('✓ Todos os testes de pausa automática e recordes passaram com sucesso!');
+
+  console.log('23. Testando notificações do admin e som do Ritmo...');
+  {
+    const ok = validateAdminNotification({ title: '  Oi\n ', body: 'Teste', tab: 'feed' });
+    assert(ok.ok && ok.value.title === 'Oi' && ok.value.target === 'me' && ok.value.tab === 'feed', 'teste para mim por padrão');
+    assert(!validateAdminNotification({ title: '', body: 'x' }).ok && !validateAdminNotification({ title: 'x', body: '' }).ok, 'título e mensagem obrigatórios');
+    assert(!validateAdminNotification({ title: 'x'.repeat(61), body: 'x' }).ok && !validateAdminNotification({ title: 'x', body: 'y'.repeat(181) }).ok, 'limites de tamanho');
+    const bad = validateAdminNotification({ title: 'x', body: 'y', tab: 'admin' });
+    assert(bad.ok && bad.value.tab === 'hoje', 'aba desconhecida vira Hoje');
+    assert(!validateAdminNotification({ title: 'x', body: 'y', target: 'email', email: 'nada' }).ok, 'e-mail inválido');
+    const em = validateAdminNotification({ title: 'x', body: 'y', target: 'email', email: ' Ana@Ex.com ' });
+    assert(em.ok && em.value.email === 'ana@ex.com', 'e-mail normalizado');
+    assert(!validateAdminNotification({ title: 'x', body: 'y', target: 'all' }).ok && validateAdminNotification({ title: 'x', body: 'y', target: 'all', confirm: true }).ok, 'todos exige confirmação');
+    const t0 = new Date('2026-11-05T12:00:00Z');
+    assert(broadcastWaitMinutes(null, t0) === 0 && broadcastWaitMinutes(new Date('2026-11-05T11:57:00Z'), t0) === 7 && broadcastWaitMinutes(new Date('2026-11-05T11:40:00Z'), t0) === 0, 'trava de 10 minutos para todos');
+    assert(RITMO_TONE.length >= 3 && toneLength() < 1.5 && RITMO_VIBRATE.length % 2 === 1, 'som da marca curto e vibração no ritmo');
+    assert(effectivePermissions({ role: 'admin', email: 'batistuth@live.com' }).includes('notifications' as any), 'master pode enviar notificações');
+    assert(!effectivePermissions({ role: 'admin', email: 'x@y.com', adminPermissions: '["overview"]' }).includes('notifications' as any), 'admin sem permissão não envia');
+  }
+  console.log('✓ Todos os testes de notificações do admin passaram com sucesso!');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

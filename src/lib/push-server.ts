@@ -167,6 +167,46 @@ export async function notifyUser(userId: number, payload: { title: string; body:
   return sent;
 }
 
+/** Estatística para o painel: quantas pessoas e aparelhos têm as notificações ligadas. */
+export async function pushStats() {
+  if (!(await checkDb())) return { people: 0, devices: 0 };
+  const rows = await db.select({ userId: schema.pushSubscriptions.userId }).from(schema.pushSubscriptions);
+  return { people: new Set(rows.map((r) => r.userId)).size, devices: rows.length };
+}
+
+/**
+ * Envio feito pelo administrador: para uma lista de pessoas ou para todos com notificação ligada
+ * (contas desativadas ficam de fora). Envia em lotes para não estourar o tempo do servidor.
+ */
+export async function sendAdminPush(userIds: number[] | 'all', payload: { title: string; body: string; tab?: string; tag?: string }) {
+  if (!(await checkDb())) throw new Error('Banco indisponível.');
+  const keys = await getVapidKeys();
+  if (!keys) throw new Error('Banco indisponível.');
+  const base = db
+    .select({ id: schema.pushSubscriptions.id, userId: schema.pushSubscriptions.userId, endpoint: schema.pushSubscriptions.endpoint, p256dh: schema.pushSubscriptions.p256dh, auth: schema.pushSubscriptions.auth, status: schema.users.subscriptionStatus })
+    .from(schema.pushSubscriptions)
+    .innerJoin(schema.users, eq(schema.users.id, schema.pushSubscriptions.userId));
+  const subs = (userIds === 'all' ? await base.limit(5000) : userIds.length ? await base.where(inArray(schema.pushSubscriptions.userId, userIds)) : []).filter((s) => s.status !== 'suspended');
+  let sent = 0;
+  let removed = 0;
+  const people = new Set<number>();
+  for (let i = 0; i < subs.length; i += 25) {
+    const batch = subs.slice(i, i + 25);
+    const results = await Promise.allSettled(batch.map((s) => sendOne(s, payload, keys)));
+    for (let j = 0; j < results.length; j++) {
+      const r = results[j];
+      if (r.status === 'fulfilled') {
+        sent++;
+        people.add(batch[j].userId);
+      } else if ((r.reason as any)?.statusCode === 404 || (r.reason as any)?.statusCode === 410) {
+        await db.delete(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.id, batch[j].id));
+        removed++;
+      }
+    }
+  }
+  return { devices: subs.length, sent, removed, people: people.size };
+}
+
 export async function sendDueReminders(now: Date = new Date()) {
   if (!(await checkDb())) return { due: 0, sent: 0 };
   const rows = await db

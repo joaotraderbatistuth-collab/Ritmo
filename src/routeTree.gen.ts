@@ -42,6 +42,7 @@ import { Route as ApiAuthRouteImport } from './routes/api.auth'
 import { Route as ApiAssistantRouteImport } from './routes/api.assistant'
 import { Route as ApiAffiliatesRouteImport } from './routes/api.affiliates'
 import { Route as ApiAdminNumerosRouteImport } from './routes/api.admin-numeros'
+import { Route as ApiAdminNotificacoesRouteImport } from './routes/api.admin-notificacoes'
 import { Route as ApiAdminRouteImport } from './routes/api.admin'
 import { Route as ApiWebhooksMercadopagoRouteImport } from './routes/api.webhooks.mercadopago'
 import { Route as ApiCronNotificacoesRouteImport } from './routes/api.cron.notificacoes'
@@ -213,6 +214,11 @@ const ApiAdminNumerosRoute = ApiAdminNumerosRouteImport.update({
   path: '/api/admin-numeros',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminNotificacoesRoute = ApiAdminNotificacoesRouteImport.update({
+  id: '/api/admin-notificacoes',
+  path: '/api/admin-notificacoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminRoute = ApiAdminRouteImport.update({
   id: '/api/admin',
   path: '/api/admin',
@@ -251,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/tutorial': typeof TutorialRoute
   '/vendas': typeof VendasRoute
   '/api/admin': typeof ApiAdminRoute
+  '/api/admin-notificacoes': typeof ApiAdminNotificacoesRoute
   '/api/admin-numeros': typeof ApiAdminNumerosRoute
   '/api/affiliates': typeof ApiAffiliatesRoute
   '/api/assistant': typeof ApiAssistantRoute
@@ -291,6 +298,7 @@ export interface FileRoutesByTo {
   '/tutorial': typeof TutorialRoute
   '/vendas': typeof VendasRoute
   '/api/admin': typeof ApiAdminRoute
+  '/api/admin-notificacoes': typeof ApiAdminNotificacoesRoute
   '/api/admin-numeros': typeof ApiAdminNumerosRoute
   '/api/affiliates': typeof ApiAffiliatesRoute
   '/api/assistant': typeof ApiAssistantRoute
@@ -332,6 +340,7 @@ export interface FileRoutesById {
   '/tutorial': typeof TutorialRoute
   '/vendas': typeof VendasRoute
   '/api/admin': typeof ApiAdminRoute
+  '/api/admin-notificacoes': typeof ApiAdminNotificacoesRoute
   '/api/admin-numeros': typeof ApiAdminNumerosRoute
   '/api/affiliates': typeof ApiAffiliatesRoute
   '/api/assistant': typeof ApiAssistantRoute
@@ -374,6 +383,7 @@ export interface FileRouteTypes {
     | '/tutorial'
     | '/vendas'
     | '/api/admin'
+    | '/api/admin-notificacoes'
     | '/api/admin-numeros'
     | '/api/affiliates'
     | '/api/assistant'
@@ -414,6 +424,7 @@ export interface FileRouteTypes {
     | '/tutorial'
     | '/vendas'
     | '/api/admin'
+    | '/api/admin-notificacoes'
     | '/api/admin-numeros'
     | '/api/affiliates'
     | '/api/assistant'
@@ -454,6 +465,7 @@ export interface FileRouteTypes {
     | '/tutorial'
     | '/vendas'
     | '/api/admin'
+    | '/api/admin-notificacoes'
     | '/api/admin-numeros'
     | '/api/affiliates'
     | '/api/assistant'
@@ -495,6 +507,7 @@ export interface RootRouteChildren {
   TutorialRoute: typeof TutorialRoute
   VendasRoute: typeof VendasRoute
   ApiAdminRoute: typeof ApiAdminRoute
+  ApiAdminNotificacoesRoute: typeof ApiAdminNotificacoesRoute
   ApiAdminNumerosRoute: typeof ApiAdminNumerosRoute
   ApiAffiliatesRoute: typeof ApiAffiliatesRoute
   ApiAssistantRoute: typeof ApiAssistantRoute
@@ -758,6 +771,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminNumerosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin-notificacoes': {
+      id: '/api/admin-notificacoes'
+      path: '/api/admin-notificacoes'
+      fullPath: '/api/admin-notificacoes'
+      preLoaderRoute: typeof ApiAdminNotificacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin': {
       id: '/api/admin'
       path: '/api/admin'
@@ -807,6 +827,7 @@ const rootRouteChildren: RootRouteChildren = {
   TutorialRoute: TutorialRoute,
   VendasRoute: VendasRoute,
   ApiAdminRoute: ApiAdminRoute,
+  ApiAdminNotificacoesRoute: ApiAdminNotificacoesRoute,
   ApiAdminNumerosRoute: ApiAdminNumerosRoute,
   ApiAffiliatesRoute: ApiAffiliatesRoute,
   ApiAssistantRoute: ApiAssistantRoute,
