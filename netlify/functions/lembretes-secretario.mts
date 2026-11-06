@@ -1,4 +1,4 @@
-// Roda a cada 5 minutos e pede ao app para enviar os lembretes do secretário que já chegaram na hora.
+// Roda a cada 4 horas (economia de créditos da Netlify) e pede ao app para enviar os lembretes do secretário que já chegaram na hora.
 // Usa o CRON_SECRET, ou, se ele não existir, o JWT_SECRET (já obrigatório no site) para assinar a chamada.
 import { createHash } from 'node:crypto';
 
@@ -17,4 +17,4 @@ export default async () => {
   console.log('lembretes-secretario:', res.status, await res.text());
 };
 
-export const config = { schedule: '*/5 * * * *' };
+export const config = { schedule: '0 */4 * * *' };

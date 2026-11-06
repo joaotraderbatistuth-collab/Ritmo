@@ -241,7 +241,7 @@ export async function sendDueReminders(now: Date = new Date()) {
     .where(and(isNull(schema.reminders.sentAt), isNull(schema.reminders.doneAt), lte(schema.reminders.remindAt, now)))
     .limit(500);
   if (!rows.length) return { due: 0, sent: 0 };
-  const fresh = (r: (typeof rows)[number]) => now.getTime() - new Date(r.remindAt).getTime() < 3 * 3600_000;
+  const fresh = (r: (typeof rows)[number]) => now.getTime() - new Date(r.remindAt).getTime() < 5 * 3600_000; // a função roda a cada 4 h: aceita até 5 h de atraso
   // marca antes de enviar: se duas execuções se cruzarem, ninguém recebe o lembrete duas vezes.
   // Uma vez só → sent_at. Repetido → pula para a próxima vez (no fuso da pessoa).
   const once = rows.filter((r) => !r.repeat).map((r) => r.id);
