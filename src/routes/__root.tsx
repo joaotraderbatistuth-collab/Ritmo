@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { PushListener } from '../components/PushListener.js'
+import { UpdateWatcher } from '../components/UpdateWatcher.js'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 
 import appCss from '../styles.css?url'
@@ -149,6 +150,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         />
         {children}
         <PushListener />
+        <UpdateWatcher />
         <script
           // Service worker só em produção (https). No localhost ele é DESREGISTRADO e o cache é
           // apagado, para o desenvolvimento nunca servir arquivos antigos.

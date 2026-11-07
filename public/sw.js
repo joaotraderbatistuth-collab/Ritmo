@@ -2,7 +2,7 @@
 // Importante: nunca armazena em cache chamadas de API (/api/*), que carregam
 // dados privados e autenticados do usuário — essas sempre vão direto à rede.
 
-const CACHE_VERSION = 'ritmo-v5';
+const CACHE_VERSION = 'ritmo-v6';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 const PRECACHE_URLS = [
