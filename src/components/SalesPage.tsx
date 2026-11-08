@@ -4,7 +4,7 @@ import {
   Heart, MessageCircle, Search, Eye, Users, Lock, Crown, Trophy, Newspaper, Megaphone,
   Bell, Smartphone, BookOpen, Gift,
   Mic, MapPin, Activity, Target, UserPlus, Moon,
-  Zap, Keyboard, Hourglass, Navigation,
+  Zap, Keyboard, Hourglass, Navigation, ArrowUp,
   CalendarCheck, LayoutGrid, ListChecks, NotebookPen, BarChart3, Settings, Home, Compass, Download, TrendingUp,
 } from 'lucide-react';
 import { InstallPwaButton } from './InstallPwaButton.js';
@@ -662,7 +662,7 @@ const COMPARE = [
   ['O que você sabe fica só com você', 'Seu conhecimento vira um Ritus por assinatura'],
   ['Lembrete que você esquece de anotar', '“Me lembra dia 10” e o celular avisa na hora'],
   ['Corrida sem registro, evolução invisível', 'Rota no mapa, ritmo por km e recordes pessoais'],
-  ['Disciplina que dura uma semana', 'Missões, baú, ofensiva e liga puxando você de volta'],
+  ['Disciplina que dura uma semana', 'Missões, baú, ofensiva e temporada mensal puxando você de volta'],
 ];
 
 
@@ -782,7 +782,7 @@ function LevelsDemo() {
         ))}
       </div>
       <div className="mt-5 rounded-2xl border border-[#30363d] bg-[#0d1117] p-4">
-        <div className="flex items-center justify-between text-sm"><span className="font-bold inline-flex items-center gap-1.5"><Trophy className="w-4 h-4 text-amber-300" /> Liga Ouro</span><span className="text-slate-500">termina em 3 dias</span></div>
+        <div className="flex items-center justify-between text-sm"><span className="font-bold inline-flex items-center gap-1.5"><Trophy className="w-4 h-4 text-amber-300" /> Divisão Ouro</span><span className="text-slate-500">faltam 9 dias</span></div>
         <ol className="mt-3 space-y-1.5 text-sm">
           {[['1', 'Ana', 412], ['2', 'Você', 388], ['3', 'Bruno', 350], ['4', 'Carla', 301]].map(([r, n, x]) => (
             <li key={String(r)} className={`flex items-center gap-3 rounded-lg px-2 py-1 ${n === 'Você' ? 'bg-emerald-500/15 border border-emerald-500/40' : ''}`}>
@@ -790,7 +790,7 @@ function LevelsDemo() {
             </li>
           ))}
         </ol>
-        <p className="mt-2 text-[11px] text-slate-500">Os 5 primeiros sobem de liga. Pontos e nomes de exemplo.</p>
+        <p className="mt-2 text-[11px] text-slate-500">Na Ouro, metade do grupo sobe no fim do mês. Pontos e nomes de exemplo.</p>
       </div>
       <div className="mt-3 flex items-center justify-between text-sm">
         <span className="text-slate-400">128 seguidores · 96 seguindo</span>
@@ -827,6 +827,97 @@ function WeekDemo() {
     </div>
   );
 }
+
+
+/* ------------------------------------------------------------------ */
+/* Seja melhor a cada dia: pontos, constância e temporada              */
+/* ------------------------------------------------------------------ */
+
+const POINT_EVENTS: { what: string; xp: number; tag?: string }[] = [
+  { what: 'Bebeu água (hábito)', xp: 10 },
+  { what: 'Foco de 50 min', xp: 30 },
+  { what: 'Treino em dia diferente', xp: 20, tag: '+10 constância' },
+  { what: 'Tarefa concluída', xp: 5, tag: 'Combo x3' },
+  { what: 'Check-in do dia', xp: 15, tag: 'Bônus surpresa +20' },
+];
+
+function PointsDemo() {
+  const { ref, step: i } = useLoop(POINT_EVENTS.length, 1800);
+  const e = POINT_EVENTS[i];
+  const today = POINT_EVENTS.slice(0, i + 1).reduce((a, x) => a + x.xp + (x.tag?.startsWith('Bônus') ? 20 : x.tag?.startsWith('+10') ? 10 : 0), 0);
+  return (
+    <div ref={ref} className="relative rounded-3xl border border-[#30363d] bg-[#161b22] p-5">
+      <ExampleTag />
+      <p className="font-extrabold inline-flex items-center gap-2"><Zap className="w-5 h-5 text-emerald-400" /> Cada passo vira ponto</p>
+      <div key={i} className="mt-4 rounded-2xl border border-emerald-500/40 bg-[#0d1117] px-4 py-3 v-pop">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-slate-200">{e.what}</span>
+          <span className="px-3 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-300 text-[#0d1117] font-extrabold">+{e.xp} XP</span>
+        </div>
+        {e.tag && <p className="mt-1 text-xs font-bold text-amber-300">{e.tag.startsWith('Combo') ? '🔥 ' : e.tag.startsWith('Bônus') ? '🎁 ' : '💪 '}{e.tag}</p>}
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <div className="relative w-14 h-14 shrink-0">
+          <svg viewBox="0 0 36 36" className="w-14 h-14 -rotate-90"><circle cx="18" cy="18" r="15" fill="none" stroke="#21262d" strokeWidth="3.5" /><circle cx="18" cy="18" r="15" fill="none" stroke={today >= 80 ? '#f59e0b' : '#10b981'} strokeWidth="3.5" strokeLinecap="round" strokeDasharray="94.2" strokeDashoffset={94.2 * (1 - Math.min(1, today / 80))} style={{ transition: 'stroke-dashoffset .8s' }} /></svg>
+          <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black">{Math.min(100, Math.round((today / 80) * 100))}%</span>
+        </div>
+        <div className="text-sm text-slate-300">Meta do dia: <strong className="text-white">{Math.min(today, 999)}/80 XP</strong>{today >= 80 && <span className="block text-amber-300 font-bold">🎯 Meta batida! O resto é extra.</span>}</div>
+      </div>
+    </div>
+  );
+}
+
+const SEASON_DEMO = [
+  { n: 'Ana', x: 612 },
+  { n: 'Você', x: 540 },
+  { n: 'Bruno', x: 498 },
+  { n: 'Carla', x: 455 },
+  { n: 'Diego', x: 301 },
+];
+
+function SeasonDemo() {
+  const { ref, step } = useLoop(3, 2200);
+  const me = [430, 498 - 1, 540][step];
+  const rows = SEASON_DEMO.map((r) => (r.n === 'Você' ? { ...r, x: me } : r)).sort((a, b) => b.x - a.x);
+  return (
+    <div ref={ref} className="relative rounded-3xl border border-sky-500/40 bg-gradient-to-br from-sky-500/10 via-[#161b22] to-[#0d1117] p-5">
+      <ExampleTag />
+      <div className="flex items-center gap-3 pr-14">
+        <span className="text-4xl" aria-hidden="true">🔷</span>
+        <div>
+          <p className="text-[11px] uppercase tracking-widest text-slate-500 font-bold">Temporada do mês</p>
+          <p className="text-xl font-extrabold text-sky-300">Divisão Safira</p>
+        </div>
+      </div>
+      <ol className="mt-4 space-y-1 text-sm">
+        {rows.map((r, idx) => (
+          <li key={r.n}>
+            {idx === 2 && <div className="flex items-center gap-2 my-1"><span className="flex-1 border-t border-dashed border-emerald-500/60" /><span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">linha de subida</span><span className="flex-1 border-t border-dashed border-emerald-500/60" /></div>}
+            <div className={`flex items-center gap-3 rounded-lg px-2 py-1.5 transition-all duration-500 ${r.n === 'Você' ? 'bg-emerald-500/15 border border-emerald-500/40' : ''}`}>
+              <span className="w-6 font-black">{['🥇', '🥈', '🥉'][idx] || idx + 1}</span>
+              <span className="flex-1">{r.n}</span>
+              {idx < 2 && <ArrowUp className="w-3.5 h-3.5 text-emerald-400" />}
+              <span className="tabular-nums font-bold">{r.x}</span>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-sm font-semibold text-emerald-300">{step === 0 ? 'Faltam 69 pontos para a zona de subida.' : step === 1 ? 'Mais 2 pontos e você passa o Bruno!' : '🏆 Entrou na zona de subida para Esmeralda!'}</p>
+    </div>
+  );
+}
+
+const LADDER = [
+  ['🥉', 'Bronze', '80%'], ['🥈', 'Prata', '60%'], ['🥇', 'Ouro', '50%'], ['🔷', 'Safira', '40%'],
+  ['💚', 'Esmeralda', '30%'], ['❤️‍🔥', 'Rubi', '25%'], ['💎', 'Diamante', '20%'], ['👑', 'Lenda', 'topo'],
+];
+
+const BETTER_PILLARS: { icon: typeof Flame; title: string; text: string }[] = [
+  { icon: Zap, title: 'Tudo vale ponto', text: 'Beber água, planejar o dia, treinar, focar, ler, anotar um gasto, criar uma meta. O simples vale pouco, o que pede mais de você vale mais.' },
+  { icon: Flame, title: 'Constância vence intensidade', text: 'No treino não ganha quem treina mais, ganha quem volta. Treinar em dias diferentes da semana rende bônus de constância crescente.' },
+  { icon: Trophy, title: 'Uma temporada por mês', text: 'Todo mundo começa no Bronze. No fim do mês, os primeiros sobem de divisão, até chegar na Lenda. Placar zerado todo mês: sempre dá para virar.' },
+  { icon: Gift, title: 'Comemoração a cada passo', text: 'Número subindo, combo quando você emenda uma coisa na outra, bônus surpresa em alguns dias e uma meta diária que você escolhe.' },
+];
 
 /* ------------------------------------------------------------------ */
 /* Sem preencher nada: voz + o que o Ritmo faz sozinho                 */
@@ -905,7 +996,7 @@ const ALL_FEATURES: { icon: typeof Flame; title: string; text: string }[] = [
   { icon: Wallet, title: 'Finanças Pessoais', text: 'Receitas, despesas, parcelas, orçamento e contas a vencer.' },
   { icon: Mic, title: 'Secretário por voz', text: 'Fale e ele lança gastos, agenda, cria lembretes e conta como está o seu dia.' },
   { icon: Gift, title: 'Missões, baú e ofensiva', text: '3 missões por dia, baú com prêmio e 1 descanso por semana sem perder a sequência.' },
-  { icon: Crown, title: 'Níveis e ligas', text: '12 níveis, molduras para a foto e ligas semanais (opcionais).' },
+  { icon: Crown, title: 'Níveis e temporada', text: 'Tudo vale ponto. 12 níveis, molduras para a foto e uma temporada por mês com 8 divisões (opcional).' },
   { icon: BarChart3, title: 'Progresso', text: 'Calendário de constância, resumo da semana, recordes e o caminho dos níveis.' },
   { icon: Compass, title: 'Ritus', text: '10 Ritus gratuitos para começar, e você pode criar o seu e vender por assinatura.' },
   { icon: Bell, title: 'Avisos e lembretes', text: 'Sino com contas a vencer e até 3 lembretes por dia no celular, no seu fuso.' },
@@ -929,7 +1020,7 @@ const FAQ = [
   { q: 'Como funcionam as notificações?', a: 'Elas já vêm ligadas: no primeiro acesso o Ritmo pede a sua permissão com um toque, e você escolhe receber 1, 2 ou 3 por dia. São mais de 60 lembretes diferentes que mudam a cada dia: criar um card, fazer um ciclo de foco, um treino, marcar os hábitos, compartilhar uma conquista. Dá para desligar quando quiser.' },
   { q: 'Os Ritus gratuitos são pagos depois?', a: 'Não. Os 10 Ritus gratuitos (como o Clube do Livro) continuam grátis para quem usa o Ritmo. Ritus pagos são criados por outros usuários, que definem o próprio preço.' },
   { q: 'O que são as missões do dia e a ofensiva?', a: 'Todo dia o Ritmo sugere 3 missões pequenas, escolhidas pelo que você já usa (e uma para descobrir algo novo). Cumpriu as 3, abre um baú com pontos ou um dia extra de descanso. A ofensiva conta os dias seguidos em que você fez algo no app, com 1 dia de descanso por semana que não quebra a sequência: constância sem culpa.' },
-  { q: 'Como funcionam os níveis e as ligas?', a: 'Tudo o que você faz (hábito, tarefa, foco, treino, diário, finanças) vira Pontos de Ritmo, com limite por dia para valer a constância e não o exagero. Os pontos sobem o seu nível e liberam molduras para a foto do perfil. Toda semana você entra numa liga com até 20 pessoas: os 5 primeiros sobem. Não quer competir? Dá para sair das ligas com um toque. Os pontos não valem dinheiro.' },
+  { q: 'Como funcionam os pontos, os níveis e a temporada?', a: 'Tudo o que você faz no Ritmo vira Pontos de Ritmo: hábitos, tarefas, foco (vale mais quanto mais longo), treino, diário, finanças, metas, quadros, lembretes e o Feed. Coisas simples valem pouco e as mais desafiadoras valem mais, sempre com limite por dia, para premiar a constância. No treino, conta a regularidade: treinar em dias diferentes da semana dá bônus. Os pontos sobem o seu nível (12 níveis, com molduras para a foto) e contam para a temporada do mês: todo mundo começa no Bronze, disputa com um grupo de até 30 pessoas e, no fim do mês, os primeiros sobem de divisão até a Lenda. Não quer competir? Um toque e você sai.' },
   { q: 'O treino com GPS funciona como os apps de corrida?', a: 'Você escolhe corrida, caminhada, pedal ou trilha, toca em Iniciar e o Ritmo desenha a rota no mapa, com cronômetro, distância, ritmo por km, pausa automática quando você para e recordes pessoais. Depois dá para compartilhar no Feed ou gerar uma imagem para Stories, escondendo o começo e o fim da rota. A localização só é usada com a sua permissão.' },
   { q: 'Como é o secretário por voz?', a: 'É um assistente que você batiza com o nome que quiser. Você toca no botão e fala: “gastei 32 no almoço”, “agenda dentista amanhã às 3”, “me lembra toda segunda de levar o lixo”. Ele lança o gasto, marca o compromisso, cria lembretes (inclusive os que se repetem) e avisa por notificação. Funciona no navegador do celular, sem instalar nada além do Ritmo.' },
   { q: 'O que aparece no meu perfil para os outros?', a: 'A sua foto com a moldura do nível, o primeiro nome com a inicial do sobrenome, a bio (até 160 caracteres), os pontos, quantas publicações e curtidas você tem, desde quando está no Ritmo e o que você publicou no Feed geral. Hábitos, finanças, diário e conteúdo de Ritus nunca aparecem. Em Configurações, o botão “Ver como os outros veem” mostra exatamente isso.' },
@@ -1020,6 +1111,9 @@ export function SalesPage() {
               No Ritmo você tem um <strong className="text-white">secretário por voz</strong>: toca no microfone, diz “gastei 32 no almoço” ou “me lembra de pagar a luz dia 10” e pronto. Gasto lançado, lembrete marcado, dia organizado.
               E ainda vem com <strong className="text-white">treino com GPS</strong>, <strong className="text-white">Feed</strong> de gente em movimento, hábitos, metas, foco e finanças. Tudo num app só.
             </p>
+            <p className="mt-3 text-slate-300">
+              E o melhor: <strong className="text-white">tudo o que você faz vira ponto</strong>. Os pontos sobem o seu nível e, todo mês, uma temporada nova te desafia a subir de divisão. Um app que <strong className="text-emerald-300">te desafia a ser melhor a cada dia</strong>.
+            </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <a href={cta} className={`${btn} v-glow`}>
                 {ctaLabel} <ArrowRight className="w-5 h-5" />
@@ -1037,7 +1131,7 @@ export function SalesPage() {
             <div className="mt-6 flex flex-wrap gap-2">
               {[
                 [Mic, 'Secretário por voz'], [MapPin, 'Treino com GPS'], [Newspaper, 'Feed'], [Wallet, 'Finanças'], [Link2, 'Hábitos'],
-                [Target, 'Metas'], [Timer, 'Foco'], [Gift, 'Missões e baú'], [Trophy, 'Ligas'], [Crown, 'Ritus'],
+                [Target, 'Metas'], [Timer, 'Foco'], [Gift, 'Missões e baú'], [Trophy, 'Temporada mensal'], [Zap, 'Tudo vale ponto'], [Crown, 'Ritus'],
               ].map(([Icon, t]: any) => (
                 <span key={t} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#30363d] bg-[#161b22] text-xs text-slate-300">
                   <Icon className="w-3.5 h-3.5 text-emerald-400" /> {t}
@@ -1127,6 +1221,74 @@ export function SalesPage() {
               <p className="mt-2 text-xs text-slate-500">Funciona no navegador do celular e do computador. No iPhone, use o Safari.</p>
             </div>
           </Reveal>
+        </div>
+      </section>
+
+      {/* SEJA MELHOR A CADA DIA */}
+      <section id="melhor" className="scroll-mt-4 border-y border-sky-500/20 bg-gradient-to-b from-sky-500/[0.07] to-transparent">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+          <Reveal>
+            <p className="text-center text-sm font-bold text-sky-300 uppercase tracking-wider">Você contra você de ontem</p>
+            <h2 className="mt-2 text-3xl sm:text-5xl font-extrabold text-center leading-tight">
+              O Ritmo te desafia a ser{' '}
+              <span className="bg-gradient-to-r from-sky-300 via-emerald-300 to-amber-300 bg-clip-text text-transparent">um pouco melhor a cada dia.</span>
+            </h2>
+            <p className="mt-4 text-center text-slate-300 max-w-2xl mx-auto text-lg">
+              Comer melhor, treinar com constância, focar no que importa, cuidar do dinheiro. Cada escolha boa vira ponto, os pontos te levam para cima e, todo mês, você tem uma nova chance de subir de divisão.
+            </p>
+          </Reveal>
+
+          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {BETTER_PILLARS.map((p, i) => (
+              <Reveal key={p.title} delay={i * 80}>
+                <div className="h-full rounded-2xl border border-[#30363d] bg-[#161b22] p-5">
+                  <p.icon className="w-6 h-6 text-sky-300" />
+                  <h3 className="mt-3 font-extrabold text-lg">{p.title}</h3>
+                  <p className="mt-1 text-sm text-slate-400">{p.text}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+
+          <div className="mt-14 grid lg:grid-cols-2 gap-8 items-center">
+            <Reveal>
+              <h3 className="text-2xl sm:text-3xl font-extrabold">Ninguém fica motivado com uma lista de tarefas. <span className="text-emerald-300">Mas todo mundo quer ver o placar subir.</span></h3>
+              <p className="mt-3 text-slate-400">Cada hábito marcado, cada foco, cada treino aparece na hora como pontos, com um “plim” e uma comemoração na tela. Emendou uma coisa na outra? Vira combo. Em alguns dias, uma das suas ações vem com um bônus surpresa. E a meta do dia, que você mesmo escolhe, vai enchendo um anel em volta da sua foto.</p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-300">
+                <li className="flex gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" /> Hábito +10 · Tarefa +5 · Foco de 5 a 30 · Dia de treino +20 · Revisão da semana +30 · Meta nova +40</li>
+                <li className="flex gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" /> Limite por dia em cada ação: fazer 40 coisas num dia não vale mais que voltar amanhã</li>
+                <li className="flex gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" /> Dia fraco não tira ponto de ninguém. Amanhã a meta recomeça</li>
+              </ul>
+            </Reveal>
+            <Reveal delay={100}><PointsDemo /></Reveal>
+          </div>
+
+          <div className="mt-16 grid lg:grid-cols-2 gap-8 items-center">
+            <Reveal className="lg:order-2">
+              <h3 className="text-2xl sm:text-3xl font-extrabold">A temporada do mês: <span className="text-sky-300">do Bronze à Lenda.</span></h3>
+              <p className="mt-3 text-slate-400">Você disputa com um grupo de até 30 pessoas da mesma divisão. Todo mundo vê o ranking do grupo, com foto, nível e pontos. No fim do mês, os primeiros sobem. No Bronze, 80% do grupo sobe (basta pontuar). Lá em cima é mais disputado, e cada subida vale ainda mais.</p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {LADDER.map(([e, n, pct]) => (
+                  <span key={n} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#30363d] bg-[#161b22] text-xs">
+                    <span aria-hidden="true">{e}</span> <strong className="text-slate-200">{n}</strong> <span className="text-slate-500">{pct === 'topo' ? 'o topo' : `sobem ${pct}`}</span>
+                  </span>
+                ))}
+              </div>
+              <p className="mt-4 text-sm text-slate-300">O app mostra sempre o próximo passo: <strong className="text-white">“faltam 69 pontos para a zona de subida”</strong>, <strong className="text-white">“mais 2 pontos e você passa o Bruno”</strong>. Ninguém precisa adivinhar o que fazer.</p>
+            </Reveal>
+            <Reveal delay={100} className="lg:order-1"><SeasonDemo /></Reveal>
+          </div>
+
+          <Reveal>
+            <div className="mt-14 rounded-3xl border border-emerald-500/30 bg-emerald-500/[0.06] p-6 sm:p-8 text-center">
+              <p className="text-2xl sm:text-3xl font-extrabold leading-snug">1% melhor por dia parece pouco.<br /><span className="text-emerald-300">Em um ano, é outra pessoa.</span></p>
+              <p className="mt-3 text-slate-400 max-w-xl mx-auto">O Ritmo não exige perfeição. Ele mostra, todo dia, que você está melhor do que ontem e te convida a dar mais um passo.</p>
+              <a href={cta} className={`${btn} mt-6 v-glow`}>
+                Quero começar a minha subida <ArrowRight className="w-5 h-5" />
+              </a>
+            </div>
+          </Reveal>
+          <p className="mt-8 text-center text-[11px] text-slate-600">Os rankings, nomes e pontos desta seção são exemplos. Pontos e divisões não valem dinheiro.</p>
         </div>
       </section>
 
@@ -1249,7 +1411,7 @@ export function SalesPage() {
           <Reveal>
             <p className="text-center text-sm font-bold text-emerald-400 uppercase tracking-wider">Novo no Ritmo</p>
             <h2 className="mt-2 text-3xl sm:text-5xl font-extrabold text-center leading-tight">Dá vontade de voltar <span className="bg-gradient-to-r from-amber-300 to-rose-400 bg-clip-text text-transparent">amanhã.</span> E depois de amanhã.</h2>
-            <p className="mt-4 text-center text-slate-400 max-w-2xl mx-auto">Missões, baú, ofensiva, ligas e treino com GPS. Pequenas vitórias todo dia, sem extremismo: descansar faz parte.</p>
+            <p className="mt-4 text-center text-slate-400 max-w-2xl mx-auto">Missões, baú, ofensiva, temporada mensal e treino com GPS. Pequenas vitórias todo dia, sem extremismo: descansar faz parte.</p>
           </Reveal>
 
           <div className="mt-12 grid lg:grid-cols-2 gap-8 items-center">
@@ -1271,8 +1433,8 @@ export function SalesPage() {
 
           <div className="mt-16 grid lg:grid-cols-2 gap-8 items-center">
             <Reveal className="lg:order-2">
-              <h3 className="text-2xl font-extrabold inline-flex items-center gap-2"><Crown className="w-6 h-6 text-amber-300" /> Níveis, molduras, ligas e seguidores.</h3>
-              <p className="mt-3 text-slate-400">Cada hábito, foco, treino e lançamento vira ponto. Os pontos sobem o seu nível e liberam molduras do Bronze à Lendária. Toda semana uma liga nova com gente no mesmo ritmo, perfil com bio e seguidores, e um Feed só de quem você segue. Prefere sem competição? Um toque e você sai das ligas.</p>
+              <h3 className="text-2xl font-extrabold inline-flex items-center gap-2"><Crown className="w-6 h-6 text-amber-300" /> Níveis, molduras, temporada e seguidores.</h3>
+              <p className="mt-3 text-slate-400">Tudo o que você faz vira ponto. Os pontos sobem o seu nível e liberam molduras do Bronze à Lendária. Todo mês uma temporada nova, com divisões do Bronze à Lenda, perfil com bio e seguidores, e um Feed só de quem você segue. Prefere sem competição? Um toque e você sai da temporada.</p>
             </Reveal>
             <Reveal delay={100} className="lg:order-1"><LevelsDemo /></Reveal>
           </div>
@@ -1648,7 +1810,7 @@ export function SalesPage() {
                 'App no celular: instala em 10 segundos, sem loja',
                 `Ritus: assine conteúdo exclusivo ou crie o seu e fique com ${100 - TEAM_PLATFORM_FEE_PERCENT}% de cada venda`,
                 'Metas, rotina, quadros, hábitos, foco, diário e finanças',
-                'Missões do dia, baú, ofensiva, níveis, molduras e ligas semanais',
+                'Tudo vale ponto: missões do dia, baú, ofensiva, níveis, molduras e temporada mensal com divisões',
                 'Perfil com foto e bio, seguidores e resumo da semana',
                 'Celular e computador',
                 `Programa de indicação: ${COMMISSION_DIRECT_PERCENT}% recorrente por assinatura, mais a sua rede até o ${MAX_COMMISSION_LEVELS}º nível`,
@@ -1727,7 +1889,7 @@ export function SalesPage() {
           <div className="max-w-3xl mx-auto rounded-3xl border border-rose-500/30 bg-gradient-to-br from-rose-500/10 via-transparent to-amber-500/10 p-8 sm:p-12 text-center">
             <h2 className="text-3xl sm:text-5xl font-extrabold leading-tight">Você já esperou tempo demais pelo “momento certo”.</h2>
             <p className="mt-5 text-lg text-slate-300">
-              O momento certo é uma história que a gente conta para não começar. Você não precisa de mais força de vontade: precisa de um app que <strong className="text-white">escuta você, grava seu treino e te chama na hora certa</strong>. Daqui a 7 dias você já sabe se funciona. A alternativa é continuar achando que “qualquer hora” resolve.
+              O momento certo é uma história que a gente conta para não começar. Você não precisa de mais força de vontade: precisa de um app que <strong className="text-white">escuta você, grava seu treino, transforma cada passo em ponto e te desafia a ser melhor que ontem</strong>. Daqui a 7 dias você já sabe se funciona. A alternativa é continuar achando que “qualquer hora” resolve.
             </p>
             <a href={cta} className={`${btn} mt-8 v-glow`}>
               {ctaLabel} <ArrowRight className="w-5 h-5" />
@@ -1736,7 +1898,7 @@ export function SalesPage() {
           </div>
         </Reveal>
         <p className="max-w-3xl mx-auto mt-8 text-center text-xs text-slate-600">
-          O Ritmo é uma ferramenta de organização pessoal. Não oferece recomendação médica, nutricional ou de investimento, e não garante resultados: eles dependem do uso. Os dados nas animações são exemplos. Pontos, níveis e ligas não valem dinheiro. Ganhos do programa de indicação e das vendas de Ritus não são garantidos e dependem de assinaturas reais confirmadas. Os Ritus são criados por usuários, que respondem pelo próprio conteúdo.{' '}
+          O Ritmo é uma ferramenta de organização pessoal. Não oferece recomendação médica, nutricional ou de investimento, e não garante resultados: eles dependem do uso. Os dados nas animações são exemplos. Pontos, níveis e divisões não valem dinheiro. Ganhos do programa de indicação e das vendas de Ritus não são garantidos e dependem de assinaturas reais confirmadas. Os Ritus são criados por usuários, que respondem pelo próprio conteúdo.{' '}
           <a href="/termos" className="underline">Termos</a> · <a href="/privacidade" className="underline">Privacidade</a>
         </p>
       </section>

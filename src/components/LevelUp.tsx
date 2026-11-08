@@ -150,14 +150,25 @@ export const LevelChip: React.FC<{ data: XpData | null; initials: string; name: 
 
 const SOURCE_HINT: Record<XpSource, string> = {
   habito: 'Hábitos & Saúde',
+  habito_novo: 'Hábitos & Saúde',
   tarefa: 'Rotina & Tarefas',
+  tarefa_nova: 'Rotina & Tarefas',
   foco: 'Sessões de Foco',
-  treino: 'Treino',
+  treino: 'Treino (1 por dia)',
+  constancia: 'Treino: vale treinar em dias diferentes',
+  meta: 'Roteiro de Metas',
+  marco: 'Roteiro de Metas',
+  card: 'Quadros',
+  lembrete_novo: 'Secretário',
   diario: 'Diário',
   revisao: 'Diário (revisão da semana)',
   financas: 'Finanças Pessoais',
+  orcamento: 'Finanças Pessoais',
   post: 'Feed',
   comentario: 'Feed',
+  curtida: 'Feed',
+  seguir: 'Feed',
+  perfil: 'Configurações → Seus gostos',
 };
 
 export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEditPhoto?: () => void }> = ({ data, initials, onEditPhoto }) => {
@@ -193,16 +204,17 @@ export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEdit
       <RewardSettings todayXp={data.todayXp} />
 
       <div>
-        <h4 className="text-sm font-semibold text-[#f0f6fc] mb-2">Como ganhar pontos</h4>
+        <h4 className="text-sm font-semibold text-[#f0f6fc]">Como ganhar pontos</h4>
+        <p className="text-xs text-[#8b949e] mb-2">Tudo no Ritmo vale ponto: o simples vale pouco, o que pede mais de você vale mais. No treino, ganha quem é constante: treinar em dias diferentes da semana rende mais do que treinar muito num dia só.</p>
         <div className="grid sm:grid-cols-2 gap-2">
           {XP_SOURCES.map((k) => (
             <div key={k} className="flex items-center justify-between gap-3 rounded-xl bg-[#0d1117] border border-[#21262d] px-3 py-2">
               <div className="min-w-0">
                 <div className="text-sm text-[#e6edf3] truncate">{XP_RULES[k].label}</div>
-                <div className="text-[11px] text-[#6e7681]">{SOURCE_HINT[k]} · até {XP_RULES[k].dailyCap}x por dia</div>
+                <div className="text-[11px] text-[#6e7681]">{SOURCE_HINT[k]} · {k === 'perfil' ? 'uma vez' : `até ${XP_RULES[k].dailyCap}x por dia`}</div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-sm font-bold text-emerald-400">+{XP_RULES[k].xp}</div>
+                <div className="text-sm font-bold text-emerald-400">+{XP_RULES[k].display || XP_RULES[k].xp}</div>
                 <div className="text-[11px] text-[#6e7681]">{data.breakdown[k]?.xp || 0} no total</div>
               </div>
             </div>

@@ -3,7 +3,7 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
-import { computeXp, levelInfo, XpResult, LevelInfo } from './levels.js';
+import { computeXp, levelInfo, XpResult, LevelInfo, XpSource } from './levels.js';
 import {
   checkDb,
   findUserById,
@@ -51,7 +51,7 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
   const tz = (user as any).timezone || 'America/Sao_Paulo';
   const toDay = (v: unknown) => (v ? dayIn(tz, v as any) : '');
 
-  const [{ logs }, tasks, sessions, journal, transactions, workouts] = await Promise.all([
+  const [{ habits: habitsList, logs }, tasks, sessions, journal, transactions, workouts] = await Promise.all([
     getHabits(userId),
     getTasks(userId),
     getFocusSessions(userId),
@@ -60,6 +60,8 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     listWorkouts(userId, 2000),
   ]);
 
+  const events: { src: XpSource; day: string }[] = [];
+  for (const h of habitsList) if ((h as any).createdAt) events.push({ src: 'habito_novo', day: toDay((h as any).createdAt) });
   let posts: { createdAt: string }[] = [];
   let comments: { createdAt: string }[] = [];
   let chests: UserXp['chests'] = [];
@@ -71,6 +73,7 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
       chests = (await db.select({ day: schema.missionDays.day, reward: schema.missionDays.reward, xp: schema.missionDays.xp }).from(schema.missionDays).where(eq(schema.missionDays.userId, userId))).map((r) => ({ ...r }));
       const rem = await db.select({ createdAt: schema.reminders.createdAt }).from(schema.reminders).where(eq(schema.reminders.userId, userId)).limit(500);
       everUsedReminders = rem.some((r) => toDay(r.createdAt) < today);
+      for (const r of rem) events.push({ src: 'lembrete_novo', day: toDay(r.createdAt) });
       lembretesHoje = rem.filter((r) => toDay(r.createdAt) === today).length;
     } catch {
       // tabelas novas ainda sendo criadas: segue sem baú
@@ -83,18 +86,38 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     } catch {
       // Feed indisponível: conta só o resto
     }
+    // outras ações que valem ponto (cada consulta é independente: se uma tabela falhar, o resto conta)
+    const more: [XpSource, () => Promise<{ d: unknown }[]>][] = [
+      ['meta', () => db.select({ d: schema.focusCycles.createdAt }).from(schema.focusCycles).where(eq(schema.focusCycles.userId, userId))],
+      ['marco', () => db.select({ d: schema.cycleMilestones.doneAt }).from(schema.cycleMilestones).where(and(eq(schema.cycleMilestones.userId, userId), eq(schema.cycleMilestones.done, true)))],
+      ['card', () => db.select({ d: schema.boardCards.createdAt }).from(schema.boardCards).where(eq(schema.boardCards.userId, userId))],
+      ['orcamento', () => db.select({ d: schema.financeBudgets.createdAt }).from(schema.financeBudgets).where(eq(schema.financeBudgets.userId, userId))],
+      ['curtida', () => db.select({ d: schema.feedLikes.createdAt }).from(schema.feedLikes).where(eq(schema.feedLikes.userId, userId))],
+      ['seguir', () => db.select({ d: schema.follows.createdAt }).from(schema.follows).where(eq(schema.follows.followerId, userId))],
+      ['perfil', () => db.select({ d: schema.profileSurveys.completedAt }).from(schema.profileSurveys).where(eq(schema.profileSurveys.userId, userId))],
+    ];
+    await Promise.all(
+      more.map(async ([src, q]) => {
+        try {
+          for (const r of await q()) if (r.d) events.push({ src, day: toDay(r.d) });
+        } catch {
+          // tabela ainda sendo criada: segue sem estes pontos
+        }
+      })
+    );
   }
 
   const result = computeXp({
     habitLogs: logs.map((l) => ({ date: l.date, completed: l.completed })),
-    tasks: tasks.map((t) => ({ date: t.date, completed: t.completed, completedAt: t.completedAt ? toDay(t.completedAt) : null })),
-    sessions: sessions.map((s) => ({ date: s.date, status: s.status })),
+    tasks: tasks.map((t) => ({ date: t.date, completed: t.completed, completedAt: t.completedAt ? toDay(t.completedAt) : null, createdAt: t.createdAt ? toDay(t.createdAt) : null })),
+    sessions: sessions.map((s) => ({ date: s.date, status: s.status, durationMinutes: s.durationMinutes })),
     journal: journal.map((j) => ({ date: j.date, entryType: j.entryType })),
     transactions: transactions.map((t) => ({ date: t.date, createdAt: t.createdAt ? toDay(t.createdAt) : null })),
     workouts: workouts.map((w) => ({ date: toDay(w.startedAt) })),
     posts,
     comments,
     bonus: chests.map((c) => ({ day: c.day, xp: c.xp })),
+    events,
     since: (user as any).createdAt ? toDay((user as any).createdAt) : null,
     today,
     seed: userId,

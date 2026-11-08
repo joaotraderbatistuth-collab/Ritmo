@@ -470,7 +470,7 @@ export function runTests() {
   assert(computeXp({ ...emptyXp, since: '2026-11-01', habitLogs: [{ date: '2025-01-01', completed: true }, { date: '2026-12-01', completed: true }] }).total === 0, 'não conta antes da conta existir nem no futuro');
   const mixed = computeXp({ ...emptyXp, tasks: [{ date: '2026-11-01', completed: true, completedAt: '2026-11-05' }], sessions: [{ date: '2026-11-05', status: 'completed' }, { date: '2026-11-05', status: 'interrupted' }], journal: [{ date: '2026-11-05', entryType: 'daily_checkin' }, { date: '2026-11-05', entryType: 'daily_checkin' }, { date: '2026-11-02', entryType: 'weekly_review' }] });
   assert(mixed.breakdown.tarefa.xp === 5 && mixed.breakdown.foco.count === 1 && mixed.breakdown.diario.count === 1 && mixed.breakdown.revisao.xp === 30 && mixed.todayXp === 5 + 15 + 15, 'tarefa pelo dia de conclusão, foco só concluído, diário 1x por dia');
-  assert(XP_DAILY_MAX < 400, 'limite diário total equilibrado');
+  assert(XP_DAILY_MAX < 600, 'limite diário total equilibrado');
   assert(sanitizeAchievementT({ type: 'nivel', level: 4, name: 'Hacker' })?.type === 'nivel' && (sanitizeAchievementT({ type: 'nivel', level: 4, name: 'Hacker' }) as any).name === 'Constante', 'nome do nível vem da tabela, não do navegador');
   assert(sanitizeAchievementT({ type: 'nivel', level: 1 }) === null && sanitizeAchievementT({ type: 'nivel', level: 99 }) === null, 'nível inválido para compartilhar é recusado');
   assert(achievementHeadline({ type: 'nivel', level: 5, name: 'Focado' }) === 'Subiu para o nível 5: Focado', 'texto da conquista de nível');
@@ -548,7 +548,18 @@ export function runTests() {
   assert((sanitizeAchievementT({ type: 'treino', sport: 'corrida', distanceM: 1000, durationS: 600, route: 'x'.repeat(5000) }) as any)?.route === undefined, 'rota grande demais fica de fora');
   assert(sanitizeAchievementT({ type: 'treino', sport: 'voo', distanceM: 1000, durationS: 600 }) === null, 'modalidade inválida no Feed');
   const xpW = computeXp({ ...emptyXp, workouts: [{ date: '2026-11-05' }, { date: '2026-11-05' }, { date: '2026-11-05' }] });
-  assert(xpW.breakdown.treino.count === 2 && xpW.total === 40, 'treino vale 20 pontos, até 2 por dia');
+  assert(xpW.breakdown.treino.count === 1 && xpW.total === 20, 'treino vale 20 pontos por DIA (3 treinos no mesmo dia não somam mais)');
+  // constância: 4 dias diferentes na mesma semana (seg 02/11 a dom 08/11) valem mais que 4 treinos num dia
+  const wk = computeXp({ ...emptyXp, today: '2026-11-08', workouts: [{ date: '2026-11-02' }, { date: '2026-11-04' }, { date: '2026-11-06' }, { date: '2026-11-08' }] });
+  assert(wk.breakdown.treino.xp === 80 && wk.breakdown.constancia.xp === 5 + 10 + 15 && wk.total === 110, `constância no treino: ${wk.total}`);
+  const next = computeXp({ ...emptyXp, today: '2026-11-10', workouts: [{ date: '2026-11-08' }, { date: '2026-11-09' }] });
+  assert(next.breakdown.constancia.xp === 0, 'a semana nova recomeça a contagem (domingo e segunda são semanas diferentes)');
+  // foco vale pelo tempo
+  const fo = computeXp({ ...emptyXp, sessions: [{ date: '2026-11-05', status: 'completed', durationMinutes: 50 }, { date: '2026-11-05', status: 'completed', durationMinutes: 10 }] });
+  assert(fo.breakdown.foco.xp === 30 + 6, `foco pelo tempo: ${fo.breakdown.foco.xp}`);
+  // tudo vale ponto
+  const ev = computeXp({ ...emptyXp, tasks: [{ date: '2026-11-06', completed: false, createdAt: '2026-11-05' }], events: [{ src: 'card', day: '2026-11-05' }, { src: 'curtida', day: '2026-11-05' }, { src: 'meta', day: '2026-11-05' }, { src: 'marco', day: '2026-11-05' }, { src: 'perfil', day: '2026-11-05' }, { src: 'constancia', day: '2026-11-05' }] });
+  assert(ev.total === 2 + 3 + 1 + 40 + 25 + 30, `cada ação vale o seu peso (e constância não vem de fora): ${ev.total}`);
   console.log('✓ Todos os testes de treinos passaram com sucesso!');
 
   console.log('17. Testando o secretário (frases faladas)...');

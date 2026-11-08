@@ -75,7 +75,7 @@ export interface TaskItem {
   createdAt?: string;
 }
 
-export type HabitCategory = 'movimento' | 'estudo' | 'mente' | 'sono' | 'hidratacao' | 'desconexao' | 'personalizado';
+export type HabitCategory = 'movimento' | 'alimentacao' | 'estudo' | 'mente' | 'sono' | 'hidratacao' | 'desconexao' | 'personalizado';
 
 export interface HabitItem {
   id: number;

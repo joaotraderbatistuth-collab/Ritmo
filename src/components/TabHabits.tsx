@@ -15,6 +15,7 @@ import {
   Flame,
   Share2,
   Pencil,
+  Apple,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -33,6 +34,7 @@ const CATEGORY_META: Record<
   { label: string; icon: React.ReactNode; color: string }
 > = {
   movimento: { label: 'Movimento / Corpo', icon: <Activity className="w-4 h-4" />, color: 'text-emerald-400 bg-emerald-950/40 border-emerald-800/40' },
+  alimentacao: { label: 'Alimentação', icon: <Apple className="w-4 h-4" />, color: 'text-lime-400 bg-lime-950/40 border-lime-800/40' },
   estudo: { label: 'Estudo / Leitura', icon: <BookOpen className="w-4 h-4" />, color: 'text-purple-400 bg-purple-950/40 border-purple-800/40' },
   mente: { label: 'Mente / Respiração', icon: <Heart className="w-4 h-4" />, color: 'text-rose-400 bg-rose-950/40 border-rose-800/40' },
   sono: { label: 'Sono / Descanso', icon: <Moon className="w-4 h-4" />, color: 'text-indigo-400 bg-indigo-950/40 border-indigo-800/40' },
@@ -291,6 +293,7 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
                   className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-[#f0f6fc]"
                 >
                   <option value="movimento">Movimento ou Exercício</option>
+                  <option value="alimentacao">Alimentação (ex.: comer uma fruta, beber água, montar um prato colorido)</option>
                   <option value="estudo">Estudo e Leitura</option>
                   <option value="mente">Meditação, Oração ou Respiração</option>
                   <option value="sono">Sono e Horário de Descanso</option>
