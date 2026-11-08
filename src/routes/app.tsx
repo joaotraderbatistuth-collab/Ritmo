@@ -760,7 +760,7 @@ function RitmoApp() {
       />
 
       {/* Main Container */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-28 sm:pb-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-28 sm:pb-6 overflow-x-clip">
         {user && <InstallBanner />}
         {user && <PushAutoPrompt />}
         {/* Menu enxuto: Hoje, Feed, Treino, Progresso e Mais (no celular, embaixo) */}
@@ -939,7 +939,7 @@ function RitmoApp() {
           )}
 
           {activeTab === 'progresso' && user && (
-            <div className="mb-6 max-w-5xl mx-auto space-y-6">
+            <div className="mb-6 max-w-5xl mx-auto space-y-6 min-w-0">
               <LearnMore id="progresso_tab" variant="chip" />
               {xp.data?.event && (
                 <div>
@@ -951,7 +951,7 @@ function RitmoApp() {
                 <SeasonCard season={xp.data?.season} optedOut={Boolean(xp.data?.leagueOptOut)} onChanged={() => xp.refresh()} />
                 <LearnMore id="temporada" />
               </div>
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
                 {xp.data?.pass && (
                   <div>
                     <PassCard pass={xp.data.pass} />
@@ -965,7 +965,7 @@ function RitmoApp() {
                   </div>
                 )}
               </div>
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
                 {xp.data?.weekChest && (
                   <div>
                     <WeekChestCard chest={xp.data.weekChest} onChanged={() => xp.refresh()} />
@@ -983,7 +983,7 @@ function RitmoApp() {
                 <ChallengesCard refreshKey={xpSignature} onChanged={() => xp.refresh()} />
                 <LearnMore id="desafios" />
               </div>
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
                 {xp.data?.recap && (
                   <div>
                     <RecapCard recap={xp.data.recap} name={user.name} history={xp.data?.season?.history || []} medalsEarned={(xp.data?.medals || []).filter((m) => m.earned).length} />
@@ -1001,7 +1001,7 @@ function RitmoApp() {
                 <LevelCard data={xp.data} initials={userInitials} onEditPhoto={() => setActiveTab('configuracoes')} />
                 <LearnMore id="pontos" />
               </div>
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
                 {xp.data?.streak && (
                   <div>
                     <StreakCard data={xp.data} />

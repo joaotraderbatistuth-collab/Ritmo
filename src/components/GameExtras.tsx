@@ -109,30 +109,26 @@ export const PassCard: React.FC<{ pass: PassView | null | undefined }> = ({ pass
       <p className="mt-1 text-xs text-[#8b949e]">
         {pass.next ? <>Faltam <strong className="text-amber-200">{pass.next.missing} pontos</strong> para o degrau {pass.next.step}: {pass.next.reward}.</> : 'Passe completo! O selo do mês já está no seu perfil.'}
       </p>
-      <div className="mt-4 overflow-x-auto pb-2 -mx-1 px-1">
-        <ol className="flex items-center min-w-max">
-          {pass.tiers.map((t, i) => {
-            const current = !t.done && (i === 0 || pass.tiers[i - 1].done);
-            return (
-              <li key={t.step} className="flex items-center">
-                {i > 0 && <span className={`w-6 h-1 ${t.done ? 'bg-amber-400' : 'bg-[#30363d]'}`} aria-hidden="true" />}
-                <div className="flex flex-col items-center w-14">
-                  <span
-                    className={`relative w-11 h-11 rounded-2xl flex items-center justify-center text-xl border-2 ${t.done ? 'bg-amber-400/20 border-amber-400' : current ? 'border-amber-300/70 bg-[#0d1117] ritmo-glow-pulse' : 'border-[#30363d] bg-[#0d1117] grayscale opacity-60'}`}
-                    title={`${t.points} pontos: ${t.reward}`}
-                  >
-                    {t.emoji}
-                    {t.done && <Check className="absolute -bottom-1 -right-1 w-4 h-4 p-0.5 rounded-full bg-amber-400 text-[#0d1117]" strokeWidth={3} />}
-                    {!t.done && !current && <Lock className="absolute -bottom-1 -right-1 w-4 h-4 p-0.5 rounded-full bg-[#21262d] text-[#8b949e]" />}
-                  </span>
-                  <span className="mt-1 text-[10px] font-bold text-[#c9d1d9] tabular-nums">{t.points}</span>
-                  <span className="text-[9px] text-amber-200/80">+{t.bonus}</span>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      </div>
+      {/* 10 degraus em 2 linhas de 5: cabe na tela do celular sem arrastar para o lado */}
+      <ol className="mt-4 grid grid-cols-5 gap-x-1 gap-y-3">
+        {pass.tiers.map((t, i) => {
+          const current = !t.done && (i === 0 || pass.tiers[i - 1].done);
+          return (
+            <li key={t.step} className="flex flex-col items-center min-w-0">
+              <span
+                className={`relative w-10 h-10 rounded-2xl flex items-center justify-center text-lg border-2 ${t.done ? 'bg-amber-400/20 border-amber-400' : current ? 'border-amber-300/70 bg-[#0d1117] ritmo-glow-pulse' : 'border-[#30363d] bg-[#0d1117] grayscale opacity-60'}`}
+                title={`${t.points} pontos: ${t.reward}`}
+              >
+                {t.emoji}
+                {t.done && <Check className="absolute -bottom-1 -right-1 w-4 h-4 p-0.5 rounded-full bg-amber-400 text-[#0d1117]" strokeWidth={3} />}
+                {!t.done && !current && <Lock className="absolute -bottom-1 -right-1 w-4 h-4 p-0.5 rounded-full bg-[#21262d] text-[#8b949e]" />}
+              </span>
+              <span className="mt-1 text-[10px] font-bold text-[#c9d1d9] tabular-nums">{t.points}</span>
+              <span className="text-[9px] text-amber-200/80">+{t.bonus}</span>
+            </li>
+          );
+        })}
+      </ol>
       {pass.next && (
         <div className="mt-2 h-2 rounded-full bg-[#21262d] overflow-hidden">
           <div className="h-full bg-gradient-to-r from-amber-400 to-orange-400 transition-all duration-700" style={{ width: `${Math.round(pass.progress * 100)}%` }} />

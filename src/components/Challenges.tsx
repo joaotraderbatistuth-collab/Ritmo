@@ -80,7 +80,7 @@ export const ChallengesCard: React.FC<{ refreshKey?: string; compact?: boolean; 
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-base font-bold text-[#f0f6fc] flex items-center gap-2"><Swords className="w-5 h-5 text-orange-300" /> Desafios com amigos</h3>
         {!compact && (
-          <button type="button" onClick={() => setCreating(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-400 text-[#0d1117] text-xs font-bold"><Plus className="w-3.5 h-3.5" /> Novo desafio</button>
+          <button type="button" onClick={() => setCreating(true)} className="shrink-0 whitespace-nowrap inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-400 text-[#0d1117] text-xs font-bold"><Plus className="w-3.5 h-3.5" /> Novo desafio</button>
         )}
       </div>
       {!visible.length && (

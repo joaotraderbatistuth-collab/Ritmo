@@ -187,6 +187,8 @@ const SOURCE_HINT: Record<XpSource, string> = {
 };
 
 export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEditPhoto?: () => void }> = ({ data, initials, onEditPhoto }) => {
+  const [howOpen, setHowOpen] = useState(false);
+  const [levelsOpen, setLevelsOpen] = useState(false);
   if (!data) {
     return <div className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5 text-sm text-[#8b949e]">Calculando seus Pontos de Ritmo...</div>;
   }
@@ -219,9 +221,13 @@ export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEdit
       <RewardSettings todayXp={data.todayXp} />
 
       <div>
-        <h4 className="text-sm font-semibold text-[#f0f6fc]">Como ganhar pontos</h4>
-        <p className="text-xs text-[#8b949e] mb-2">Tudo no Ritmo vale ponto: o simples vale pouco, o que pede mais de você vale mais. No treino, ganha quem é constante: treinar em dias diferentes da semana rende mais do que treinar muito num dia só.</p>
-        <div className="grid sm:grid-cols-2 gap-2">
+        <button type="button" onClick={() => setHowOpen((v) => !v)} aria-expanded={howOpen} className="w-full flex items-center justify-between gap-2 rounded-xl border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-left">
+          <span className="text-sm font-semibold text-[#f0f6fc]">Como ganhar pontos</span>
+          <span className="text-xs font-semibold text-emerald-400">{howOpen ? 'Fechar' : `Ver a tabela (${XP_SOURCES.length})`}</span>
+        </button>
+        {howOpen && <>
+        <p className="mt-2 text-xs text-[#8b949e] mb-2">Tudo no Ritmo vale ponto: o simples vale pouco, o que pede mais de você vale mais. No treino, ganha quem é constante: treinar em dias diferentes da semana rende mais do que treinar muito num dia só.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {XP_SOURCES.map((k) => (
             <div key={k} className="flex items-center justify-between gap-3 rounded-xl bg-[#0d1117] border border-[#21262d] px-3 py-2">
               <div className="min-w-0">
@@ -237,11 +243,16 @@ export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEdit
         </div>
         {(data.bonusXp || 0) > 0 && <p className="mt-2 text-xs text-amber-300">+{data.bonusXp} pontos vieram dos baús das missões do dia.</p>}
         <p className="mt-2 text-[11px] text-[#6e7681]">Cada atividade tem um limite por dia: manter o ritmo vários dias vale mais do que exagerar num dia só.</p>
+        </>}
       </div>
 
       <div>
-        <h4 className="text-sm font-semibold text-[#f0f6fc] mb-2">Caminho dos níveis</h4>
-        <ol className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+        <button type="button" onClick={() => setLevelsOpen((v) => !v)} aria-expanded={levelsOpen} className="w-full flex items-center justify-between gap-2 rounded-xl border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-left">
+          <span className="text-sm font-semibold text-[#f0f6fc]">Caminho dos níveis</span>
+          <span className="text-xs font-semibold text-emerald-400">{levelsOpen ? 'Fechar' : `Ver os ${LEVELS.length} níveis`}</span>
+        </button>
+        {levelsOpen && (
+        <ol className="mt-3 grid grid-cols-4 sm:grid-cols-6 gap-2">
           {LEVELS.map((l) => {
             const reached = info.level >= l.level;
             const current = info.level === l.level;
@@ -259,6 +270,7 @@ export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEdit
             );
           })}
         </ol>
+        )}
       </div>
     </section>
   );

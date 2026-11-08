@@ -155,11 +155,12 @@ export const SeasonCard: React.FC<{ season: SeasonView | null | undefined; opted
 
       {/* Escada das divisões + como funciona */}
       <div className="border-t border-[#30363d] px-5 py-4">
-        <div className="flex items-center gap-1 overflow-x-auto pb-1" aria-label="Divisões">
+        {/* as 8 divisões lado a lado, sem rolar para o lado */}
+        <div className="grid grid-cols-8 gap-0.5" aria-label="Divisões">
           {DIVISIONS.map((d) => (
-            <div key={d.tier} className={`shrink-0 flex flex-col items-center px-2 py-1.5 rounded-xl ${d.tier === s.tier ? 'bg-[#21262d] ring-1' : 'opacity-60'}`} style={d.tier === s.tier ? { ['--tw-ring-color' as any]: d.color } : undefined} title={d.name}>
-              <span className="text-xl" aria-hidden="true">{d.emoji}</span>
-              <span className="text-[9px] font-bold" style={{ color: d.color }}>{d.name}</span>
+            <div key={d.tier} className={`min-w-0 flex flex-col items-center py-1.5 rounded-xl ${d.tier === s.tier ? 'bg-[#21262d] ring-1' : 'opacity-60'}`} style={d.tier === s.tier ? { ['--tw-ring-color' as any]: d.color } : undefined} title={d.name}>
+              <span className="text-lg sm:text-xl" aria-hidden="true">{d.emoji}</span>
+              <span className="w-full truncate text-center text-[8px] sm:text-[9px] font-bold" style={{ color: d.color }}>{d.name}</span>
               {d.tier === s.tier && <span className="text-[8px] text-[#8b949e]">você</span>}
             </div>
           ))}
