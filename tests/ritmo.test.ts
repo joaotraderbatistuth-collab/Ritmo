@@ -21,6 +21,7 @@ import { detectStop, detectResume, personalRecords, newRecords, recordValueLabel
 import { pickMissions, missionProgress, chestReward, computeStreak, nextMilestone, weekSummary, nextTier, rankInGroup, mondayOf, MISSION_POOL } from '../src/lib/missions.js';
 import { computeNotices } from '../src/lib/notices.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
+import { SURVEY_QUESTIONS, normalizeAnswers, answeredCount, shouldAskSurvey, summarizeSurveys, surveyCsvCells, surveyCsvHeader, optionLabel } from '../src/lib/survey.js';
 
 /**
  * Ritmo Core Logic Test Suite
@@ -780,6 +781,34 @@ export function runTests() {
     assert(a1.kind === 'appointment' && a1.title === 'Reunião' && a1.date === '2026-11-06' && a1.time === '10:00', `agenda: ${JSON.stringify(a1)}`);
   }
   console.log('✓ Todos os testes do secretário completo passaram com sucesso!');
+
+  // ---- Pesquisa de gostos (cadastro)
+  {
+    assert(SURVEY_QUESTIONS.length === 10, 'pesquisa tem 10 perguntas');
+    const ids = SURVEY_QUESTIONS.map((q) => q.id);
+    assert(new Set(ids).size === ids.length, 'ids das perguntas não se repetem');
+    for (const q of SURVEY_QUESTIONS) assert(new Set(q.options.map((o) => o.id)).size === q.options.length, `opções sem repetição em ${q.id}`);
+    assert(SURVEY_QUESTIONS.find((q) => q.id === 'renda')!.options.some((o) => o.id === 'nd'), 'renda tem "prefiro não dizer"');
+    const n = normalizeAnswers({ idade: '25-34', renda: 'xx', esportes: ['corrida', 'corrida', 'nenhum', 'bike'], musica: ['pop', 'rock', 'mpb', 'funk', 'rap'], hack: 'x', estado: ['RJ'] });
+    assert(n.idade === '25-34' && !('renda' in n) && !('hack' in n), `filtra respostas inválidas: ${JSON.stringify(n)}`);
+    assert(JSON.stringify(n.esportes) === '["corrida","bike"]', 'sem repetição e "nenhuma" sai quando há outras');
+    assert((n.musica as string[]).length === 4, 'respeita o máximo da pergunta');
+    assert(n.estado === 'RJ', 'resposta única aceita lista de um item');
+    assert(answeredCount(n) === 4, 'conta perguntas respondidas');
+    assert(answeredCount(normalizeAnswers('{"idade":"55+"}')) === 1 && answeredCount(normalizeAnswers('lixo')) === 0, 'lê JSON salvo e ignora texto quebrado');
+    const now = new Date('2026-11-10T12:00:00Z');
+    assert(shouldAskSurvey(null, now), 'nunca viu: pergunta');
+    assert(!shouldAskSurvey({ completedAt: '2026-11-01', dismissedAt: null, dismissCount: 0 }, now), 'respondida: não pergunta');
+    assert(!shouldAskSurvey({ completedAt: null, dismissedAt: '2026-11-09T12:00:00Z', dismissCount: 1 }, now), '"agora não" ontem: espera');
+    assert(shouldAskSurvey({ completedAt: null, dismissedAt: '2026-11-05T12:00:00Z', dismissCount: 1 }, now), 'depois de 3 dias pergunta de novo');
+    assert(!shouldAskSurvey({ completedAt: null, dismissedAt: '2026-10-01T12:00:00Z', dismissCount: 2 }, now), 'no máximo 2 "agora não"');
+    const sum = summarizeSurveys([{ esportes: ['corrida', 'bike'] }, { esportes: ['corrida'] }, {}]);
+    const esp = sum.questions.find((q) => q.questionId === 'esportes')!;
+    assert(sum.respondents === 2 && esp.answered === 2 && esp.options[0].id === 'corrida' && esp.options[0].percent === 100 && esp.options[1].percent === 50, `resumo do público: ${JSON.stringify(esp)}`);
+    assert(surveyCsvHeader().length === 10 && surveyCsvCells({ esportes: ['corrida', 'bike'] })[5] === 'Corrida | Bike', 'planilha com uma coluna por pergunta');
+    assert(optionLabel('renda', 'r3') === 'R$ 4 mil a R$ 7 mil', 'rótulo em português');
+  }
+  console.log('✓ Pesquisa de gostos ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

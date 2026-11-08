@@ -575,3 +575,16 @@ export const follows = pgTable("follows", {
   followeeId: integer("followee_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Pesquisa de perfil (gostos e momento de vida): uma por pessoa. Respostas em JSON com códigos fixos
+// (ver src/lib/survey.ts), prontas para análise e, no futuro, recomendação de conteúdos.
+export const profileSurveys = pgTable("profile_surveys", {
+  userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  answers: text("answers").notNull().default("{}"),
+  version: integer("version").notNull().default(1),
+  completedAt: timestamp("completed_at"),
+  dismissedAt: timestamp("dismissed_at"),
+  dismissCount: integer("dismiss_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

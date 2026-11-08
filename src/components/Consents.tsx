@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
-import { ShieldCheck, MapPin, Mic, FileText, Download, HeartPulse } from 'lucide-react';
+import { ShieldCheck, MapPin, Mic, FileText, Download, HeartPulse, Sparkles } from 'lucide-react';
 import { callApi } from '../lib/client-api.js';
 import { CONSENT_TEXT, ConsentKind, LEGAL_VERSION } from '../lib/consent-rules.js';
 
@@ -163,6 +163,7 @@ export const PrivacyCard: React.FC = () => {
         {row('gps', MapPin, true)}
         {row('voz', Mic, true)}
         {row('saude', HeartPulse, false)}
+        {row('perfil', Sparkles, false)}
         {row('termos', FileText, false)}
       </ul>
       <div className="mt-3 flex flex-wrap gap-2">

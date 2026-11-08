@@ -22,6 +22,7 @@ import { Route as ApiXpRouteImport } from './routes/api.xp'
 import { Route as ApiWorkoutsRouteImport } from './routes/api.workouts'
 import { Route as ApiTeamsRouteImport } from './routes/api.teams'
 import { Route as ApiTasksRouteImport } from './routes/api.tasks'
+import { Route as ApiSurveyRouteImport } from './routes/api.survey'
 import { Route as ApiPushRouteImport } from './routes/api.push'
 import { Route as ApiProfileRouteImport } from './routes/api.profile'
 import { Route as ApiMilestonesRouteImport } from './routes/api.milestones'
@@ -112,6 +113,11 @@ const ApiTeamsRoute = ApiTeamsRouteImport.update({
 const ApiTasksRoute = ApiTasksRouteImport.update({
   id: '/api/tasks',
   path: '/api/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSurveyRoute = ApiSurveyRouteImport.update({
+  id: '/api/survey',
+  path: '/api/survey',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPushRoute = ApiPushRouteImport.update({
@@ -278,6 +284,7 @@ export interface FileRoutesByFullPath {
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
+  '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
   '/api/workouts': typeof ApiWorkoutsRoute
@@ -319,6 +326,7 @@ export interface FileRoutesByTo {
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
+  '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
   '/api/workouts': typeof ApiWorkoutsRoute
@@ -361,6 +369,7 @@ export interface FileRoutesById {
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
+  '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
   '/api/workouts': typeof ApiWorkoutsRoute
@@ -404,6 +413,7 @@ export interface FileRouteTypes {
     | '/api/milestones'
     | '/api/profile'
     | '/api/push'
+    | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
     | '/api/workouts'
@@ -445,6 +455,7 @@ export interface FileRouteTypes {
     | '/api/milestones'
     | '/api/profile'
     | '/api/push'
+    | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
     | '/api/workouts'
@@ -486,6 +497,7 @@ export interface FileRouteTypes {
     | '/api/milestones'
     | '/api/profile'
     | '/api/push'
+    | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
     | '/api/workouts'
@@ -528,6 +540,7 @@ export interface RootRouteChildren {
   ApiMilestonesRoute: typeof ApiMilestonesRoute
   ApiProfileRoute: typeof ApiProfileRoute
   ApiPushRoute: typeof ApiPushRoute
+  ApiSurveyRoute: typeof ApiSurveyRoute
   ApiTasksRoute: typeof ApiTasksRoute
   ApiTeamsRoute: typeof ApiTeamsRoute
   ApiWorkoutsRoute: typeof ApiWorkoutsRoute
@@ -629,6 +642,13 @@ declare module '@tanstack/react-router' {
       path: '/api/tasks'
       fullPath: '/api/tasks'
       preLoaderRoute: typeof ApiTasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/survey': {
+      id: '/api/survey'
+      path: '/api/survey'
+      fullPath: '/api/survey'
+      preLoaderRoute: typeof ApiSurveyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/push': {
@@ -848,6 +868,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMilestonesRoute: ApiMilestonesRoute,
   ApiProfileRoute: ApiProfileRoute,
   ApiPushRoute: ApiPushRoute,
+  ApiSurveyRoute: ApiSurveyRoute,
   ApiTasksRoute: ApiTasksRoute,
   ApiTeamsRoute: ApiTeamsRoute,
   ApiWorkoutsRoute: ApiWorkoutsRoute,

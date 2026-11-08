@@ -34,6 +34,9 @@ import {
   cancelAdminInvite,
 } from '../lib/server-db.js';
 import { parseMediaUrl } from '../lib/media-url.js';
+import { rowsToCsv } from '../lib/server-db.js';
+import { getSurvey, listAllSurveys } from '../lib/survey-db.js';
+import { SURVEY_QUESTIONS, answerLabels, summarizeSurveys, surveyCsvCells, surveyCsvHeader } from '../lib/survey.js';
 
 const masterConfigured = () => process.env.MASTER_ADMIN_EMAIL || null;
 const fail = (error: string, status: number) => Response.json({ error }, { status });
@@ -61,13 +64,62 @@ export const Route = createFileRoute('/api/admin')({
         if ('error' in auth) return auth.error;
         const { user, permissions, isMaster } = auth;
 
+        const params = new URL(request.url).searchParams;
+        const canSeeUsers = can(permissions, 'users_view') || can(permissions, 'users_manage');
+
+        // Pesquisa de perfil de um usuário (ao clicar no nome na aba Usuários)
+        const surveyUser = params.get('survey_user');
+        if (surveyUser) {
+          if (!canSeeUsers) return fail('Você não tem permissão para ver usuários.', 403);
+          const target = await findUserById(Number(surveyUser));
+          if (!target) return fail('Usuário não encontrado.', 404);
+          const survey = await getSurvey(target.id);
+          // ver renda e gostos de alguém fica registrado na auditoria
+          if (survey?.completedAt) await logAdminAction(user, 'ver_pesquisa_usuario', { type: 'usuario', id: target.id });
+          const answers = survey?.answers || {};
+          return Response.json({
+            success: true,
+            survey: survey ? { completedAt: survey.completedAt, updatedAt: survey.updatedAt, dismissCount: survey.dismissCount } : null,
+            items: SURVEY_QUESTIONS.map((q) => ({ id: q.id, title: q.title, type: q.type, values: answerLabels(q.id, answers[q.id]) })),
+          });
+        }
+
+        // Resumo do público (todas as respostas somadas)
+        if (params.get('survey_summary')) {
+          if (!canSeeUsers) return fail('Você não tem permissão para ver usuários.', 403);
+          const all = await listAllSurveys();
+          return Response.json({ success: true, ...summarizeSurveys(all.map((s) => s.answers)) });
+        }
+
         // Planilhas (CSV)
-        const exportKind = new URL(request.url).searchParams.get('export');
+        const exportKind = params.get('export');
         if (exportKind) {
           const needed = EXPORT_PERMISSION[exportKind];
           if (!needed) return fail('Planilha desconhecida.', 400);
           if (!can(permissions, 'exports') || !can(permissions, needed)) {
             return fail('Você não tem permissão para baixar esta planilha.', 403);
+          }
+          if (exportKind === 'survey') {
+            const [all, dash]: [Awaited<ReturnType<typeof listAllSurveys>>, any] = await Promise.all([listAllSurveys(), getAdminDashboardData(masterConfigured())]);
+            const byId = new Map<number, any>((dash.users || []).map((u: any) => [u.id, u]));
+            const rows: unknown[][] = [
+              ['ID', 'Nome', 'E-mail', 'Status', 'Cadastro', 'Respondida em', ...surveyCsvHeader()],
+              ...all
+                .filter((s) => s.completedAt)
+                .map((s) => {
+                  const u = byId.get(s.userId) || {};
+                  return [s.userId, u.name || '', u.email || '', u.subscriptionStatus || '', u.createdAt || '', s.completedAt || '', ...surveyCsvCells(s.answers)];
+                }),
+            ];
+            await logAdminAction(user, 'exportar_planilha', { type: 'planilha', id: exportKind });
+            return new Response(rowsToCsv(rows), {
+              status: 200,
+              headers: {
+                'Content-Type': 'text/csv; charset=utf-8',
+                'Content-Disposition': `attachment; filename="ritmo-pesquisa-${new Date().toISOString().slice(0, 10)}.csv"`,
+                'Cache-Control': 'no-store',
+              },
+            });
           }
           const file = await buildAdminExport(exportKind, masterConfigured());
           if (!file) return fail('Planilha desconhecida.', 400);
@@ -83,6 +135,10 @@ export const Route = createFileRoute('/api/admin')({
         }
 
         const data: any = await getAdminDashboardData(masterConfigured());
+        if (canSeeUsers) {
+          const answered = new Set((await listAllSurveys().catch(() => [])).filter((s) => s.completedAt).map((s) => s.userId));
+          data.users = (data.users || []).map((u: any) => ({ ...u, surveyDone: answered.has(u.id) }));
+        }
         if (can(permissions, 'moderation')) data.moderation = await getModerationData().catch(() => null);
         return Response.json({
           success: true,

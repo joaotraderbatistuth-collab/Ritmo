@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Flame, Users, CreditCard, Ticket, Wallet, LayoutDashboard, Search, X, AlertCircle, CheckCircle2,
   ShieldCheck, Download, History, Network, UserCog, Gift, Power, RotateCcw, Pencil, Flag,
-  Copy, Paperclip, FileText, Mail, BarChart3, Bug, BellRing,
+  Copy, Paperclip, FileText, Mail, BarChart3, Bug, BellRing, Sparkles,
 } from 'lucide-react';
 import { NumbersTab, ErrorsTab } from '../components/admin/AdminNumbers.js';
 import { NotifyTab } from '../components/admin/AdminNotify.js';
+import { UserDetailModal, SurveySummaryModal } from '../components/admin/AdminSurvey.js';
 import { uploadFile } from '../lib/upload.js';
 import { PERMISSIONS, PERMISSION_TEMPLATES } from '../lib/admin-permissions.js';
 import { payoutCycle, payoutDatesText, shortDateBR } from '../lib/payout-schedule.js';
@@ -345,6 +346,8 @@ function UsersTab({ users, act, canManage, isMaster, me }: { users: any[]; act: 
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<any>(null);
   const [granting, setGranting] = useState<any>(null);
+  const [viewing, setViewing] = useState<any>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const SIZE = 50;
 
   const filtered = useMemo(
@@ -374,7 +377,9 @@ function UsersTab({ users, act, canManage, isMaster, me }: { users: any[]; act: 
           <option value="admin">Administradores</option>
         </select>
         <span className="text-xs text-slate-500 self-center">{filtered.length} usuário(s)</span>
+        <button className={`${btnGhost} ml-auto inline-flex items-center gap-1.5`} onClick={() => setSummaryOpen(true)}><Sparkles className="w-4 h-4 text-emerald-400" /> Perfil do público</button>
       </div>
+      <p className="text-[11px] text-slate-500 -mt-2 mb-3">Toque no nome de um usuário para ver a ficha completa, com gostos, renda e interesses da pesquisa.</p>
 
       <Table>
         <Thead cols={['Usuário', 'Situação', 'Acesso', 'Indicado por', 'Cadastro', 'Uso', ...(canManage ? ['Ações'] : [])]} />
@@ -386,7 +391,10 @@ function UsersTab({ users, act, canManage, isMaster, me }: { users: any[]; act: 
             return (
               <tr key={u.id} className="border-t border-[#30363d]">
                 <td className={td}>
-                  <div className="font-semibold">{u.name} {u.isMaster ? <span className="text-[10px] text-amber-300">MASTER</span> : u.role === 'admin' ? <span className="text-[10px] text-amber-300">ADMIN</span> : null}</div>
+                  <button type="button" onClick={() => setViewing(u)} className="font-semibold text-left hover:text-emerald-300 hover:underline">
+                    {u.name} {u.isMaster ? <span className="text-[10px] text-amber-300">MASTER</span> : u.role === 'admin' ? <span className="text-[10px] text-amber-300">ADMIN</span> : null}
+                    {u.surveyDone && <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-emerald-300 align-middle" title="Respondeu a pesquisa de gostos"><Sparkles className="w-3 h-3" />pesquisa</span>}
+                  </button>
                   <div className="text-[11px] text-slate-500">{u.email}</div>
                   {u.whatsappPhone && <div className="text-[11px] text-slate-500">WhatsApp {u.whatsappPhone}</div>}
                 </td>
@@ -436,6 +444,8 @@ function UsersTab({ users, act, canManage, isMaster, me }: { users: any[]; act: 
 
       {editing && <EditUserModal user={editing} act={act} onClose={() => setEditing(null)} />}
       {granting && <GrantModal user={granting} act={act} onClose={() => setGranting(null)} />}
+      {viewing && <UserDetailModal user={viewing} onClose={() => setViewing(null)} />}
+      {summaryOpen && <SurveySummaryModal totalUsers={users.length} onClose={() => setSummaryOpen(false)} />}
     </div>
   );
 }
@@ -1085,6 +1095,7 @@ function ModerationTab({ data, act }: { data: any; act: Act }) {
 
 const EXPORTS: { kind: string; label: string; description: string; needs: string }[] = [
   { kind: 'users', label: 'Usuários', description: 'Todos os cadastros, situação, acesso, indicação e uso.', needs: 'users_view' },
+  { kind: 'survey', label: 'Pesquisa de gostos', description: 'Respostas da pesquisa do cadastro: idade, estado, renda, esportes, música e interesses.', needs: 'users_view' },
   { kind: 'signups', label: 'Cadastros por dia', description: 'Novos cadastros dos últimos 30 dias.', needs: 'overview' },
   { kind: 'payments', label: 'Vendas e pagamentos', description: 'Todos os pedidos com valor, cupom, status e se foi simulado.', needs: 'finance' },
   { kind: 'commissions', label: 'Comissões', description: 'Cada comissão gerada: nível, percentual, valor e status.', needs: 'finance' },

@@ -291,6 +291,18 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   // notificações ligadas por padrão: true só quando a pessoa desliga de propósito
   `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "push_opt_out" boolean NOT NULL DEFAULT false`,
 
+  // ---- pesquisa de perfil (gostos, renda, esportes, música...) feita depois do cadastro
+  `CREATE TABLE IF NOT EXISTS "profile_surveys" (
+    "user_id" integer PRIMARY KEY REFERENCES "users"("id") ON DELETE CASCADE,
+    "answers" text DEFAULT '{}' NOT NULL,
+    "version" integer DEFAULT 1 NOT NULL,
+    "completed_at" timestamp,
+    "dismissed_at" timestamp,
+    "dismiss_count" integer DEFAULT 0 NOT NULL,
+    "created_at" timestamp DEFAULT now() NOT NULL,
+    "updated_at" timestamp DEFAULT now() NOT NULL
+  )`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

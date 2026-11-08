@@ -31,7 +31,8 @@ function PrivacidadePage() {
               <li><strong>Bem-estar (dados que podem ser sensíveis):</strong> hábitos, treinos, diário e humor. Tratados com o seu consentimento específico, só para o app funcionar para você (progresso, lembretes, pontos).</li>
               <li><strong>Localização (GPS):</strong> lida somente durante um treino que você iniciar, depois de você permitir. Guardamos a rota do treino na sua conta.</li>
               <li><strong>Voz:</strong> ao tocar no microfone, o seu navegador (Google, no Chrome; Apple, no Safari) transforma a fala em texto. O Ritmo recebe só o texto e não grava áudio.</li>
-              <li><strong>Perfil e comunidade:</strong> foto, bio, nível, pontos, publicações, comentários e curtidas no Feed e nos Ritus.</li>
+              <li><strong>Pesquisa de gostos (opcional):</strong> faixa de idade, como você se identifica, estado, ocupação, faixa de renda, atividades físicas, estilos de música, objetivos, interesses e melhor horário. Com o seu consentimento, para entender o público e personalizar conteúdos (inclusive com análises estatísticas e modelos de recomendação feitos pelo próprio Ritmo). Nunca aparecem para outras pessoas nem são vendidas; você pode mudar ou apagar em Configurações.</li>
+                            <li><strong>Perfil e comunidade:</strong> foto, bio, nível, pontos, publicações, comentários e curtidas no Feed e nos Ritus.</li>
               <li><strong>Pagamentos e afiliados:</strong> histórico de assinaturas e pagamentos (processados pelo Mercado Pago; não guardamos número de cartão), indicações, comissões e chave Pix para saques.</li>
               <li><strong>Notificações:</strong> o endereço técnico do aparelho que você autorizar a receber lembretes.</li>
               <li><strong>Técnicos:</strong> registros de erros e de acesso necessários para segurança e para corrigir falhas.</li>
@@ -40,7 +41,7 @@ function PrivacidadePage() {
 
           <section>
             <H>3. Bases legais</H>
-            <p>Execução do contrato (para prestar o serviço que você contratou), consentimento (dados de bem-estar, localização, voz e notificações), cumprimento de obrigação legal (registros fiscais e de pagamento) e legítimo interesse (segurança, prevenção de fraudes e melhoria do serviço, sempre respeitando seus direitos).</p>
+            <p>Execução do contrato (para prestar o serviço que você contratou), consentimento (dados de bem-estar, localização, voz, notificações e pesquisa de gostos), cumprimento de obrigação legal (registros fiscais e de pagamento) e legítimo interesse (segurança, prevenção de fraudes e melhoria do serviço, sempre respeitando seus direitos).</p>
           </section>
 
           <section>

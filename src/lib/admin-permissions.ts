@@ -121,6 +121,7 @@ export const ACTION_PERMISSION: Record<string, AdminPermission> = {
 /** Exportação → permissão exigida. */
 export const EXPORT_PERMISSION: Record<string, AdminPermission> = {
   users: 'users_view',
+  survey: 'users_view',
   signups: 'overview',
   payments: 'finance',
   commissions: 'finance',

@@ -3,9 +3,9 @@
 /** Mude esta data sempre que os Termos ou a Política de Privacidade mudarem: todos aceitam de novo. */
 export const LEGAL_VERSION = '2026-11-05';
 
-export type ConsentKind = 'termos' | 'saude' | 'gps' | 'voz';
+export type ConsentKind = 'termos' | 'saude' | 'gps' | 'voz' | 'perfil';
 
-export const CONSENT_KINDS: ConsentKind[] = ['termos', 'saude', 'gps', 'voz'];
+export const CONSENT_KINDS: ConsentKind[] = ['termos', 'saude', 'gps', 'voz', 'perfil'];
 
 export const CONSENT_TEXT: Record<ConsentKind, { title: string; body: string }> = {
   termos: {
@@ -23,6 +23,10 @@ export const CONSENT_TEXT: Record<ConsentKind, { title: string; body: string }> 
   voz: {
     title: 'Comando de voz',
     body: 'Quando você toca no microfone, o seu navegador (Google no Chrome, Apple no Safari) transforma a fala em texto. O Ritmo recebe só o texto, para entender o pedido, e não grava o áudio.',
+  },
+  perfil: {
+    title: 'Pesquisa de gostos',
+    body: 'Respostas opcionais (faixa de idade, estado, ocupação, faixa de renda, esportes, música e interesses) usadas para entender o público e personalizar conteúdos no Ritmo. Nunca aparecem para outras pessoas e não são vendidas. Você pode mudar ou apagar quando quiser.',
   },
 };
 

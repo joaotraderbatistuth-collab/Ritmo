@@ -68,6 +68,8 @@ import { Assistant } from '../components/Assistant.js';
 import { InstallBanner } from '../components/InstallPwaButton.js';
 import { PushAutoPrompt } from '../components/PushAutoPrompt.js';
 import { LegalUpdateModal, PrivacyCard } from '../components/Consents.js';
+import { callApi } from '../lib/client-api.js';
+import { ProfileSurveyModal, ProfileSurveyCard } from '../components/ProfileSurvey.js';
 import { initials as initialsOf } from '../lib/feed-rules.js';
 
 export const Route = createFileRoute('/app')({
@@ -81,6 +83,8 @@ function RitmoApp() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  // Pesquisa de perfil: 'checking' até o servidor responder; a apresentação só abre depois ('done').
+  const [surveyStage, setSurveyStage] = useState<'checking' | 'open' | 'done'>('checking');
   const [teamInvite, setTeamInvite] = useState<string | null>(null);
   const [feedPrefill, setFeedPrefill] = useState<Achievement | null>(null);
 
@@ -286,8 +290,22 @@ function RitmoApp() {
     }
   };
 
+  // Primeiro de tudo: a pesquisa rápida de gostos (só para quem ainda não respondeu; tudo opcional).
   useEffect(() => {
     if (!user) return;
+    let alive = true;
+    setSurveyStage('checking');
+    callApi<{ ask?: boolean }>('/api/survey').then((r) => {
+      if (!alive) return;
+      setSurveyStage(r.ok && r.data.ask ? 'open' : 'done');
+    });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user || surveyStage !== 'done') return;
     try {
       if (!localStorage.getItem(`ritmo_tour_v1_${user.id}`)) {
         const t = setTimeout(() => setIsTourOpen(true), 600);
@@ -300,7 +318,7 @@ function RitmoApp() {
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, surveyStage]);
 
   useEffect(() => {
     if (!user) return;
@@ -799,6 +817,8 @@ function RitmoApp() {
             />
           )}
 
+          {activeTab === 'configuracoes' && user && <ProfileSurveyCard />}
+
           {activeTab === 'configuracoes' && user && <PrivacyCard />}
 
           {activeTab === 'configuracoes' && (
@@ -863,6 +883,8 @@ function RitmoApp() {
         }}
         initialReferralCode={refParam}
       />
+
+      <ProfileSurveyModal isOpen={Boolean(user) && surveyStage === 'open'} onClose={() => setSurveyStage('done')} />
 
       <WelcomeTour
         isOpen={isTourOpen}
