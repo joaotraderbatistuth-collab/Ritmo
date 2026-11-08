@@ -79,6 +79,7 @@ export function challengeNudge(kind: ChallengeKind, target: number, me: { value:
   }
   const left = target - me.value;
   const leader = others.slice().sort((a, b) => b.value - a.value)[0];
+  if (leader && leader.value === me.value && me.value > 0) return `Empatados com ${leader.name}! Faltam ${left} ${unit} para você cumprir${daysLeft ? ` em ${daysLeft} ${daysLeft === 1 ? 'dia' : 'dias'}` : ''}.`;
   if (leader && leader.value > me.value) return `${leader.name} está na frente. Faltam ${left} ${unit} para você cumprir${daysLeft ? ` em ${daysLeft} ${daysLeft === 1 ? 'dia' : 'dias'}` : ''}.`;
   return `Faltam ${left} ${unit}${daysLeft ? ` em ${daysLeft} ${daysLeft === 1 ? 'dia' : 'dias'}` : ''}. Você está puxando o grupo!`;
 }
