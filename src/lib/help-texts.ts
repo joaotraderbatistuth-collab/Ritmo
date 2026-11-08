@@ -178,7 +178,8 @@ export const HELP: Record<string, HelpText> = {
     title: 'Stories do Ritmo',
     what: 'Conquistas e atividades que ficam 24 horas no ar para quem usa o Ritmo.',
     how: [
-      'Toque no "+" da sua foto para publicar uma conquista. Ou use "Story no Ritmo" na janela de compartilhar.',
+      'Toque no "+" da sua foto para publicar uma foto (com legenda, se quiser) ou uma conquista. Ou use "Story no Ritmo" na janela de compartilhar.',
+      'Viu algo impróprio? Toque na bandeirinha para denunciar. Com 3 denúncias o story sai do ar até a equipe analisar.',
       'Anel colorido: tem story novo. Anel vermelho piscando: a pessoa está ao vivo, treinando ou em foco agora.',
       'Quem vê pode aplaudir. Você vê quantas pessoas viram e aplaudiram os seus.',
       'Em Configurações dá para ligar os stories automáticos: conquistas, nível, treinos e focos vão sozinhos e seus amigos veem quando você está ao vivo. Vem desligado.',

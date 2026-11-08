@@ -419,6 +419,10 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
     PRIMARY KEY ("story_id", "user_id")
   )`,
 
+  // ---- stories com foto (e escondidos pela moderação)
+  `ALTER TABLE "stories" ADD COLUMN IF NOT EXISTS "image_url" text`,
+  `ALTER TABLE "stories" ADD COLUMN IF NOT EXISTS "hidden" boolean NOT NULL DEFAULT false`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

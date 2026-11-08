@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Plus, X, Trash2, Eye, Radio } from 'lucide-react';
+import { Plus, X, Trash2, Eye, Radio, Camera, Flag, Loader2 } from 'lucide-react';
+import { uploadFile } from '../lib/upload.js';
 import { LevelAvatar } from './LevelAvatar.js';
 import { callApi } from '../lib/client-api.js';
 import { STORIES_CHANGED, postStory } from '../lib/stories-client.js';
@@ -33,6 +34,8 @@ interface StoryItem {
   bigLabel: string | null;
   color: string;
   live: boolean;
+  imageUrl?: string | null;
+  hidden?: boolean;
   createdAt: string;
   seen: boolean;
   clappedByMe: boolean;
@@ -47,7 +50,15 @@ export function openStories(userId: number) {
 }
 
 /** O cartão do story, igual ao da imagem do Instagram, mas em HTML (leve e nítido). */
-export const StoryCard: React.FC<{ s: Pick<StoryItem, 'emoji' | 'tag' | 'title' | 'subtitle' | 'big' | 'bigLabel' | 'color' | 'live'> }> = ({ s }) => (
+export const StoryCard: React.FC<{ s: Pick<StoryItem, 'emoji' | 'tag' | 'title' | 'subtitle' | 'big' | 'bigLabel' | 'color' | 'live' | 'imageUrl'> }> = ({ s }) =>
+  s.imageUrl ? (
+    <div className="relative w-full h-full bg-black flex items-center justify-center">
+      <img src={s.imageUrl} alt={s.title && s.title !== 'Foto' ? s.title : 'Foto do story'} className="max-w-full max-h-full object-contain" />
+      {s.title && s.title !== 'Foto' && (
+        <p className="absolute left-4 right-4 bottom-24 text-center text-base font-semibold text-white [text-shadow:0_2px_8px_rgba(0,0,0,0.8)] whitespace-pre-wrap break-words">{s.title}</p>
+      )}
+    </div>
+  ) : (
   <div className="relative w-full h-full flex flex-col items-center justify-center text-center px-6 overflow-hidden" style={{ background: `radial-gradient(circle at 50% 38%, ${s.color}55 0%, #0d1117 62%)` }}>
     <div className="absolute inset-0 opacity-40 ritmo-rays pointer-events-none" style={{ background: `repeating-conic-gradient(from 0deg at 50% 38%, ${s.color}33 0deg 7deg, transparent 7deg 20deg)`, maskImage: 'radial-gradient(circle at 50% 38%, black 5%, transparent 60%)', WebkitMaskImage: 'radial-gradient(circle at 50% 38%, black 5%, transparent 60%)' }} aria-hidden="true" />
     <span className={`relative px-3 py-1 rounded-full text-[11px] font-black tracking-widest text-[#0d1117] ${s.live ? 'animate-pulse' : ''}`} style={{ background: s.live ? '#ef4444' : s.color, color: s.live ? '#fff' : '#0d1117' }}>
@@ -67,7 +78,7 @@ export const StoryCard: React.FC<{ s: Pick<StoryItem, 'emoji' | 'tag' | 'title' 
     <h3 className="relative mt-6 text-2xl font-extrabold text-white leading-tight">{s.title}</h3>
     {s.subtitle && <p className="relative mt-2 text-sm text-[#c9d1d9]">{s.subtitle}</p>}
   </div>
-);
+  );
 
 /* ------------------------------------------------------------------ */
 /* Faixa de stories                                                    */
@@ -172,6 +183,34 @@ export const StoriesBar: React.FC<{ me: { initials: string; avatarUrl: string | 
 const StoryPicker: React.FC<{ quick: ShareCard[]; onClose: () => void }> = ({ quick, onClose }) => {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [photo, setPhoto] = useState<{ file: File; preview: string } | null>(null);
+  const [caption, setCaption] = useState('');
+  useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.preview); }, [photo]);
+  const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!f.type.startsWith('image/')) return setMsg('Escolha uma foto (JPG, PNG ou WEBP).');
+    setMsg('');
+    setPhoto({ file: f, preview: URL.createObjectURL(f) });
+  };
+  const pubPhoto = async () => {
+    if (!photo) return;
+    setBusy('foto');
+    setMsg('');
+    const up = await uploadFile(photo.file, 'feed');
+    if (!up.ok) {
+      setBusy(null);
+      return setMsg(up.error);
+    }
+    const r = await callApi<{ error?: string }>('/api/stories', { action: 'create_photo', imageUrl: up.url, caption: caption.trim() });
+    setBusy(null);
+    if (r.ok) {
+      window.dispatchEvent(new Event(STORIES_CHANGED));
+      onClose();
+    } else setMsg(r.data.error || 'Não deu para publicar agora.');
+  };
   const pub = async (c: ShareCard) => {
     setBusy(c.title);
     const r = await postStory(c);
@@ -186,8 +225,39 @@ const StoryPicker: React.FC<{ quick: ShareCard[]; onClose: () => void }> = ({ qu
           <h2 className="text-base font-extrabold text-[#f0f6fc]">Publicar no seu story</h2>
           <button type="button" onClick={onClose} aria-label="Fechar" className="p-1.5 text-[#8b949e] hover:text-white"><X className="w-5 h-5" /></button>
         </div>
-        <p className="mt-1 text-xs text-[#8b949e]">Fica 24 horas no ar para quem usa o Ritmo. Escolha uma conquista:</p>
-        <div className="mt-3 space-y-2">
+        <p className="mt-1 text-xs text-[#8b949e]">Fica 24 horas no ar para quem usa o Ritmo.</p>
+
+        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/*" className="hidden" onChange={pick} />
+        {!photo ? (
+          <button type="button" onClick={() => fileRef.current?.click()} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl py-4 text-sm font-extrabold text-[#0d1117] bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300">
+            <Camera className="w-5 h-5" /> Publicar uma foto
+          </button>
+        ) : (
+          <div className="mt-3 rounded-2xl border border-[#30363d] bg-[#0d1117] p-3">
+            <div className="mx-auto w-40 aspect-[9/16] rounded-xl overflow-hidden bg-black flex items-center justify-center">
+              <img src={photo.preview} alt="Prévia da foto" className="max-w-full max-h-full object-contain" />
+            </div>
+            <label className="block mt-3 text-xs text-[#8b949e]" htmlFor="story-caption">Legenda (opcional)</label>
+            <input
+              id="story-caption"
+              value={caption}
+              maxLength={150}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder="Ex.: treino de hoje feito!"
+              className="mt-1 w-full rounded-xl bg-[#161b22] border border-[#30363d] px-3 py-2 text-sm text-[#f0f6fc] focus:outline-none focus:border-emerald-500"
+            />
+            <div className="mt-3 flex gap-2">
+              <button type="button" onClick={() => { setPhoto(null); setCaption(''); }} disabled={busy === 'foto'} className="flex-1 py-2.5 rounded-xl border border-[#30363d] text-sm text-[#c9d1d9]">Trocar</button>
+              <button type="button" onClick={pubPhoto} disabled={busy === 'foto'} className="flex-[2] inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold disabled:opacity-60">
+                {busy === 'foto' ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</> : 'Publicar no story'}
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] text-[#6e7681]">Use fotos suas ou com autorização de quem aparece. Fotos impróprias podem ser denunciadas e saem do ar.</p>
+          </div>
+        )}
+
+        <p className="mt-4 text-xs font-semibold text-[#8b949e]">Ou uma conquista:</p>
+        <div className="mt-2 space-y-2">
           {quick.map((c) => (
             <button key={`${c.kind}-${c.title}`} type="button" disabled={Boolean(busy)} onClick={() => pub(c)} className="w-full flex items-center gap-3 rounded-2xl border border-[#30363d] bg-[#0d1117] p-3 text-left hover:border-emerald-500/50 disabled:opacity-50">
               <span className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0" style={{ background: `${c.color}22`, border: `1px solid ${c.color}66` }} aria-hidden="true">{c.emoji}</span>
@@ -299,6 +369,16 @@ const StoryViewer: React.FC<{ order: number[]; start: number; onClose: () => voi
     if (r.ok) setData({ ...data, stories: data.stories.map((s) => (s.id === story.id ? { ...s, clappedByMe: Boolean(r.data.clapped), claps: r.data.claps ?? s.claps } : s)) });
     try { navigator.vibrate?.(20); } catch {}
   };
+  const report = async () => {
+    if (!story) return;
+    setPaused(true);
+    const ok = window.confirm('Denunciar este story por conteúdo impróprio?');
+    if (!ok) return setPaused(false);
+    const r = await callApi<{ hidden?: boolean; error?: string }>('/api/stories', { action: 'report', storyId: story.id, reason: 'Story impróprio' });
+    window.alert(r.ok ? 'Obrigado! A equipe do Ritmo vai analisar.' : r.data.error || 'Não deu para denunciar agora.');
+    if (r.ok) nextRef.current();
+    setPaused(false);
+  };
   const remove = async () => {
     if (!story || !data) return;
     await callApi('/api/stories', { action: 'delete', storyId: story.id });
@@ -350,10 +430,12 @@ const StoryViewer: React.FC<{ order: number[]; start: number; onClose: () => voi
           <div className="absolute bottom-0 inset-x-0 p-4 pb-6 flex items-center justify-between gap-3 bg-gradient-to-t from-black/70 to-transparent">
             {data.author.me ? (
               <>
-                <span className="inline-flex items-center gap-1.5 text-sm text-white/80"><Eye className="w-4 h-4" /> {story.views ?? 0} · 👏 {story.claps}</span>
+                <span className="inline-flex items-center gap-1.5 text-sm text-white/80"><Eye className="w-4 h-4" /> {story.views ?? 0} · 👏 {story.claps}{story.hidden ? <b className="ml-1 text-amber-300">· fora do ar (em análise)</b> : null}</span>
                 <button type="button" onClick={remove} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/10 text-sm text-white hover:bg-white/20"><Trash2 className="w-4 h-4" /> Apagar</button>
               </>
             ) : (
+              <>
+              <button type="button" onClick={report} aria-label="Denunciar story" className="p-2.5 rounded-full bg-white/10 text-white/70 hover:text-white"><Flag className="w-4 h-4" /></button>
               <button
                 type="button"
                 onClick={clap}
@@ -361,6 +443,8 @@ const StoryViewer: React.FC<{ order: number[]; start: number; onClose: () => voi
               >
                 👏 {story.clappedByMe ? 'Aplaudido' : 'Aplaudir'}{story.claps > 0 ? ` · ${story.claps}` : ''}
               </button>
+              <span className="w-9" aria-hidden="true" />
+              </>
             )}
           </div>
         )}

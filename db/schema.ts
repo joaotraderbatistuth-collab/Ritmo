@@ -688,6 +688,8 @@ export const stories = pgTable("stories", {
   color: text("color").notNull().default("#34d399"),
   live: boolean("live").notNull().default(false),
   auto: boolean("auto").notNull().default(false),
+  imageUrl: text("image_url"), // story com foto (enviada em /api/media)
+  hidden: boolean("hidden").notNull().default(false), // escondido pela moderação (3 denúncias ou admin)
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

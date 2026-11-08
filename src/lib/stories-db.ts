@@ -6,6 +6,7 @@ import * as schema from '../../db/schema.js';
 import { checkDb } from './server-db.js';
 import { displayName, initials, normalizeText } from './feed-rules.js';
 import { sanitizeShare } from './share-card.js';
+import { mediaOwnedBy, parseMediaUrl, mediaUrl } from './media.js';
 
 export class StoryError extends Error {
   constructor(public status: number, message: string) {
@@ -13,7 +14,7 @@ export class StoryError extends Error {
   }
 }
 
-export const STORY_LIMITS = { perDay: 20, ttlHours: 24, railAuthors: 30 };
+export const STORY_LIMITS = { perDay: 20, ttlHours: 24, railAuthors: 30, captionMax: 150, hideAfterReports: 3 };
 
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 const short = (v: unknown, max: number) => normalizeText(v, max).replace(/\s+/g, ' ');
@@ -106,7 +107,7 @@ export async function storyRail(viewerId: number) {
     .from(schema.stories)
     .innerJoin(schema.users, eq(schema.users.id, schema.stories.userId))
     .leftJoin(schema.storyViews, and(eq(schema.storyViews.storyId, schema.stories.id), eq(schema.storyViews.userId, viewerId)))
-    .where(and(gt(schema.stories.expiresAt, now), sql`(${schema.users.feedMuted} = false or ${schema.users.id} = ${viewerId})`))
+    .where(and(gt(schema.stories.expiresAt, now), sql`((${schema.users.feedMuted} = false and ${schema.stories.hidden} = false) or ${schema.users.id} = ${viewerId})`))
     .groupBy(schema.stories.userId)
     .orderBy(desc(sql`max(${schema.stories.createdAt})`))
     .limit(200);
@@ -148,7 +149,7 @@ export async function userStories(viewerId: number, authorId: number) {
   const list = await db
     .select()
     .from(schema.stories)
-    .where(and(eq(schema.stories.userId, authorId), gt(schema.stories.expiresAt, new Date())))
+    .where(and(eq(schema.stories.userId, authorId), gt(schema.stories.expiresAt, new Date()), ...(authorId === viewerId ? [] : [eq(schema.stories.hidden, false)])))
     .orderBy(desc(schema.stories.live), asc(schema.stories.createdAt))
     .limit(40);
   const ids = list.map((s) => s.id);
@@ -174,6 +175,8 @@ export async function userStories(viewerId: number, authorId: number) {
         bigLabel: s.bigLabel,
         color: s.color,
         live: s.live,
+        imageUrl: s.imageUrl || null,
+        hidden: mine ? s.hidden : false,
         createdAt: s.createdAt.toISOString(),
         expiresAt: s.expiresAt.toISOString(),
         seen: mine || v.some((x) => x.userId === viewerId),
@@ -228,4 +231,42 @@ export async function hasActiveStory(userId: number): Promise<{ any: boolean; li
     .from(schema.stories)
     .where(and(eq(schema.stories.userId, userId), gt(schema.stories.expiresAt, new Date())));
   return { any: Number(r?.n) > 0, live: Boolean(r?.live) };
+}
+
+/** Story com foto (a foto já foi enviada em /api/media pela própria pessoa). */
+export async function createPhotoStory(userId: number, imageUrl: unknown, caption: unknown) {
+  await need();
+  const [u] = await db.select({ muted: schema.users.feedMuted }).from(schema.users).where(eq(schema.users.id, userId));
+  if (u?.muted) throw new StoryError(403, 'Você está temporariamente sem permissão para publicar. Fale com o suporte.');
+  const key = parseMediaUrl(imageUrl);
+  if (!key || !(await mediaOwnedBy(imageUrl, userId))) throw new StoryError(400, 'Envie a foto de novo.');
+  const text = short(caption, STORY_LIMITS.captionMax);
+  if (/https?:|www\./i.test(text)) throw new StoryError(400, 'A legenda não pode ter links.');
+  const since = new Date(Date.now() - 86400_000);
+  const [{ n }] = await db.select({ n: sql<number>`count(*)` }).from(schema.stories).where(and(eq(schema.stories.userId, userId), gt(schema.stories.createdAt, since), eq(schema.stories.live, false)));
+  if (Number(n) >= STORY_LIMITS.perDay) throw new StoryError(429, 'Você já publicou muitos stories hoje.');
+  const [row] = await db
+    .insert(schema.stories)
+    .values({ userId, kind: 'foto', emoji: '📷', tag: '', title: text || 'Foto', subtitle: '', color: '#34d399', imageUrl: mediaUrl(key), live: false, auto: false, expiresAt: new Date(Date.now() + STORY_LIMITS.ttlHours * 3600_000) })
+    .returning({ id: schema.stories.id });
+  return row;
+}
+
+/** Denunciar um story. Com 3 denúncias ele sai do ar até o administrador olhar. */
+export async function reportStory(viewerId: number, storyId: number, reason: unknown) {
+  await need();
+  const author = await storyAuthor(storyId);
+  if (author === viewerId) throw new StoryError(400, 'Você não pode denunciar o próprio story.');
+  const [dup] = await db
+    .select({ id: schema.feedReports.id })
+    .from(schema.feedReports)
+    .where(and(eq(schema.feedReports.targetType, 'story'), eq(schema.feedReports.targetId, storyId), eq(schema.feedReports.reporterUserId, viewerId)));
+  if (!dup) await db.insert(schema.feedReports).values({ targetType: 'story', targetId: storyId, reporterUserId: viewerId, reason: short(reason, 200) || 'Story impróprio' });
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(schema.feedReports)
+    .where(and(eq(schema.feedReports.targetType, 'story'), eq(schema.feedReports.targetId, storyId), eq(schema.feedReports.status, 'open')));
+  const hidden = Number(n) >= STORY_LIMITS.hideAfterReports;
+  if (hidden) await db.update(schema.stories).set({ hidden: true }).where(eq(schema.stories.id, storyId));
+  return { reported: true, hidden };
 }

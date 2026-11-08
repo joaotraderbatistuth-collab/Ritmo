@@ -793,11 +793,18 @@ export async function getModerationData() {
     let status = '';
     let authorId = 0;
     let teamId: number | null = null;
+    let imageUrl: string | null = null;
     if (g.targetType === 'post') {
       const [p] = await db.select().from(schema.feedPosts).where(eq(schema.feedPosts.id, g.targetId));
       if (!p) continue;
       body = p.body || (parsePayload(p.payload) ? 'Conquista compartilhada' : '');
       status = p.status; authorId = p.userId; teamId = p.teamId;
+    } else if (g.targetType === 'story') {
+      const [st] = await db.select().from(schema.stories).where(eq(schema.stories.id, g.targetId));
+      if (!st) continue;
+      body = `${st.imageUrl ? '[foto] ' : ''}${st.title}${st.subtitle ? ` · ${st.subtitle}` : ''}`;
+      status = st.hidden ? 'hidden' : 'visible'; authorId = st.userId;
+      imageUrl = st.imageUrl || null;
     } else {
       const [c] = await db.select().from(schema.feedComments).where(eq(schema.feedComments.id, g.targetId));
       if (!c) continue;
@@ -805,7 +812,7 @@ export async function getModerationData() {
     }
     const author = await findUserById(authorId);
     queue.push({
-      targetType: g.targetType, targetId: g.targetId, reportCount: g.count, reasons: g.reasons, body: body.slice(0, 400), status, teamId,
+      targetType: g.targetType, targetId: g.targetId, reportCount: g.count, reasons: g.reasons, body: body.slice(0, 400), status, teamId, imageUrl,
       author: { id: authorId, name: author?.name || '', email: author?.email || '', muted: Boolean((author as any)?.feedMuted) },
       lastReportAt: iso(g.lastAt),
     });
@@ -829,12 +836,19 @@ export async function getModerationData() {
 
 export async function moderateTarget(targetType: string, targetId: number, action: string) {
   await need();
-  if (targetType !== 'post' && targetType !== 'comment') throw new CommunityError(400, 'Tipo inválido.');
+  if (targetType !== 'post' && targetType !== 'comment' && targetType !== 'story') throw new CommunityError(400, 'Tipo inválido.');
   if (!['hide', 'restore', 'dismiss', 'delete'].includes(action)) throw new CommunityError(400, 'Ação inválida.');
-  const table: any = targetType === 'post' ? schema.feedPosts : schema.feedComments;
-  if (action === 'delete') await db.delete(table).where(eq(table.id, targetId));
-  else if (action === 'hide') await db.update(table).set({ status: 'hidden' }).where(eq(table.id, targetId));
-  else if (action === 'restore') await db.update(table).set({ status: 'visible' }).where(eq(table.id, targetId));
+  if (targetType === 'story') {
+    const T = schema.stories;
+    if (action === 'delete') await db.delete(T).where(eq(T.id, targetId));
+    else if (action === 'hide') await db.update(T).set({ hidden: true }).where(eq(T.id, targetId));
+    else if (action === 'restore') await db.update(T).set({ hidden: false }).where(eq(T.id, targetId));
+  } else {
+    const table: any = targetType === 'post' ? schema.feedPosts : schema.feedComments;
+    if (action === 'delete') await db.delete(table).where(eq(table.id, targetId));
+    else if (action === 'hide') await db.update(table).set({ status: 'hidden' }).where(eq(table.id, targetId));
+    else if (action === 'restore') await db.update(table).set({ status: 'visible' }).where(eq(table.id, targetId));
+  }
   await db
     .update(schema.feedReports)
     .set({ status: action === 'hide' || action === 'delete' ? 'actioned' : 'dismissed' })

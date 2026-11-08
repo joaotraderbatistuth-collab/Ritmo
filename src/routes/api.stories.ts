@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { requireMember, communityError } from '../lib/community-auth.js';
-import { StoryError, clapStory, createStory, deleteStory, setStoryAuto, startLive, stopLive, storyRail, userStories, viewStory } from '../lib/stories-db.js';
+import { StoryError, clapStory, createPhotoStory, createStory, reportStory, deleteStory, setStoryAuto, startLive, stopLive, storyRail, userStories, viewStory } from '../lib/stories-db.js';
 
 // GET  /api/stories               → faixa de stories (quem tem story no ar)
 // GET  /api/stories?user=123      → stories no ar de uma pessoa
@@ -33,6 +33,12 @@ export const Route = createFileRoute('/api/stories')({
               const row = await createStory(user.id, body.card, auto);
               return Response.json({ success: true, id: row?.id ?? null });
             }
+            case 'create_photo': {
+              const row = await createPhotoStory(user.id, body.imageUrl, body.caption);
+              return Response.json({ success: true, id: row?.id ?? null });
+            }
+            case 'report':
+              return Response.json({ success: true, ...(await reportStory(user.id, Number(body.storyId), body.reason)) });
             case 'live_start':
               if (!(user as any).storyAuto) return Response.json({ success: true, skipped: true });
               await startLive(user.id, body.kind, body.detail, body.minutes);

@@ -1043,10 +1043,11 @@ function ModerationTab({ data, act }: { data: any; act: Act }) {
           {data.reports.map((r: any) => (
             <div key={`${r.targetType}-${r.targetId}`} className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-                <span>{r.targetType === 'post' ? 'Publicação' : 'Comentário'} #{r.targetId}{r.teamId ? ' (Ritus)' : ''} · {r.reportCount} denúncia(s) · {r.status === 'hidden' ? <b className="text-amber-300">escondido</b> : 'visível'}</span>
+                <span>{r.targetType === 'post' ? 'Publicação' : r.targetType === 'story' ? 'Story' : 'Comentário'} #{r.targetId}{r.teamId ? ' (Ritus)' : ''} · {r.reportCount} denúncia(s) · {r.status === 'hidden' ? <b className="text-amber-300">escondido</b> : 'visível'}</span>
                 <span>{dateTimeBR(r.lastReportAt)}</span>
               </div>
               <p className="mt-2 text-sm whitespace-pre-wrap break-words">{r.body || '(sem texto)'}</p>
+              {r.imageUrl && <img src={r.imageUrl} alt="Foto denunciada" className="mt-2 max-h-64 rounded-xl border border-[#30363d]" />}
               <p className="mt-1 text-xs text-slate-500">Autor: {r.author.name} · {r.author.email}{r.author.muted ? ' · silenciado' : ''}</p>
               {r.reasons.length > 0 && <p className="mt-1 text-xs text-slate-500">Motivos: {r.reasons.join(' · ')}</p>}
               <div className="mt-3 flex flex-wrap gap-3 text-sm">
