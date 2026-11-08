@@ -42,6 +42,7 @@ export interface UserXp extends XpResult {
   everUsedReminders: boolean;
   leagueTier: number;
   leagueOptOut: boolean;
+  seasonTier: number;
 }
 
 export async function getUserXp(userId: number): Promise<UserXp | null> {
@@ -118,5 +119,6 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     everUsedReminders,
     leagueTier: Number((user as any).leagueTier) || 0,
     leagueOptOut: Boolean((user as any).leagueOptOut),
+    seasonTier: Number((user as any).seasonTier) || 0,
   };
 }

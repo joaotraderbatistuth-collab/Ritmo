@@ -110,6 +110,8 @@ export interface Burst {
   todayXp: number;
   goal: number;
   goalJustHit: boolean;
+  /** subiu de posição na temporada */
+  rankUp?: string | null;
 }
 
 function useCountUp(target: number, key: number, ms = 650) {
@@ -135,7 +137,7 @@ export const XpBurst: React.FC<{ burst: Burst | null }> = ({ burst }) => {
   useEffect(() => {
     if (!burst || burst.amount <= 0) return;
     setVisible(burst);
-    const t = setTimeout(() => setVisible((v) => (v?.id === burst.id ? null : v)), burst.lucky || burst.goalJustHit ? 4200 : 2800);
+    const t = setTimeout(() => setVisible((v) => (v?.id === burst.id ? null : v)), burst.lucky || burst.goalJustHit || burst.rankUp ? 4200 : 2800);
     return () => clearTimeout(t);
   }, [burst]);
   const shown = useCountUp(visible?.amount || 0, visible?.id || 0);
@@ -153,7 +155,7 @@ export const XpBurst: React.FC<{ burst: Burst | null }> = ({ burst }) => {
   const big = Boolean(visible.lucky) || visible.combo >= 3;
 
   return (
-    <div key={visible.id} className="fixed z-[60] bottom-24 right-4 sm:right-8 pointer-events-none ritmo-burst-in" style={visible.lucky || visible.goalJustHit ? { animationDuration: '4.2s' } : undefined} aria-live="polite">
+    <div key={visible.id} className="fixed z-[60] bottom-24 right-4 sm:right-8 pointer-events-none ritmo-burst-in" style={visible.lucky || visible.goalJustHit || visible.rankUp ? { animationDuration: '4.2s' } : undefined} aria-live="polite">
       <div className="relative w-64 rounded-2xl border border-emerald-500/40 bg-[#0d1117]/95 backdrop-blur px-4 py-3 shadow-2xl shadow-emerald-500/20">
         {sparks.map((p) => (
           <span
@@ -188,6 +190,7 @@ export const XpBurst: React.FC<{ burst: Burst | null }> = ({ burst }) => {
             <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-300 ritmo-bar-fill" style={{ width: `${Math.round(visible.progress * 100)}%` }} />
           </div>
           {visible.near && <p className="mt-1 text-[11px] font-semibold text-emerald-300">{visible.near}</p>}
+          {visible.rankUp && <p className="mt-1 text-[11px] font-bold text-sky-300 ritmo-pop-pulse">🏆 {visible.rankUp}</p>}
           {visible.goalJustHit && <p className="mt-1 text-[11px] font-bold text-amber-300">🎯 Meta do dia batida! O que vier agora é extra.</p>}
         </div>
       </div>

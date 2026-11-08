@@ -59,7 +59,9 @@ import { nextDateAfter, normalizeTaskRule } from '../lib/recurrence.js';
 import { ScrollableNav } from '../components/ScrollableNav.js';
 import { LevelCard, LevelUpModal, useXp } from '../components/LevelUp.js';
 import { XpBurst } from '../components/XpBurst.js';
-import { MissionsCard, LastWeekBanner, LeagueCard, StreakCard, WeekSummaryCard } from '../components/Missions.js';
+import { MissionsCard, LastWeekBanner, StreakCard, WeekSummaryCard } from '../components/Missions.js';
+import { ProgressFab, SeasonCard, SeasonResultModal } from '../components/Season.js';
+import { useFxPrefs } from '../components/XpBurst.js';
 import { ProfilePhotoCard } from '../components/ProfilePhotoCard.js';
 import { TabWorkout, WorkoutLiveBar } from '../components/TabWorkout.js';
 import { Assistant } from '../components/Assistant.js';
@@ -154,6 +156,7 @@ function RitmoApp() {
     [habitLogs, tasks, sessions, journalEntries, transactions, activeTab]
   );
   const xp = useXp(user?.id ?? null, xpSignature);
+  const fx = useFxPrefs();
   const userInitials = initialsOf(user?.name);
 
   // 1. Initial Load & Referral Capture
@@ -800,15 +803,15 @@ function RitmoApp() {
           )}
 
           {activeTab === 'progresso' && user && (
-            <div className="mb-6 max-w-5xl mx-auto">
+            <div className="mb-6 max-w-5xl mx-auto space-y-6">
+              <SeasonCard season={xp.data?.season} optedOut={Boolean(xp.data?.leagueOptOut)} onChanged={() => xp.refresh()} />
               <LevelCard data={xp.data} initials={userInitials} onEditPhoto={() => setActiveTab('configuracoes')} />
-              <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              <div className="grid gap-6 lg:grid-cols-2">
+                <StreakCard data={xp.data} />
                 <div className="space-y-6">
-                  <StreakCard data={xp.data} />
                   <WeekSummaryCard week={xp.data?.week} title="Esta semana" />
                   {xp.data?.lastWeek && xp.data.lastWeek.xp > 0 && <WeekSummaryCard week={xp.data.lastWeek} title="Semana passada" shareable />}
                 </div>
-                <LeagueCard data={xp.data} onChanged={() => xp.refresh()} />
               </div>
             </div>
           )}
@@ -889,6 +892,17 @@ function RitmoApp() {
       )}
       {user && <LegalUpdateModal />}
       <XpBurst burst={xp.burst} />
+      {user && activeTab !== 'progresso' && (
+        <ProgressFab
+          season={xp.data?.season}
+          todayXp={xp.data?.todayXp || 0}
+          goal={fx.goal}
+          levelProgress={xp.data?.level.progress || 0}
+          pulse={xp.rankPulse}
+          onOpen={() => setActiveTab('progresso')}
+        />
+      )}
+      {user && <SeasonResultModal season={xp.data?.season} userId={user.id} />}
       <LevelUpModal info={xp.levelUp} initials={userInitials} avatarUrl={xp.data?.avatarUrl} onClose={xp.closeLevelUp} />
 
       {/* Auth Modal */}

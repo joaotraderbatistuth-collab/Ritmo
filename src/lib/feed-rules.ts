@@ -1,5 +1,6 @@
 // Regras PURAS do Feed (texto, conquistas, limites e datas), testadas em tests/.
 import { levelDef, MAX_LEVEL } from './levels.js';
+import { TOP_TIER, division } from './season.js';
 import { POLYLINE_RE, SPORTS, formatDuration, formatKm, formatPace, isSport, paceSPerKm, speedKmh, type SportId } from './workout.js';
 
 /** Tamanho máximo da rota (já simplificada) que vai junto com o treino no Feed. */
@@ -56,6 +57,7 @@ export type Achievement =
   | { type: 'nivel'; level: number; name: string }
   | { type: 'ofensiva'; days: number }
   | { type: 'semana'; xp: number; activeDays: number }
+  | { type: 'divisao'; tier: number; name: string }
   | { type: 'treino'; sport: SportId; distanceM: number; durationS: number; elevationGainM?: number; route?: string };
 
 const int = (v: unknown, min: number, max: number): number | null => {
@@ -124,6 +126,11 @@ export function sanitizeAchievement(raw: unknown): Achievement | null {
       const activeDays = int(r.activeDays, 1, 7);
       return xp && activeDays ? { type: 'semana', xp, activeDays } : null;
     }
+    case 'divisao': {
+      // o nome vem sempre da tabela de divisões, nunca do navegador
+      const tier = int(r.tier, 1, TOP_TIER);
+      return tier ? { type: 'divisao', tier, name: division(tier).name } : null;
+    }
     case 'nivel': {
       // o nome vem sempre da tabela de níveis, nunca do navegador
       const level = int(r.level, 2, MAX_LEVEL);
@@ -156,6 +163,8 @@ export function achievementHeadline(a: Achievement): string {
       return `Subiu para o nível ${a.level}: ${a.name}`;
     case 'ofensiva':
       return `Ofensiva de ${a.days} dias seguidos no Ritmo`;
+    case 'divisao':
+      return `Subiu para a divisão ${a.name} na temporada do mês`;
     case 'semana':
       return `Semana fechada: ${a.xp} pontos em ${a.activeDays} ${a.activeDays === 1 ? 'dia ativo' : 'dias ativos'}`;
     case 'treino': {

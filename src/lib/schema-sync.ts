@@ -306,6 +306,21 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   // ---- horários das notificações escolhidos pela pessoa
   `ALTER TABLE "push_subscriptions" ADD COLUMN IF NOT EXISTS "hours" text`,
 
+  // ---- temporada mensal (divisões com promoção e rebaixamento)
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "season_tier" integer NOT NULL DEFAULT 0`,
+  `CREATE TABLE IF NOT EXISTS "season_months" (
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "month" text NOT NULL,
+    "tier" integer NOT NULL,
+    "group_no" integer NOT NULL,
+    "xp" integer DEFAULT 0 NOT NULL,
+    "came_from" text DEFAULT 'new' NOT NULL,
+    "prev_rank" integer,
+    "updated_at" timestamp DEFAULT now() NOT NULL,
+    PRIMARY KEY ("user_id", "month")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "season_months_group_idx" ON "season_months" ("month", "tier", "group_no")`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

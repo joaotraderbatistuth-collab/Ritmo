@@ -337,9 +337,9 @@ export const MissionsCard: React.FC<{ data: (XpData & GameData) | null; onGo: (t
         <p className="mt-3 text-[11px] text-[#8b949e] flex flex-wrap gap-x-3 gap-y-1">
           <span className="inline-flex items-center gap-1"><Moon className="w-3 h-3" /> Descanso da semana: {streak.weekRestUsed ? 'já usado' : 'disponível'}{streak.extraRests ? ` (+${streak.extraRests} extra)` : ''}</span>
           {streak.next && <span>Próximo marco: {streak.next} dias</span>}
-          {data.league && (
-            <button type="button" onClick={() => onGo('progresso')} className="inline-flex items-center gap-1 hover:text-white">
-              <Crown className="w-3 h-3" style={{ color: leagueColor(data.league.tier) }} /> Liga {data.league.name}: {data.league.standings.find((s) => s.me)?.rank ?? '-'}º lugar
+          {(data as any).season?.rank && (
+            <button type="button" onClick={() => onGo('progresso')} className="inline-flex items-center gap-1 font-semibold hover:text-white" style={{ color: (data as any).season.division.color }}>
+              <Crown className="w-3 h-3" /> {(data as any).season.division.name}: {(data as any).season.rank}º lugar no mês
             </button>
           )}
         </p>

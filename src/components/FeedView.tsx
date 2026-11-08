@@ -33,7 +33,7 @@ export interface FeedPostData {
   canDelete: boolean;
 }
 
-const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2, nivel: Trophy, treino: Activity, ofensiva: Flame, semana: Trophy };
+const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2, nivel: Trophy, treino: Activity, ofensiva: Flame, semana: Trophy, divisao: Trophy };
 
 /* ------------------------------------------------------------------ */
 /* Foto: escolher, enviar e mostrar                                    */

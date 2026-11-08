@@ -4,6 +4,7 @@ import { LevelAvatar } from './LevelAvatar.js';
 import { FRAMES, LEVELS, LevelInfo, XP_RULES, XP_SOURCES, XpSource, levelDef } from '../lib/levels.js';
 import { shareToFeed } from '../lib/share-feed.js';
 import type { GameData } from './Missions.js';
+import type { SeasonView } from './Season.js';
 import { Burst, GoalRing, RewardSettings, getFxPrefs, playGain, useFxPrefs } from './XpBurst.js';
 import { cheerFor, goalProgress, nearNextLevel, nextCombo } from '../lib/rewards.js';
 
@@ -17,6 +18,7 @@ export interface XpData extends GameData {
   bio?: string;
   bonusXp?: number;
   luckyToday?: { hit: boolean; xp: number | null } | null;
+  season?: SeasonView | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -239,10 +241,20 @@ export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEdit
 /* Lógica: busca os pontos, mostra "+XP" e o "subiu de nível"          */
 /* ------------------------------------------------------------------ */
 
+/** "Subiu para 3º no grupo!" / "Entrou na zona de subida!" quando a posição melhora no mesmo mês. */
+function rankMessage(prev: SeasonView | null | undefined, next: SeasonView | null | undefined): string | null {
+  if (!prev || !next || prev.month !== next.month || !prev.rank || !next.rank) return null;
+  if (next.zone === 'up' && prev.zone !== 'up') return `Entrou na zona de subida para a próxima divisão!`;
+  if (prev.zone === 'down' && next.zone !== 'down') return 'Saiu da zona de descida!';
+  if (next.rank < prev.rank) return `Você subiu para ${next.rank}º no grupo${next.rank === 1 ? ' — é o líder!' : '!'}`;
+  return null;
+}
+
 export function useXp(userId: number | null, signature: string) {
   const [data, setData] = useState<XpData | null>(null);
   const [gain, setGain] = useState<{ id: number; amount: number } | null>(null);
   const [burst, setBurst] = useState<Burst | null>(null);
+  const [rankPulse, setRankPulse] = useState(0);
   const [levelUp, setLevelUp] = useState<LevelInfo | null>(null);
   const last = useRef<number | null>(null);
   const lastData = useRef<XpData | null>(null);
@@ -280,7 +292,9 @@ export function useXp(userId: number | null, signature: string) {
           todayXp: d.todayXp,
           goal,
           goalJustHit: g.justHit,
+          rankUp: rankMessage(prev?.season, d.season),
         });
+        if (rankMessage(prev?.season, d.season)) setRankPulse(now);
         playGain(combo.current.count, Boolean(luckyNow) || g.justHit);
       }
       last.current = d.xp;
@@ -331,5 +345,5 @@ export function useXp(userId: number | null, signature: string) {
     };
   }, []);
 
-  return { data, setData, gain, burst, levelUp, closeLevelUp: () => setLevelUp(null), refresh };
+  return { data, setData, gain, burst, rankPulse, levelUp, closeLevelUp: () => setLevelUp(null), refresh };
 }

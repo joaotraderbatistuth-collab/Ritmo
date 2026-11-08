@@ -21,6 +21,7 @@ import { detectStop, detectResume, personalRecords, newRecords, recordValueLabel
 import { pickMissions, missionProgress, chestReward, computeStreak, nextMilestone, weekSummary, nextTier, rankInGroup, mondayOf, MISSION_POOL } from '../src/lib/missions.js';
 import { computeNotices } from '../src/lib/notices.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
+import { DIVISIONS, TOP_TIER, zoneSizes, zoneFor, nextDivision, seasonGoals, seasonNudge, seasonPoints, daysLeftIn, prevMonth, lastDayOf, seasonLabel, rankOf } from '../src/lib/season.js';
 import { luckyDrop, LUCKY_START, nextCombo, goalProgress, normalizeGoal, cheerFor, nearNextLevel, gainTone, COMBO_WINDOW_MS } from '../src/lib/rewards.js';
 import { nextDateAfter, normalizeTaskRule } from '../src/lib/recurrence.js';
 import { normalizeFrequency, frequencyLabel } from '../src/lib/chain.js';
@@ -886,6 +887,35 @@ export function runTests() {
     assert(LUCKY_START === '2026-11-08', 'início do bônus surpresa');
   }
   console.log('✓ Recompensas (surpresa, combo, meta) ok');
+
+  // ---- Temporada mensal (divisões)
+  {
+    assert(DIVISIONS.length === 8 && DIVISIONS[0].promote === 0.8 && DIVISIONS[0].relegate === 0 && DIVISIONS[TOP_TIER].promote === 0, 'Bronze sobe 80% e não rebaixa; Lenda é o topo');
+    for (let i = 1; i < DIVISIONS.length; i++) assert(DIVISIONS[i].promote <= DIVISIONS[i - 1].promote && DIVISIONS[i].relegate >= DIVISIONS[i - 1].relegate, 'quanto mais alto, mais disputado');
+    assert(JSON.stringify(zoneSizes(0, 30)) === '{"up":24,"down":0}', 'Bronze com 30: 24 sobem');
+    assert(JSON.stringify(zoneSizes(3, 30)) === '{"up":12,"down":4}', 'Safira com 30: 12 sobem, 4 descem');
+    assert(JSON.stringify(zoneSizes(2, 3)) === '{"up":1,"down":0}', 'grupo pequeno não rebaixa');
+    assert(zoneSizes(0, 1).up === 1 && zoneSizes(TOP_TIER, 30).up === 0, 'sozinho no Bronze sobe se pontuar; Lenda não sobe');
+    assert(nextDivision(0, 5, 30, 120) === 1 && nextDivision(0, 25, 30, 120) === 0, 'Bronze: 5º sobe, 25º fica');
+    assert(nextDivision(0, 1, 30, 0) === 0, 'sem pontos não sobe');
+    assert(nextDivision(3, 30, 30, 10) === 2 && nextDivision(3, 20, 30, 10) === 3, 'último desce, meio do grupo fica');
+    assert(nextDivision(2, 2, 3, 0) === 1, 'mês sem pontos desce uma divisão');
+    assert(nextDivision(TOP_TIER, 1, 30, 999) === TOP_TIER, 'topo não passa da Lenda');
+    assert(zoneFor(1, 1, 10, 50) === 'up' && zoneFor(1, 10, 10, 50) === 'down' && zoneFor(1, 7, 10, 50) === 'stay', 'zonas da Prata com 10');
+    const st = [{ xp: 300, name: 'Ana' }, { xp: 250, name: 'Bia' }, { xp: 200, name: 'Caio' }, { xp: 120, name: 'Você', me: true }, { xp: 90, name: 'Edu' }];
+    const g = seasonGoals(1, st); // Prata, 5 pessoas: sobem 3, desce 1
+    assert(g.toPromote === 81 && g.next?.name === 'Caio' && g.next.gap === 81 && g.toSafety === null, `metas da posição: ${JSON.stringify(g)}`);
+    const gd = seasonGoals(1, [{ xp: 50, name: 'A' }, { xp: 40, name: 'B' }, { xp: 30, name: 'C' }, { xp: 20, name: 'D' }, { xp: 10, name: 'Eu', me: true }]);
+    assert(gd.toSafety === 11, 'quanto falta para sair da zona de descida');
+    assert(seasonNudge(1, 'down', gd, 5).includes('Faltam só 11') && seasonNudge(1, 'stay', g, 5).includes('Ouro'), 'frases de incentivo');
+    assert(seasonPoints({ '2026-11-01': { xp: 30 }, '2026-11-30': { xp: 20 }, '2026-10-31': { xp: 99 } }, '2026-11') === 50, 'soma só os pontos do mês');
+    assert(daysLeftIn('2026-11', '2026-11-08') === 23 && daysLeftIn('2026-11', '2026-11-30') === 1, 'dias que faltam (contando hoje)');
+    assert(prevMonth('2026-01') === '2025-12' && lastDayOf('2028-02') === '2028-02-29', 'datas da temporada');
+    assert(seasonLabel('2026-11') === 'Temporada de novembro', 'nome da temporada');
+    assert(rankOf([{ userId: 2, xp: 10 }, { userId: 1, xp: 10 }, { userId: 3, xp: 50 }], 1).rank === 2, 'empate: quem tem id menor fica na frente');
+    assert(Boolean(sanitizeAchievementT({ type: 'divisao', tier: 3, name: 'Hackeada' })) && (sanitizeAchievementT({ type: 'divisao', tier: 3, name: 'x' }) as any).name === 'Safira' && sanitizeAchievementT({ type: 'divisao', tier: 0 }) === null, 'conquista de divisão usa o nome da tabela');
+  }
+  console.log('✓ Temporada mensal ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

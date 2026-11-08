@@ -6,7 +6,7 @@ import { CommunityError } from '../lib/community-db.js';
 import { mediaOwnedBy, parseMediaUrl, mediaUrl } from '../lib/media.js';
 import { updateUserRecord } from '../lib/server-db.js';
 import { getUserXp } from '../lib/xp-server.js';
-import { buildGame, openChest, syncLeague } from '../lib/game-server.js';
+import { buildGame, openChest, syncSeason } from '../lib/game-server.js';
 
 // GET  /api/xp                          → pontos, nível, progresso e foto de perfil
 // POST /api/xp { action: 'set_avatar', imageUrl }   → define a foto de perfil (enviada antes em /api/media)
@@ -35,7 +35,7 @@ export const Route = createFileRoute('/api/xp')({
             bio: xp.bio,
             today: xp.today,
             ...buildGame(payload.userId, xp),
-            league: await syncLeague(payload.userId, xp),
+            season: await syncSeason(payload.userId, xp),
             leagueOptOut: xp.leagueOptOut,
           });
         } catch (e) {

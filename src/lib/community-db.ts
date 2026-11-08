@@ -485,6 +485,11 @@ export async function createPost(userId: number, input: { body?: unknown; teamId
       throw new CommunityError(400, 'Esses números não batem com a sua semana.');
     }
   }
+  if (achievement?.type === 'divisao') {
+    // só compartilha uma divisão que a pessoa realmente alcançou
+    const [u] = await db.select({ tier: schema.users.seasonTier }).from(schema.users).where(eq(schema.users.id, userId));
+    if (!u || (u.tier || 0) < achievement.tier) throw new CommunityError(400, 'Você ainda não chegou a essa divisão.');
+  }
   if (achievement?.type === 'nivel') {
     // só compartilha um nível que a pessoa realmente alcançou
     const [u] = await db.select({ level: schema.users.level }).from(schema.users).where(eq(schema.users.id, userId));

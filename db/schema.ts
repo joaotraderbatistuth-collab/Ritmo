@@ -23,6 +23,7 @@ export const users = pgTable("users", {
   assistantName: text("assistant_name"), // nome que a pessoa deu ao secretário (vazio = ainda não batizou)
   signupSource: text("signup_source"), // de onde veio no cadastro (utm_source, indicação, Ritus ou direto)
   leagueTier: integer("league_tier").notNull().default(0), // liga semanal: 0 Bronze ... 5 Diamante
+  seasonTier: integer("season_tier").notNull().default(0),
   leagueOptOut: boolean("league_opt_out").notNull().default(false), // não aparece nas ligas
   pushOptOut: boolean("push_opt_out").notNull().default(false), // desligou as notificações de propósito (padrão: ligadas)
   xpTotal: integer("xp_total").notNull().default(0), // Pontos de Ritmo (cópia do cálculo, para o Feed)
@@ -587,5 +588,19 @@ export const profileSurveys = pgTable("profile_surveys", {
   dismissedAt: timestamp("dismissed_at"),
   dismissCount: integer("dismiss_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Temporada mensal (competição com divisões): pontos do mês de cada pessoa no seu grupo.
+export const seasonMonths = pgTable("season_months", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  month: text("month").notNull(), // YYYY-MM
+  tier: integer("tier").notNull(), // divisão (0 = Bronze ... 7 = Lenda), ver src/lib/season.ts
+  groupNo: integer("group_no").notNull(),
+  xp: integer("xp").notNull().default(0),
+  /** como a pessoa chegou nesta divisão no começo do mês: up | down | stay | new */
+  cameFrom: text("came_from").notNull().default("new"),
+  /** posição final no mês anterior (para a comemoração) */
+  prevRank: integer("prev_rank"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

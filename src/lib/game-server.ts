@@ -1,9 +1,10 @@
 // Junta pontos, missões do dia, baú, ofensiva, resumo da semana e liga para a tela.
-import { and, asc, eq, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, lt, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { checkDb, updateUserRecord } from './server-db.js';
-import { UserXp } from './xp-server.js';
+import { UserXp, getUserXp } from './xp-server.js';
+import { SEASON_GROUP_SIZE, daysLeftIn, division, lastDayOf, monthOf, nextDivision, prevMonth, rankOf, seasonGoals, seasonLabel, seasonNudge, seasonPoints, zoneFor, zoneSizes } from './season.js';
 import { displayName, initials } from './feed-rules.js';
 import {
   LEAGUE_GROUP_SIZE,
@@ -161,4 +162,136 @@ export async function syncLeague(userId: number, xp: UserXp) {
     console.error('[ligas]', e);
     return null;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Temporada mensal (divisões)                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Atualiza os pontos do mês e devolve a classificação do grupo.
+ * Na primeira visita do mês: fecha o mês anterior (sobe, fica ou desce) e entra num grupo da nova divisão.
+ */
+export async function syncSeason(userId: number, xp: UserXp) {
+  if (xp.leagueOptOut || !(await checkDb())) return null;
+  const month = monthOf(xp.today);
+  const points = seasonPoints(xp.days, month);
+  const T = schema.seasonMonths;
+  try {
+    let [mine] = await db.select().from(T).where(and(eq(T.userId, userId), eq(T.month, month)));
+    if (!mine) {
+      let tier = xp.seasonTier;
+      let cameFrom = 'new';
+      let prevRank: number | null = null;
+      const [prev] = await db.select().from(T).where(and(eq(T.userId, userId), lt(T.month, month))).orderBy(desc(T.month)).limit(1);
+      if (prev) {
+        if (prev.month === prevMonth(month)) {
+          const group = await db.select({ userId: T.userId, xp: T.xp }).from(T).where(and(eq(T.month, prev.month), eq(T.tier, prev.tier), eq(T.groupNo, prev.groupNo)));
+          const { rank, size } = rankOf(group, userId);
+          tier = nextDivision(prev.tier, rank, size, prev.xp);
+          prevRank = rank;
+        } else {
+          // ficou um mês ou mais sem aparecer: desce uma divisão (nunca abaixo do Bronze)
+          tier = Math.max(0, prev.tier - 1);
+        }
+        cameFrom = tier > prev.tier ? 'up' : tier < prev.tier ? 'down' : 'stay';
+      }
+      if (tier !== xp.seasonTier) await updateUserRecord(userId, { seasonTier: tier } as any);
+      const groups = await db
+        .select({ groupNo: T.groupNo, n: sql<number>`count(*)` })
+        .from(T)
+        .where(and(eq(T.month, month), eq(T.tier, tier)))
+        .groupBy(T.groupNo)
+        .orderBy(asc(T.groupNo));
+      const open = groups.find((g) => Number(g.n) < SEASON_GROUP_SIZE);
+      const groupNo = open ? open.groupNo : (groups.at(-1)?.groupNo ?? 0) + 1;
+      await db.insert(T).values({ userId, month, tier, groupNo, xp: points, cameFrom, prevRank }).onConflictDoNothing();
+      [mine] = await db.select().from(T).where(and(eq(T.userId, userId), eq(T.month, month)));
+      if (!mine) return null;
+    } else if (mine.xp !== points) {
+      await db.update(T).set({ xp: points, updatedAt: new Date() }).where(and(eq(T.userId, userId), eq(T.month, month)));
+      mine = { ...mine, xp: points };
+    }
+
+    const rows = await db
+      .select({ userId: T.userId, xp: T.xp, name: schema.users.name, avatarUrl: schema.users.avatarUrl, level: schema.users.level, optOut: schema.users.leagueOptOut })
+      .from(T)
+      .innerJoin(schema.users, eq(schema.users.id, T.userId))
+      .where(and(eq(T.month, month), eq(T.tier, mine.tier), eq(T.groupNo, mine.groupNo)));
+    const visible = rows.filter((r) => !r.optOut || r.userId === userId);
+    const { sorted } = rankOf(visible, userId);
+    const size = sorted.length;
+    const standings = sorted.map((r, i) => ({
+      rank: i + 1,
+      userId: r.userId,
+      name: displayName(r.name),
+      initials: initials(r.name),
+      avatarUrl: r.avatarUrl || null,
+      level: r.level || 1,
+      xp: r.xp,
+      me: r.userId === userId,
+      zone: zoneFor(mine!.tier, i + 1, size, r.xp),
+    }));
+    const meRow = standings.find((s) => s.me);
+    const daysLeft = daysLeftIn(month, xp.today);
+    const goals = seasonGoals(mine.tier, standings);
+    const history = await db.select({ month: T.month, tier: T.tier, xp: T.xp }).from(T).where(eq(T.userId, userId)).orderBy(desc(T.month)).limit(12);
+    const div = division(mine.tier);
+    const zones = zoneSizes(mine.tier, size);
+    return {
+      month,
+      label: seasonLabel(month),
+      endsAt: lastDayOf(month),
+      daysLeft,
+      tier: mine.tier,
+      division: { name: div.name, color: div.color, emoji: div.emoji, promotePct: Math.round(div.promote * 100), relegatePct: Math.round(div.relegate * 100) },
+      cameFrom: mine.cameFrom,
+      prevRank: mine.prevRank,
+      size,
+      zones,
+      rank: meRow?.rank ?? null,
+      zone: meRow?.zone ?? 'stay',
+      points: mine.xp,
+      goals,
+      nudge: seasonNudge(mine.tier, meRow?.zone ?? 'stay', goals, daysLeft),
+      standings,
+      history: history.map((h) => ({ month: h.month, tier: h.tier, name: division(h.tier).name, xp: h.xp })),
+    };
+  } catch (e) {
+    console.error('[temporada]', e);
+    return null;
+  }
+}
+
+/**
+ * Chamado pelo agendador: atualiza os pontos de quem não abriu o app há algumas horas, para o ranking
+ * que os outros veem (e o resultado do fim do mês) ficar justo. Poucas pessoas por vez.
+ */
+export async function refreshSeasonPoints(limit = 25, now = new Date()) {
+  if (!(await checkDb())) return { refreshed: 0 };
+  const T = schema.seasonMonths;
+  const brt = new Date(now.getTime() - 3 * 3600_000).toISOString().slice(0, 10);
+  const month = monthOf(brt);
+  const prev = prevMonth(month);
+  const staleBefore = new Date(now.getTime() - 6 * 3600_000);
+  // mês atual: quem está desatualizado há 6 h; mês anterior: quem não foi atualizado depois que ele acabou
+  const monthStart = new Date(Date.parse(`${month}-01T03:00:00Z`));
+  const rows = await db
+    .select({ userId: T.userId, month: T.month })
+    .from(T)
+    .where(sql`(${T.month} = ${month} and ${T.updatedAt} < ${staleBefore}) or (${T.month} = ${prev} and ${T.updatedAt} < ${monthStart})`)
+    .orderBy(asc(T.updatedAt))
+    .limit(limit);
+  let refreshed = 0;
+  for (const r of rows) {
+    try {
+      const xp = await getUserXp(r.userId);
+      const pts = xp ? seasonPoints(xp.days, r.month) : 0;
+      await db.update(T).set({ xp: pts, updatedAt: new Date() }).where(and(eq(T.userId, r.userId), eq(T.month, r.month)));
+      refreshed++;
+    } catch (e) {
+      console.error('[temporada] atualizar', e);
+    }
+  }
+  return { refreshed };
 }
