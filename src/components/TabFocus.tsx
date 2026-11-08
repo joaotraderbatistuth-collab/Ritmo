@@ -12,6 +12,8 @@ import {
   Share2,
 } from 'lucide-react';
 import { shareAchievement } from '../lib/share-feed.js';
+import { liveStart, liveStop, postStory } from '../lib/stories-client.js';
+import { cardFromAchievement } from '../lib/share-card.js';
 import { localDateStr } from '../lib/chain.js';
 
 interface TabFocusProps {
@@ -52,6 +54,17 @@ export const TabFocus: React.FC<TabFocusProps> = ({
       setFocusTopic(initialTopic);
     }
   }, [initialDuration, initialTopic]);
+
+  // "Em foco agora" nos stories (só para quem ligou a opção automática)
+  useEffect(() => {
+    if (isRunning) liveStart('foco', focusTopic && focusTopic !== 'Sessão de Foco' ? focusTopic.slice(0, 60) : '', Math.ceil(secondsLeft / 60));
+    else liveStop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRunning]);
+  // sessão terminada: story automático com os minutos de foco
+  useEffect(() => {
+    if (justDone) postStory(cardFromAchievement({ type: 'sessao', minutes: justDone.minutes, ...(justDone.goal ? { goal: justDone.goal.slice(0, 80) } : {}) }), true);
+  }, [justDone]);
 
   // Audio tone generator for browser completion alert
   const playAlertSound = () => {

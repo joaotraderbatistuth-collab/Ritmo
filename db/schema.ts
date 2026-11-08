@@ -29,6 +29,9 @@ export const users = pgTable("users", {
   xpTotal: integer("xp_total").notNull().default(0), // Pontos de Ritmo (cópia do cálculo, para o Feed)
   level: integer("level").notNull().default(1), // nível atual (1 a 12), define a moldura da foto
   autofill: boolean("autofill").notNull().default(true), // preenchimento automático entre agenda, quadros, finanças e lembretes
+  weekKey: text("week_key"), // segunda-feira da semana dos pontos abaixo (ranking entre amigos)
+  weekXp: integer("week_xp").notNull().default(0),
+  storyAuto: boolean("story_auto").notNull().default(false), // publica sozinho nos stories as conquistas e o "ao vivo"
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -658,5 +661,41 @@ export const shareCards = pgTable("share_cards", {
   subtitle: text("subtitle").notNull().default(""),
   image: text("image"),
   views: integer("views").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Baú semanal: missões cumpridas em 5 dias da semana. Um por pessoa e semana (segunda-feira).
+export const weekChests = pgTable("week_chests", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  week: text("week").notNull(),
+  day: text("day").notNull(),
+  xp: integer("xp").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Stories dentro do app (somem em 24 h). "live" = acontecendo agora (treinando, em foco).
+export const stories = pgTable("stories", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  emoji: text("emoji").notNull().default(""),
+  tag: text("tag").notNull().default(""),
+  title: text("title").notNull(),
+  subtitle: text("subtitle").notNull().default(""),
+  big: text("big"),
+  bigLabel: text("big_label"),
+  color: text("color").notNull().default("#34d399"),
+  live: boolean("live").notNull().default(false),
+  auto: boolean("auto").notNull().default(false),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Quem viu cada story (e quem aplaudiu).
+export const storyViews = pgTable("story_views", {
+  storyId: integer("story_id").notNull().references(() => stories.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  clapped: boolean("clapped").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -8,6 +8,7 @@ import { computeMedals, monthRecap } from './medals.js';
 import { levelInfo } from './levels.js';
 import { SEASON_GROUP_SIZE, daysLeftIn, division, lastDayOf, monthOf, nextDivision, prevMonth, rankOf, seasonGoals, seasonLabel, seasonNudge, seasonPoints, zoneFor, zoneSizes } from './season.js';
 import { displayName, initials } from './feed-rules.js';
+import { EVENT_DAILY_MAX, WEEK_CHEST_DAYS, addDay, chestDaysInWeek, eventOfWeek, friendsRanking, mascotState, passView, weekChestReward } from './game-extras.js';
 import {
   LEAGUE_GROUP_SIZE,
   MissionCounter,
@@ -90,7 +91,91 @@ export function buildGame(userId: number, xp: UserXp) {
     streak: { ...streak, next: nextMilestone(streak.days) },
     week: weekSummary(xp.days, thisWeek),
     lastWeek: weekSummary(xp.days, shiftDay(thisWeek, -7)),
+    ...gameExtras(xp, thisWeek),
   };
+}
+
+/** Evento da semana, passe da temporada, baú semanal, mascote e selos do passe. */
+function gameExtras(xp: UserXp, thisWeek: string) {
+  const today = xp.today;
+  const ev = eventOfWeek(today);
+  const month = today.slice(0, 7);
+  const chestDays = xp.chests.map((c) => c.day);
+  const daysDone = chestDaysInWeek(chestDays, thisWeek);
+  const opened = (xp.weekChests || []).find((w) => w.week === thisWeek) || null;
+  const lastActive = Object.keys(xp.days).filter((d) => xp.days[d].xp > 0 && d <= today).sort().at(-1) || null;
+  return {
+    event: ev
+      ? { id: ev.id, name: ev.name, emoji: ev.emoji, color: ev.color, desc: ev.desc, tab: ev.tab, todayBonus: xp.eventToday || 0, max: EVENT_DAILY_MAX, endsAt: addDay(thisWeek, 6) }
+      : null,
+    pass: { month, ...passView(xp.pass?.[month]?.base || 0) },
+    weekChest: {
+      days: daysDone,
+      need: WEEK_CHEST_DAYS,
+      ready: daysDone >= WEEK_CHEST_DAYS && !opened,
+      opened: opened ? { xp: opened.xp, day: opened.day } : null,
+      // quantos dias ainda dá para cumprir nesta semana (contando hoje, se o baú do dia ainda não saiu)
+      daysLeft: Math.max(0, 7 - Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${thisWeek}T12:00:00Z`)) / 86400_000) - (chestDays.includes(today) ? 1 : 0)),
+    },
+    mascot: mascotState(xp.activeDays, lastActive, today),
+    seals: Object.entries(xp.pass || {})
+      .filter(([, p]) => p.steps >= 5)
+      .map(([m, p]) => ({ month: m, steps: p.steps, label: seasonLabel(m) }))
+      .sort((a, b) => b.month.localeCompare(a.month)),
+  };
+}
+
+/** Abre o baú semanal (missões cumpridas em 5 dias da semana; um por semana). */
+export async function openWeekChest(userId: number, xp: UserXp) {
+  const week = mondayOf(xp.today);
+  const g = gameExtras(xp, week);
+  if (g.weekChest.opened) return { ok: false as const, error: 'Você já abriu o baú desta semana. Segunda tem outro!' };
+  if (!g.weekChest.ready) return { ok: false as const, error: `Cumpra as missões em ${WEEK_CHEST_DAYS} dias da semana (${g.weekChest.days}/${WEEK_CHEST_DAYS}).` };
+  if (!(await checkDb())) return { ok: false as const, error: 'Não foi possível abrir agora. Tente de novo.' };
+  const xpWon = weekChestReward(userId, week);
+  const ins = await db.insert(schema.weekChests).values({ userId, week, day: xp.today, xp: xpWon }).onConflictDoNothing().returning();
+  if (!ins.length) return { ok: false as const, error: 'Você já abriu o baú desta semana.' };
+  return { ok: true as const, xp: xpWon };
+}
+
+/** Guarda os pontos da semana (para o ranking entre amigos) quando mudaram. */
+export async function saveWeekXp(userId: number, xp: UserXp, weekXp: number) {
+  const week = mondayOf(xp.today);
+  if (xp.weekKey === week && xp.weekXpSaved === weekXp) return;
+  if (!(await checkDb())) return;
+  await db.update(schema.users).set({ weekKey: week, weekXp }).where(eq(schema.users.id, userId)).catch(() => null);
+}
+
+/** Ranking da semana entre quem a pessoa segue (e ela mesma). */
+export async function friendsWeek(userId: number, xp: UserXp, myWeekXp: number) {
+  if (!(await checkDb())) return null;
+  const week = mondayOf(xp.today);
+  try {
+    const rows = await db
+      .select({ userId: schema.users.id, name: schema.users.name, avatarUrl: schema.users.avatarUrl, level: schema.users.level, weekKey: schema.users.weekKey, weekXp: schema.users.weekXp })
+      .from(schema.follows)
+      .innerJoin(schema.users, eq(schema.users.id, schema.follows.followeeId))
+      .where(eq(schema.follows.followerId, userId))
+      .limit(200);
+    const list = rows.map((r) => ({ userId: r.userId, name: displayName(r.name), initials: initials(r.name), avatarUrl: r.avatarUrl || null, level: r.level || 1, xp: r.weekKey === week ? r.weekXp || 0 : 0, me: false }));
+    list.push({ userId, name: 'Você', initials: '', avatarUrl: xp.avatarUrl, level: xp.info.level, xp: myWeekXp, me: true });
+    const ranked = friendsRanking(list);
+    const mine = ranked.find((r) => r.me)!;
+    const ahead = ranked[mine.rank - 2] || null;
+    return {
+      week,
+      total: ranked.length,
+      rank: mine.rank,
+      following: rows.length,
+      gapToNext: ahead ? Math.max(1, ahead.xp - mine.xp + 1) : null,
+      nextName: ahead?.name || null,
+      top: ranked.slice(0, 10),
+      ...(mine.rank > 10 ? { meRow: mine } : {}),
+    };
+  } catch (e) {
+    console.error('[amigos]', e);
+    return null;
+  }
 }
 
 /** Abre o baú do dia (só com as 3 missões cumpridas, uma vez por dia). */
@@ -312,6 +397,7 @@ export async function refreshSeasonPoints(limit = 25, now = new Date()) {
       const xp = await getUserXp(r.userId);
       const pts = xp ? seasonPoints(xp.days, r.month) : 0;
       await db.update(T).set({ xp: pts, updatedAt: new Date() }).where(and(eq(T.userId, r.userId), eq(T.month, r.month)));
+      if (xp) await saveWeekXp(r.userId, xp, weekSummary(xp.days, mondayOf(xp.today)).xp).catch(() => null);
       refreshed++;
     } catch (e) {
       console.error('[temporada] atualizar', e);

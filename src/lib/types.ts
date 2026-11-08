@@ -15,6 +15,8 @@ export interface User {
   whatsappPhone?: string | null;
   /** preenchimento automático entre agenda, quadros, finanças e lembretes (padrão: ligado) */
   autofill?: boolean;
+  /** publica sozinho nos stories do Ritmo as conquistas e o "ao vivo" (padrão: desligado) */
+  storyAuto?: boolean;
   access?: { hasAccess: boolean; effectiveStatus: string; daysLeft: number };
   createdAt?: string;
   updatedAt?: string;

@@ -37,6 +37,10 @@ export interface UserXp extends XpResult {
   sinceDay: string | null;
   /** Baús já abertos. */
   chests: { day: string; reward: string; xp: number }[];
+  /** Baús semanais já abertos e os pontos da semana guardados (ranking entre amigos). */
+  weekChests: { week: string; day: string; xp: number }[];
+  weekKey: string | null;
+  weekXpSaved: number;
   /** Contadores de hoje que não dão pontos sozinhos (para as missões). */
   todayExtra: { lembrete: number; planejar: number };
   /** Já pediu lembretes antes de hoje. */
@@ -72,12 +76,18 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
   let posts: { createdAt: string }[] = [];
   let comments: { createdAt: string }[] = [];
   let chests: UserXp['chests'] = [];
+  let weekChests: { week: string; day: string; xp: number }[] = [];
   let lembretesHoje = 0;
   let everUsedReminders = false;
   const today = dayIn(tz);
   if (await checkDb()) {
     try {
       chests = (await db.select({ day: schema.missionDays.day, reward: schema.missionDays.reward, xp: schema.missionDays.xp }).from(schema.missionDays).where(eq(schema.missionDays.userId, userId))).map((r) => ({ ...r }));
+      try {
+        weekChests = await db.select({ week: schema.weekChests.week, day: schema.weekChests.day, xp: schema.weekChests.xp }).from(schema.weekChests).where(eq(schema.weekChests.userId, userId));
+      } catch {
+        // baú semanal ainda sendo criado
+      }
       const rem = await db.select({ createdAt: schema.reminders.createdAt }).from(schema.reminders).where(eq(schema.reminders.userId, userId)).limit(500);
       everUsedReminders = rem.some((r) => toDay(r.createdAt) < today);
       for (const r of rem) events.push({ src: 'lembrete_novo', day: toDay(r.createdAt) });
@@ -154,6 +164,7 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     posts,
     comments,
     bonus: chests.map((c) => ({ day: c.day, xp: c.xp })),
+    weekBonus: weekChests.map((c) => ({ day: c.day, xp: c.xp })),
     events,
     since: (user as any).createdAt ? toDay((user as any).createdAt) : null,
     today,
@@ -198,6 +209,9 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     today,
     sinceDay: (user as any).createdAt ? toDay((user as any).createdAt) : null,
     chests,
+    weekChests,
+    weekKey: (user as any).weekKey || null,
+    weekXpSaved: Number((user as any).weekXp) || 0,
     todayExtra: { lembrete: lembretesHoje, planejar },
     everUsedReminders,
     leagueTier: Number((user as any).leagueTier) || 0,

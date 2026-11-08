@@ -869,3 +869,23 @@ export async function getTeamsFinance() {
     return null;
   }
 }
+
+/** Ritus que a pessoa criou e de que participa (só os que estão na vitrine, ativos). */
+export async function profileRitus(userId: number) {
+  await need();
+  const owned = await db
+    .select({ id: schema.teams.id, code: schema.teams.code, name: schema.teams.name, priceCents: schema.teams.priceCents, members: sql<number>`(select count(*) from team_members tm where tm.team_id = ${schema.teams.id} and tm.status = 'active')` })
+    .from(schema.teams)
+    .where(and(eq(schema.teams.ownerUserId, userId), eq(schema.teams.active, true), eq(schema.teams.listed, true)))
+    .limit(20);
+  const member = await db
+    .select({ id: schema.teams.id, code: schema.teams.code, name: schema.teams.name, priceCents: schema.teams.priceCents, since: schema.teamMembers.createdAt })
+    .from(schema.teamMembers)
+    .innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId))
+    .where(and(eq(schema.teamMembers.userId, userId), eq(schema.teamMembers.status, 'active'), eq(schema.teams.active, true), eq(schema.teams.listed, true), sql`${schema.teams.ownerUserId} <> ${userId}`))
+    .limit(30);
+  return {
+    owned: owned.map((t) => ({ code: t.code, name: t.name, free: !t.priceCents, members: Number(t.members) || 0 })),
+    member: member.map((t) => ({ code: t.code, name: t.name, free: !t.priceCents, since: iso(t.since) })),
+  };
+}

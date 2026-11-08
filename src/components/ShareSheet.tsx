@@ -4,6 +4,7 @@ import { OPEN_SHARE_EVENT, shareToFeed } from '../lib/share-feed.js';
 import { shareMessage, type ShareCard } from '../lib/share-card.js';
 import { canvasBlob, previewDataUrl, renderStory, type StoryPerson } from '../lib/story-image.js';
 import { callApi } from '../lib/client-api.js';
+import { postStory } from '../lib/stories-client.js';
 
 // "Compartilhar em redes sociais": story pronto (1080×1920) com QR code e o link da pessoa.
 // WhatsApp e Instagram recebem a imagem + o link; o Feed do Ritmo recebe a conquista.
@@ -35,6 +36,7 @@ export const ShareSheet: React.FC<{ person: StoryPerson | null; referralCode: st
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [copied, setCopied] = useState(false);
+  const [storyDone, setStoryDone] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const blob = useRef<Blob | null>(null);
   const run = useRef(0);
@@ -59,6 +61,7 @@ export const ShareSheet: React.FC<{ person: StoryPerson | null; referralCode: st
     setBusy(true);
     setMsg('');
     setCopied(false);
+    setStoryDone(false);
     setPreview('');
     blob.current = null;
     const fallback = `${window.location.origin}/?ref=${encodeURIComponent(referralCode)}`;
@@ -154,6 +157,15 @@ export const ShareSheet: React.FC<{ person: StoryPerson | null; referralCode: st
     setMsg(`Imagem baixada${ok ? ' e link copiado' : ''}. Abra o Instagram, poste no Stories e use o adesivo "Link" para colar o link.`);
   };
 
+  const story = async () => {
+    setMsg('');
+    const r = await postStory(card);
+    if (r.ok) {
+      setStoryDone(true);
+      setMsg('No ar! Fica 24 horas nos stories do Ritmo.');
+    } else setMsg(r.error || 'Não deu para publicar o story agora.');
+  };
+
   const feed = () => {
     if (!card.feed) return;
     shareToFeed(card.feed);
@@ -182,6 +194,9 @@ export const ShareSheet: React.FC<{ person: StoryPerson | null; referralCode: st
             <span className="text-xl leading-6" aria-hidden="true">✨</span>Feed do Ritmo
           </button>
         </div>
+        <button type="button" onClick={story} disabled={storyDone} className="mt-2 w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-extrabold text-[#0d1117] bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 disabled:opacity-60">
+          {storyDone ? <Check className="w-4 h-4" /> : <span aria-hidden="true">◎</span>} {storyDone ? 'Publicado nos stories do Ritmo' : 'Story no Ritmo (24 h)'}
+        </button>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button type="button" onClick={copyLink} disabled={!url} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#30363d] py-2.5 text-xs font-semibold text-[#c9d1d9] hover:text-white">
             {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Link2 className="w-4 h-4" />} {copied ? 'Link copiado' : 'Copiar link'}

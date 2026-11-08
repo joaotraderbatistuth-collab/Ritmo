@@ -24,6 +24,7 @@ import { Route as ApiWorkoutsRouteImport } from './routes/api.workouts'
 import { Route as ApiTeamsRouteImport } from './routes/api.teams'
 import { Route as ApiTasksRouteImport } from './routes/api.tasks'
 import { Route as ApiSurveyRouteImport } from './routes/api.survey'
+import { Route as ApiStoriesRouteImport } from './routes/api.stories'
 import { Route as ApiShareRouteImport } from './routes/api.share'
 import { Route as ApiPushRouteImport } from './routes/api.push'
 import { Route as ApiProfileRouteImport } from './routes/api.profile'
@@ -126,6 +127,11 @@ const ApiTasksRoute = ApiTasksRouteImport.update({
 const ApiSurveyRoute = ApiSurveyRouteImport.update({
   id: '/api/survey',
   path: '/api/survey',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStoriesRoute = ApiStoriesRouteImport.update({
+  id: '/api/stories',
+  path: '/api/stories',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiShareRoute = ApiShareRouteImport.update({
@@ -304,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
   '/api/share': typeof ApiShareRoute
+  '/api/stories': typeof ApiStoriesRoute
   '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
@@ -349,6 +356,7 @@ export interface FileRoutesByTo {
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
   '/api/share': typeof ApiShareRoute
+  '/api/stories': typeof ApiStoriesRoute
   '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
@@ -395,6 +403,7 @@ export interface FileRoutesById {
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
   '/api/share': typeof ApiShareRoute
+  '/api/stories': typeof ApiStoriesRoute
   '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
@@ -442,6 +451,7 @@ export interface FileRouteTypes {
     | '/api/profile'
     | '/api/push'
     | '/api/share'
+    | '/api/stories'
     | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
@@ -487,6 +497,7 @@ export interface FileRouteTypes {
     | '/api/profile'
     | '/api/push'
     | '/api/share'
+    | '/api/stories'
     | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
@@ -532,6 +543,7 @@ export interface FileRouteTypes {
     | '/api/profile'
     | '/api/push'
     | '/api/share'
+    | '/api/stories'
     | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
@@ -578,6 +590,7 @@ export interface RootRouteChildren {
   ApiProfileRoute: typeof ApiProfileRoute
   ApiPushRoute: typeof ApiPushRoute
   ApiShareRoute: typeof ApiShareRoute
+  ApiStoriesRoute: typeof ApiStoriesRoute
   ApiSurveyRoute: typeof ApiSurveyRoute
   ApiTasksRoute: typeof ApiTasksRoute
   ApiTeamsRoute: typeof ApiTeamsRoute
@@ -695,6 +708,13 @@ declare module '@tanstack/react-router' {
       path: '/api/survey'
       fullPath: '/api/survey'
       preLoaderRoute: typeof ApiSurveyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stories': {
+      id: '/api/stories'
+      path: '/api/stories'
+      fullPath: '/api/stories'
+      preLoaderRoute: typeof ApiStoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/share': {
@@ -930,6 +950,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProfileRoute: ApiProfileRoute,
   ApiPushRoute: ApiPushRoute,
   ApiShareRoute: ApiShareRoute,
+  ApiStoriesRoute: ApiStoriesRoute,
   ApiSurveyRoute: ApiSurveyRoute,
   ApiTasksRoute: ApiTasksRoute,
   ApiTeamsRoute: ApiTeamsRoute,

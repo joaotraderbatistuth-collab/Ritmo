@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MedalsStrip } from './Medals.js';
+import { RARITY, type Rarity } from '../lib/medals.js';
+import { openStories } from './Stories.js';
+import { openShare } from '../lib/share-feed.js';
+import { cardFromMedal } from '../lib/share-card.js';
 import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame, Trophy, Activity, UserPlus, UserCheck, Award } from 'lucide-react';
 import { RouteSvg } from './RouteSvg.js';
 import { SPORTS, formatDuration, formatKm, formatPace, paceSPerKm, speedKmh } from '../lib/workout.js';
@@ -444,6 +447,21 @@ interface PublicProfile {
   following?: number;
   followedByMe?: boolean;
   isMe: boolean;
+  medals?: { id: string; emoji: string; name: string; desc: string; rarity: Rarity; group: string }[];
+  game?: {
+    activeDays: number;
+    streak: { days: number; best: number };
+    week: { xp: number; activeDays: number };
+    medalsEarned: number;
+    medalsTotal: number;
+    challengesDone: number;
+    division: { name: string; emoji: string; color: string; best: string; bestEmoji: string } | null;
+    pass: { step: number };
+    seals: { month: string; steps: number; label: string }[];
+    mascot: { emoji: string; name: string; stage: number; stages: number; mood: string } | null;
+  } | null;
+  ritus?: { owned: { code: string; name: string; free: boolean; members: number }[]; member: { code: string; name: string; free: boolean }[] };
+  story?: { any: boolean; live: boolean };
 }
 
 const monthYear = (iso: string | null) => {
@@ -522,50 +540,7 @@ export const ProfileModal: React.FC<{ userId: number | null; onClose: () => void
 
         {profile && info && frame && (
           <>
-            <section className="px-5 pb-5 -mt-4 flex flex-col items-center text-center">
-              <LevelAvatar initials={profile.initials} avatarUrl={profile.avatarUrl} level={profile.level} size="xl" />
-              <h2 className="mt-3 text-xl font-extrabold text-[#f0f6fc]">{profile.name}</h2>
-              <p className="text-sm font-semibold" style={{ color: frame.badge === '#484f58' ? '#8b949e' : frame.badge }}>Nível {profile.level} · {profile.levelName}</p>
-              {profile.bio ? (
-                <p className="mt-3 text-sm text-[#c9d1d9] max-w-sm whitespace-pre-wrap break-words">{profile.bio}</p>
-              ) : (
-                profile.isMe && <p className="mt-3 text-sm text-[#6e7681]">Você ainda não escreveu sua bio.</p>
-              )}
-
-              <div className="mt-4 w-full max-w-xs">
-                <div className="h-2 rounded-full bg-[#21262d] overflow-hidden">
-                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-300" style={{ width: `${Math.round(info.progress * 100)}%` }} />
-                </div>
-                <p className="mt-1 text-[11px] text-[#6e7681]">{info.nextName ? `${info.xp.toLocaleString('pt-BR')} pontos · próximo: ${info.nextName}` : `${info.xp.toLocaleString('pt-BR')} pontos · nível máximo`}</p>
-              </div>
-
-              <dl className="mt-4 grid grid-cols-3 gap-2 w-full max-w-sm">
-                <div className="rounded-xl bg-[#161b22] border border-[#21262d] py-2"><dt className="text-[11px] text-[#8b949e]">Publicações</dt><dd className="text-lg font-bold text-[#f0f6fc]">{profile.posts}</dd></div>
-                <div className="rounded-xl bg-[#161b22] border border-[#21262d] py-2"><dt className="text-[11px] text-[#8b949e]">Curtidas</dt><dd className="text-lg font-bold text-[#f0f6fc]">{profile.likesReceived}</dd></div>
-                <div className="rounded-xl bg-[#161b22] border border-[#21262d] py-2"><dt className="text-[11px] text-[#8b949e]">Pontos</dt><dd className="text-lg font-bold text-[#f0f6fc]">{profile.xp.toLocaleString('pt-BR')}</dd></div>
-              </dl>
-              <p className="mt-3 text-sm text-[#8b949e]">
-                <strong className="text-[#f0f6fc]">{profile.followers ?? 0}</strong> {(profile.followers ?? 0) === 1 ? 'seguidor' : 'seguidores'} · <strong className="text-[#f0f6fc]">{profile.following ?? 0}</strong> seguindo
-              </p>
-              {!profile.isMe && (
-                <button
-                  type="button"
-                  onClick={toggleFollow}
-                  disabled={followBusy}
-                  aria-pressed={Boolean(profile.followedByMe)}
-                  className={`mt-3 inline-flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-bold ${profile.followedByMe ? 'border border-[#30363d] text-[#c9d1d9] hover:border-rose-400/60 hover:text-rose-300' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
-                >
-                  {profile.followedByMe ? <><UserCheck className="w-4 h-4" /> Seguindo</> : <><UserPlus className="w-4 h-4" /> Seguir</>}
-                </button>
-              )}
-              {profile.memberSince && <p className="mt-3 text-xs text-[#6e7681]">No Ritmo desde {monthYear(profile.memberSince)}</p>}
-              {Array.isArray((profile as any).medals) && (profile as any).medals.length > 0 && (
-                <div className="mt-4 w-full text-left"><MedalsStrip medals={(profile as any).medals} /></div>
-              )}
-              {profile.isMe && onEditMine && (
-                <button type="button" onClick={() => { onClose(); onEditMine(); }} className="mt-3 px-4 py-2 rounded-lg border border-[#30363d] text-sm text-[#c9d1d9] hover:bg-[#21262d]">Editar meu perfil</button>
-              )}
-            </section>
+            <ProfileHeader profile={profile} info={info} frame={frame} followBusy={followBusy} onFollow={toggleFollow} onClose={onClose} onEditMine={onEditMine} />
 
             <section className="px-3 sm:px-5 pb-6 space-y-3 border-t border-[#21262d] pt-4">
               <h3 className="px-1 text-sm font-semibold text-[#f0f6fc]">Publicações no Feed</h3>
@@ -579,5 +554,207 @@ export const ProfileModal: React.FC<{ userId: number | null; onClose: () => void
         )}
       </div>
     </div>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/* Cabeçalho do perfil: quem é, como está no jogo, conquistas e Ritus   */
+/* ------------------------------------------------------------------ */
+
+const Stat: React.FC<{ label: string; value: React.ReactNode; hint?: string }> = ({ label, value, hint }) => (
+  <div className="rounded-2xl bg-[#161b22] border border-[#21262d] px-2 py-2.5 text-center" title={hint}>
+    <dd className="text-lg font-extrabold text-[#f0f6fc] tabular-nums leading-tight">{value}</dd>
+    <dt className="text-[10px] text-[#8b949e] leading-tight mt-0.5">{label}</dt>
+  </div>
+);
+
+const ProfileHeader: React.FC<{
+  profile: PublicProfile;
+  info: ReturnType<typeof levelInfo>;
+  frame: ReturnType<typeof frameForLevel>;
+  followBusy: boolean;
+  onFollow: () => void;
+  onClose: () => void;
+  onEditMine?: () => void;
+}> = ({ profile, info, frame, followBusy, onFollow, onClose, onEditMine }) => {
+  const [allMedals, setAllMedals] = useState(false);
+  const g = profile.game;
+  const color = frame.badge === '#484f58' ? '#34d399' : frame.badge;
+  const order: Record<Rarity, number> = { lendaria: 0, epica: 1, rara: 2, comum: 3 };
+  const medals = [...(profile.medals || [])].sort((a, b) => order[a.rarity] - order[b.rarity]);
+  const rarest = medals[0];
+  const shownMedals = allMedals ? medals : medals.slice(0, 8);
+  const ritus = profile.ritus || { owned: [], member: [] };
+  const goRitus = (code: string) => {
+    window.location.href = `/app?ritus=${encodeURIComponent(code)}`;
+  };
+
+  return (
+    <section className="-mt-14 pb-5">
+      {/* capa com a cor da moldura do nível */}
+      <div className="h-24 sm:h-28 rounded-t-3xl" style={{ background: `linear-gradient(135deg, ${color}55, #0d1117 70%), radial-gradient(circle at 80% 20%, ${color}44, transparent 50%)` }} aria-hidden="true" />
+      <div className="px-5 -mt-12 flex flex-col items-center text-center">
+        <button
+          type="button"
+          onClick={() => profile.story?.any && (onClose(), openStories(profile.id))}
+          className={`rounded-full p-[3px] ${profile.story?.live ? 'bg-gradient-to-tr from-red-500 via-orange-400 to-red-500 animate-pulse' : profile.story?.any ? 'bg-gradient-to-tr from-emerald-400 via-teal-300 to-amber-300' : 'bg-transparent'}`}
+          aria-label={profile.story?.any ? `Ver stories de ${profile.name}` : profile.name}
+          disabled={!profile.story?.any}
+        >
+          <span className="block rounded-full bg-[#0d1117] p-[3px]"><LevelAvatar initials={profile.initials} avatarUrl={profile.avatarUrl} level={profile.level} size="xl" /></span>
+        </button>
+        {profile.story?.live && <span className="-mt-3 relative px-2 py-0.5 rounded bg-red-500 text-[10px] font-black text-white">AO VIVO</span>}
+        <h2 className="mt-2 text-xl font-extrabold text-[#f0f6fc]">{profile.name}</h2>
+        <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold" style={{ background: `${color}22`, color, border: `1px solid ${color}55` }}>Nível {profile.level} · {profile.levelName}</span>
+          {g?.division && (
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold" style={{ background: `${g.division.color}22`, color: g.division.color, border: `1px solid ${g.division.color}55` }}>
+              {g.division.emoji} {g.division.name}
+            </span>
+          )}
+          {g && g.streak.days > 0 && <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-orange-500/15 text-orange-300 border border-orange-400/40">🔥 {g.streak.days} {g.streak.days === 1 ? 'dia' : 'dias'}</span>}
+          {g?.mascot && <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-400/30" title={`Rit: ${g.mascot.name}`}>{g.mascot.emoji} {g.mascot.name}</span>}
+        </div>
+        {profile.bio ? (
+          <p className="mt-3 text-sm text-[#c9d1d9] max-w-sm whitespace-pre-wrap break-words">{profile.bio}</p>
+        ) : (
+          profile.isMe && <p className="mt-3 text-sm text-[#6e7681]">Você ainda não escreveu sua bio.</p>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          {!profile.isMe && (
+            <button
+              type="button"
+              onClick={onFollow}
+              disabled={followBusy}
+              aria-pressed={Boolean(profile.followedByMe)}
+              className={`inline-flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-bold ${profile.followedByMe ? 'border border-[#30363d] text-[#c9d1d9] hover:border-rose-400/60 hover:text-rose-300' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
+            >
+              {profile.followedByMe ? <><UserCheck className="w-4 h-4" /> Seguindo</> : <><UserPlus className="w-4 h-4" /> Seguir</>}
+            </button>
+          )}
+          {profile.story?.any && (
+            <button type="button" onClick={() => { onClose(); openStories(profile.id); }} className="px-4 py-2 rounded-full text-sm font-bold border border-emerald-400/50 text-emerald-300 hover:bg-emerald-500/10">◎ Ver stories</button>
+          )}
+          {profile.isMe && onEditMine && (
+            <button type="button" onClick={() => { onClose(); onEditMine(); }} className="px-4 py-2 rounded-full border border-[#30363d] text-sm text-[#c9d1d9] hover:bg-[#21262d]">Editar meu perfil</button>
+          )}
+        </div>
+        <p className="mt-2 text-sm text-[#8b949e]">
+          <strong className="text-[#f0f6fc]">{profile.followers ?? 0}</strong> {(profile.followers ?? 0) === 1 ? 'seguidor' : 'seguidores'} · <strong className="text-[#f0f6fc]">{profile.following ?? 0}</strong> seguindo
+          {profile.memberSince && <> · desde {monthYear(profile.memberSince)}</>}
+        </p>
+
+        {/* nível */}
+        <div className="mt-4 w-full max-w-sm">
+          <div className="h-2 rounded-full bg-[#21262d] overflow-hidden">
+            <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-300" style={{ width: `${Math.round(info.progress * 100)}%` }} />
+          </div>
+          <p className="mt-1 text-[11px] text-[#6e7681]">{info.nextName ? `${info.xp.toLocaleString('pt-BR')} pontos · faltam ${info.xpToNext} para ${info.nextName}` : `${info.xp.toLocaleString('pt-BR')} pontos · nível máximo`}</p>
+        </div>
+
+        {/* números */}
+        <dl className="mt-4 grid grid-cols-3 gap-2 w-full max-w-md">
+          <Stat label="Dias ativos" value={g?.activeDays ?? '—'} />
+          <Stat label="Maior ofensiva" value={g ? `${g.streak.best}🔥` : '—'} />
+          <Stat label="Conquistas" value={g ? `${g.medalsEarned}/${g.medalsTotal}` : medals.length} />
+          <Stat label="Pontos na semana" value={g?.week.xp ?? '—'} hint={g ? `${g.week.activeDays} dias ativos nesta semana` : undefined} />
+          <Stat label="Desafios cumpridos" value={g?.challengesDone ?? '—'} />
+          <Stat label="Publicações" value={profile.posts} hint={`${profile.likesReceived} curtidas recebidas`} />
+        </dl>
+      </div>
+
+      {/* temporada e selos */}
+      {g && (g.division || g.seals.length > 0 || g.pass.step > 0) && (
+        <div className="mx-5 mt-4 rounded-2xl border border-[#21262d] bg-[#161b22] p-4 text-left">
+          <h3 className="text-sm font-bold text-[#f0f6fc]">Temporada</h3>
+          <p className="mt-1 text-xs text-[#8b949e]">
+            {g.division ? <>Divisão atual: <strong style={{ color: g.division.color }}>{g.division.emoji} {g.division.name}</strong> · melhor: {g.division.bestEmoji} {g.division.best}. </> : null}
+            Passe deste mês: degrau <strong className="text-amber-200">{g.pass.step}/10</strong>.
+          </p>
+          {g.seals.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {g.seals.map((s) => (
+                <span key={s.month} className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold border ${s.steps >= 10 ? 'bg-amber-400/15 border-amber-400/50 text-amber-200' : 'bg-[#0d1117] border-[#30363d] text-[#c9d1d9]'}`}>
+                  {s.steps >= 10 ? '👑 Passe completo' : '🏵️ Metade do passe'} · {s.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* conquistas */}
+      <div className="mx-5 mt-4 rounded-2xl border border-[#21262d] bg-[#161b22] p-4 text-left">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-[#f0f6fc]">Conquistas</h3>
+          {rarest && <span className="text-[11px] font-bold" style={{ color: RARITY[rarest.rarity].color }}>Mais rara: {rarest.emoji} {rarest.name}</span>}
+        </div>
+        {medals.length === 0 ? (
+          <p className="mt-2 text-xs text-[#6e7681]">{profile.isMe ? 'Suas conquistas aparecem aqui.' : 'Ainda sem conquistas para mostrar.'}</p>
+        ) : (
+          <>
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {shownMedals.map((m) => {
+                const r = RARITY[m.rarity];
+                const Tag: any = profile.isMe ? 'button' : 'div';
+                return (
+                  <Tag
+                    key={m.id}
+                    {...(profile.isMe ? { type: 'button', onClick: () => openShare(cardFromMedal(m)) } : {})}
+                    title={`${m.name}: ${m.desc} (${r.name})`}
+                    className="rounded-xl border p-2 text-center"
+                    style={{ borderColor: `${r.color}66`, background: `linear-gradient(160deg, ${r.color}1f, transparent)` }}
+                  >
+                    <span className="block text-2xl" aria-hidden="true">{m.emoji}</span>
+                    <span className="block mt-0.5 text-[10px] font-semibold leading-tight text-[#e6edf3]">{m.name}</span>
+                    <span className="block text-[9px] font-black uppercase" style={{ color: r.color }}>{r.name}</span>
+                  </Tag>
+                );
+              })}
+            </div>
+            {medals.length > 8 && (
+              <button type="button" onClick={() => setAllMedals((v) => !v)} className="mt-2 text-xs font-semibold text-emerald-400 hover:underline">
+                {allMedals ? 'Mostrar menos' : `Ver todas (${medals.length})`}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Ritus */}
+      {(ritus.owned.length > 0 || ritus.member.length > 0) && (
+        <div className="mx-5 mt-4 rounded-2xl border border-[#21262d] bg-[#161b22] p-4 text-left space-y-3">
+          {ritus.owned.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-[#f0f6fc] flex items-center gap-1.5"><Crown className="w-4 h-4 text-amber-300" /> Ritus que criou</h3>
+              <ul className="mt-2 space-y-1.5">
+                {ritus.owned.map((t) => (
+                  <li key={t.code}>
+                    <button type="button" onClick={() => goRitus(t.code)} className="w-full flex items-center gap-2 rounded-xl border border-[#30363d] bg-[#0d1117] px-3 py-2 text-left hover:border-emerald-500/50">
+                      <span className="flex-1 min-w-0 truncate text-sm font-semibold text-[#e6edf3]">{t.name}</span>
+                      <span className="text-[11px] text-[#8b949e]">{t.members} {t.members === 1 ? 'membro' : 'membros'}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.free ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>{t.free ? 'Grátis' : 'Pago'}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {ritus.member.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-[#f0f6fc]">Ritus de que participa</h3>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {ritus.member.map((t) => (
+                  <button key={t.code} type="button" onClick={() => goRitus(t.code)} className="px-2.5 py-1 rounded-full text-xs font-semibold border border-[#30363d] bg-[#0d1117] text-[#c9d1d9] hover:border-emerald-500/50">
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 };

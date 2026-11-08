@@ -3,6 +3,8 @@ import { Sparkles, Share2, X, Lock, Check, Zap, Flame } from 'lucide-react';
 import { LevelAvatar } from './LevelAvatar.js';
 import { FRAMES, LEVELS, LevelInfo, XP_RULES, XP_SOURCES, XpSource, levelDef } from '../lib/levels.js';
 import { shareAchievement } from '../lib/share-feed.js';
+import { postStory } from '../lib/stories-client.js';
+import { cardFromAchievement } from '../lib/share-card.js';
 import type { Medal } from '../lib/medals.js';
 import type { GameData } from './Missions.js';
 import type { SeasonView } from './Season.js';
@@ -21,6 +23,12 @@ export interface XpData extends GameData {
   luckyToday?: { hit: boolean; xp: number | null } | null;
   season?: SeasonView | null;
   comebackToday?: boolean;
+  event?: import('./GameExtras.js').EventView | null;
+  pass?: import('./GameExtras.js').PassView;
+  weekChest?: import('./GameExtras.js').WeekChestView;
+  mascot?: import('./GameExtras.js').MascotView;
+  seals?: { month: string; steps: number; label: string }[];
+  friends?: import('./GameExtras.js').FriendsView | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -61,6 +69,9 @@ export const LevelUpModal: React.FC<{
       })),
     [info?.level]
   );
+  useEffect(() => {
+    if (info && info.level > 1) postStory(cardFromAchievement({ type: 'nivel', level: info.level, name: info.name }), true);
+  }, [info?.level]);
   if (!info) return null;
   const def = levelDef(info.level);
   const prevFrame = info.level > 1 ? levelDef(info.level - 1).frame : def.frame;

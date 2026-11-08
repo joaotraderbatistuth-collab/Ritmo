@@ -1,7 +1,8 @@
 // Gravador do treino com GPS (só no navegador).
 // Fica fora do React de propósito: trocar de aba no app não para o treino.
 // O estado é salvo no aparelho a cada poucos segundos; se a página recarregar, o treino volta pausado.
-import { classifyPoint, detectResume, detectStop, GPS_LIMITS, GpsPoint, SportId } from './workout.js';
+import { classifyPoint, detectResume, detectStop, GPS_LIMITS, GpsPoint, SPORTS, SportId } from './workout.js';
+import { liveStart, liveStop } from './stories-client.js';
 
 export type RecStatus = 'idle' | 'recording' | 'paused';
 
@@ -236,6 +237,7 @@ export function start(sport: SportId) {
   startWatch();
   keepScreenOn();
   save(true);
+  liveStart('treino', SPORTS[sport]?.label || 'Treino', 180); // "Treinando agora" nos stories (se a pessoa ligou)
 }
 
 export function pause() {
@@ -301,9 +303,11 @@ export function finish(): FinishedTrack | null {
     elapsedS: Math.round((now - state.startedAt) / 1000),
   };
   reset();
+  liveStop();
   return track;
 }
 
 export function discard() {
   reset();
+  liveStop();
 }

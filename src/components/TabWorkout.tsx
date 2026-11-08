@@ -4,6 +4,8 @@ import { RouteMap } from './RouteMap.js';
 import { RouteSvg } from './RouteSvg.js';
 import { callApi } from '../lib/client-api.js';
 import { shareAchievement } from '../lib/share-feed.js';
+import { postStory } from '../lib/stories-client.js';
+import { cardFromAchievement } from '../lib/share-card.js';
 import { FEED_ROUTE_MAX } from '../lib/feed-rules.js';
 import * as rec from '../lib/workout-recorder.js';
 import type { FinishedTrack } from '../lib/workout-recorder.js';
@@ -247,7 +249,11 @@ const SummaryView: React.FC<{ track: FinishedTrack; onSaved: (w: SavedWorkout, r
       workout: { sport: track.sport, title, notes, startedAt: new Date(track.startedAt).toISOString(), movingS: track.movingS, elapsedS: Math.max(track.elapsedS, track.movingS), distanceM: stats.distanceM, elevationGainM: stats.elevationGainM, route, splits: stats.splits, source: 'gps' },
     });
     setBusy(false);
-    if (r.ok && r.data.workout) onSaved(r.data.workout, r.data.records || []);
+    if (r.ok && r.data.workout) {
+      const w = r.data.workout;
+      postStory(cardFromAchievement({ type: 'treino', sport: w.sport, distanceM: w.distanceM, durationS: w.movingS }), true);
+      onSaved(w, r.data.records || []);
+    }
     else setError(r.data.error || 'Não foi possível salvar o treino.');
   };
 
@@ -460,7 +466,11 @@ const ManualForm: React.FC<{ onClose: () => void; onSaved: (w: SavedWorkout, rec
       workout: { sport, title: title || autoTitle(sport, started), notes: '', startedAt: started.toISOString(), movingS, elapsedS: movingS, distanceM, elevationGainM: null, route: '', splits: [], source: 'manual' },
     });
     setBusy(false);
-    if (r.ok && r.data.workout) onSaved(r.data.workout, r.data.records || []);
+    if (r.ok && r.data.workout) {
+      const w = r.data.workout;
+      postStory(cardFromAchievement({ type: 'treino', sport: w.sport, distanceM: w.distanceM, durationS: w.movingS }), true);
+      onSaved(w, r.data.records || []);
+    }
     else setError(r.data.error || 'Não foi possível salvar.');
   };
 

@@ -78,6 +78,10 @@ import { announceAuto } from '../lib/autofill-client.js';
 import { AutoFillToast } from '../components/AutoFillToast.js';
 import { ShareSheet } from '../components/ShareSheet.js';
 import { MedalUnlock } from '../components/MedalUnlock.js';
+import { EventBanner, FriendsRankCard, MascotCard, PassCard, WeekChestCard } from '../components/GameExtras.js';
+import { StoriesBar } from '../components/Stories.js';
+import { setStoryAutoFlag } from '../lib/stories-client.js';
+import { cardFromAchievement, cardFromMedal, type ShareCard } from '../lib/share-card.js';
 import { fold } from '../lib/assistant-parser.js';
 
 export const Route = createFileRoute('/app')({
@@ -633,6 +637,24 @@ function RitmoApp() {
 
   // Botão "Ir" das missões: abre a aba certa (ou o secretário)
   // Próximo passo: a ação certa para agora (Hoje)
+  // conquistas para publicar no story do Ritmo (as mais recentes e mais raras primeiro)
+  const storyQuick = useMemo<ShareCard[]>(() => {
+    const d = xp.data;
+    if (!d) return [];
+    const out: ShareCard[] = [];
+    const order = { lendaria: 0, epica: 1, rara: 2, comum: 3 } as const;
+    const earned = (d.medals || []).filter((m) => m.earned).sort((a, b) => order[a.rarity] - order[b.rarity]);
+    if (d.streak && d.streak.days >= 2) out.push(cardFromAchievement({ type: 'ofensiva', days: d.streak.days }));
+    if (d.level.level >= 2) out.push(cardFromAchievement({ type: 'nivel', level: d.level.level, name: d.level.name }));
+    if (d.week && d.week.xp > 0) out.push(cardFromAchievement({ type: 'semana', xp: d.week.xp, activeDays: d.week.activeDays }));
+    for (const m of earned.slice(0, 6)) out.push(cardFromMedal(m));
+    return out;
+  }, [xp.data]);
+
+  useEffect(() => {
+    setStoryAutoFlag(Boolean((user as any)?.storyAuto));
+  }, [user]);
+
   const steps = useMemo(() => {
     if (!user) return [];
     const today = localDateStr();
@@ -757,8 +779,14 @@ function RitmoApp() {
         <main>
           {(activeTab === 'feed' || activeTab === 'hoje') && user && (
             <div className="max-w-5xl mx-auto">
+              <div className="mb-4">
+                <StoriesBar me={{ initials: userInitials, avatarUrl: xp.data?.avatarUrl || null, level: xp.data?.level.level || 1 }} quick={storyQuick} />
+              </div>
               {activeTab === 'feed' && <LastWeekBanner data={xp.data} />}
+              {activeTab === 'hoje' && <EventBanner event={xp.data?.event} today={xp.data?.today} onGo={(tab) => setActiveTab(tab)} />}
               {activeTab === 'hoje' && <NextStepCard steps={steps} comeback={Boolean(xp.data?.comebackToday)} onRun={runStep} />}
+              {activeTab === 'hoje' && <WeekChestCard chest={xp.data?.weekChest} onChanged={() => xp.refresh()} compact />}
+              {activeTab === 'hoje' && <MascotCard mascot={xp.data?.mascot} compact />}
               {activeTab === 'hoje' && <ChallengesCard compact refreshKey={xpSignature} onChanged={() => xp.refresh()} />}
               <MissionsCard
                 data={xp.data}
@@ -876,7 +904,16 @@ function RitmoApp() {
 
           {activeTab === 'progresso' && user && (
             <div className="mb-6 max-w-5xl mx-auto space-y-6">
+              <EventBanner event={xp.data?.event} today={xp.data?.today} onGo={(tab) => setActiveTab(tab)} />
               <SeasonCard season={xp.data?.season} optedOut={Boolean(xp.data?.leagueOptOut)} onChanged={() => xp.refresh()} />
+              <div className="grid gap-6 lg:grid-cols-2">
+                <PassCard pass={xp.data?.pass} />
+                <FriendsRankCard friends={xp.data?.friends} onFind={() => setActiveTab('feed')} />
+              </div>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <WeekChestCard chest={xp.data?.weekChest} onChanged={() => xp.refresh()} />
+                <MascotCard mascot={xp.data?.mascot} />
+              </div>
               <ChallengesCard refreshKey={xpSignature} onChanged={() => xp.refresh()} />
               <div className="grid gap-6 lg:grid-cols-2">
                 <RecapCard recap={xp.data?.recap} name={user.name} history={xp.data?.season?.history || []} medalsEarned={(xp.data?.medals || []).filter((m) => m.earned).length} />

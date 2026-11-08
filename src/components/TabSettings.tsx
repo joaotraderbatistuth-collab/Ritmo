@@ -1,3 +1,4 @@
+import { setStoryAutoFlag } from '../lib/stories-client.js';
 import React, { useState } from 'react';
 import { User } from '../lib/types.js';
 import {
@@ -40,6 +41,19 @@ export const TabSettings: React.FC<TabSettingsProps> = ({
   );
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [autofill, setAutofill] = useState(user?.autofill !== false);
+  const [storyAuto, setStoryAuto] = useState(Boolean(user?.storyAuto));
+  const toggleStoryAuto = async () => {
+    const next = !storyAuto;
+    setStoryAuto(next);
+    try {
+      const res = await fetch('/api/stories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set_auto', value: next }) });
+      if (!res.ok) throw new Error();
+      setStoryAutoFlag(next);
+      setSaveStatus(next ? 'Suas conquistas e o "ao vivo" vão para os stories do Ritmo.' : 'Stories automáticos desligados.');
+    } catch {
+      setStoryAuto(!next);
+    }
+  };
   const toggleAutofill = async () => {
     const next = !autofill;
     setAutofill(next);
@@ -116,6 +130,29 @@ export const TabSettings: React.FC<TabSettingsProps> = ({
           <span>{saveStatus}</span>
         </div>
       )}
+
+      {/* Stories automáticos */}
+      <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-6 space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-[#f0f6fc]">◎ Stories automáticos no Ritmo</h3>
+            <p className="text-xs text-[#8b949e] mt-1 leading-relaxed">
+              Ligado, suas conquistas, subidas de nível, treinos e focos concluídos viram story sozinhos (somem em 24 h), e seus amigos veem
+              "Treinando agora" ou "Em foco agora" enquanto você faz. Só aparece o tipo de atividade, nunca o seu trajeto. Vem desligado.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={storyAuto}
+            aria-label="Stories automáticos"
+            onClick={toggleStoryAuto}
+            className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${storyAuto ? 'bg-emerald-500' : 'bg-[#30363d]'}`}
+          >
+            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${storyAuto ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+      </div>
 
       {/* Preenchimento automático */}
       <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-6 space-y-3">

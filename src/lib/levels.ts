@@ -1,4 +1,5 @@
 import { luckyDrop } from './rewards.js';
+import { eventBonus, passReached } from './game-extras.js';
 // Pontos de Ritmo (XP), níveis e molduras do perfil. Regras PURAS, testadas em tests/.
 //
 // O XP é calculado a partir do que a pessoa realmente fez (hábitos, tarefas, foco, diário,
@@ -186,6 +187,8 @@ export interface XpInput {
   events?: { src: XpSource; day: string | null | undefined }[];
   /** Pontos extras do baú das missões (um por dia). */
   bonus?: { day: string; xp: number }[];
+  /** Pontos do baú semanal (5 dias de missões cumpridas na semana). */
+  weekBonus?: { day: string; xp: number }[];
   /** Hoje (YYYY-MM-DD) no fuso da pessoa. Nada depois de hoje conta. */
   today: string;
   /** Id da pessoa: sorteia o bônus surpresa do dia (sem ele, não há bônus surpresa). */
@@ -210,6 +213,14 @@ export interface XpResult {
   comebackToday: boolean;
   /** Bônus surpresa de hoje: só diz o valor depois que saiu (o momento é segredo). */
   luckyToday: { hit: boolean; xp: number | null } | null;
+  /** Pontos extras do evento da semana (já somados) e quanto rendeu hoje. */
+  eventXp: number;
+  eventToday: number;
+  /** Pontos do baú semanal (já somados). */
+  weekChestXp: number;
+  /** Passe da temporada por mês: pontos do mês sem os prêmios do passe e degraus alcançados. */
+  pass: Record<string, { base: number; steps: number; bonus: number }>;
+  passXp: number;
 }
 
 const ymd = (v: string | null | undefined) => String(v || '').slice(0, 10);
@@ -265,16 +276,27 @@ export function computeXp(input: XpInput): XpResult {
   let todayXp = 0;
   let activeDays = 0;
   const days: XpResult['days'] = {};
+  let eventXp = 0;
+  let eventToday = 0;
   for (const [day, m] of perDay) {
     let dayXp = 0;
     const raw: Partial<Record<XpSource, number>> = {};
+    const bySource: Partial<Record<XpSource, number>> = {};
     for (const [src, list] of m) {
       raw[src] = list.length;
       const counted = list.slice().sort((a, b) => b - a).slice(0, XP_RULES[src].dailyCap);
       const xp = counted.reduce((a, v) => a + v, 0);
       breakdown[src].count += counted.length;
       breakdown[src].xp += xp;
+      bySource[src] = xp;
       dayXp += xp;
+    }
+    // evento da semana: o que é do tema vale em dobro (até um teto por dia)
+    const ev = input.seed ? eventBonus(day, bySource) : 0; // (como o bônus surpresa: só nas contas de verdade)
+    if (ev > 0) {
+      dayXp += ev;
+      eventXp += ev;
+      if (day === today) eventToday = ev;
     }
     total += dayXp;
     if (dayXp > 0) activeDays++;
@@ -327,5 +349,49 @@ export function computeXp(input: XpInput): XpResult {
     }
     if (!luckyToday && luckyDrop(input.seed, today)) luckyToday = { hit: false, xp: null };
   }
-  return { total: total + comebackXp + bonusXp + luckyXp, todayXp, breakdown, activeDays, bonusXp, days, luckyXp, luckyToday, comebackXp, comebackToday };
+  // baú semanal
+  let weekChestXp = 0;
+  const weekDays = new Set<string>();
+  for (const b of input.weekBonus || []) {
+    const day = ymd(b.day);
+    if (!validDay(day) || day < since || day > today || weekDays.has(day)) continue;
+    const xp = Math.max(0, Math.min(200, Math.floor(Number(b.xp) || 0)));
+    weekDays.add(day);
+    weekChestXp += xp;
+    (days[day] ||= { xp: 0, raw: {} }).xp += xp;
+    if (day === today) todayXp += xp;
+  }
+  // passe da temporada: prêmio no dia em que cada degrau do mês é alcançado (calculado sem o próprio prêmio)
+  const pass: XpResult['pass'] = {};
+  let passXp = 0;
+  const dayXp: Record<string, number> = Object.fromEntries(Object.entries(days).map(([d, r]) => [d, r.xp]));
+  for (const month of input.seed ? new Set(Object.keys(days).map((d) => d.slice(0, 7))) : []) {
+    const base = Object.entries(dayXp).filter(([d]) => d.startsWith(month)).reduce((a, [, v]) => a + v, 0);
+    const reached = passReached(dayXp, month);
+    let bonus = 0;
+    for (const r of reached) {
+      days[r.day].xp += r.bonus;
+      bonus += r.bonus;
+      if (r.day === today) todayXp += r.bonus;
+    }
+    passXp += bonus;
+    pass[month] = { base, steps: reached.length, bonus };
+  }
+  return {
+    total: total + comebackXp + bonusXp + luckyXp + weekChestXp + passXp, // o evento já entrou no total de cada dia
+    todayXp,
+    breakdown,
+    activeDays,
+    bonusXp,
+    days,
+    luckyXp,
+    luckyToday,
+    comebackXp,
+    comebackToday,
+    eventXp,
+    eventToday,
+    weekChestXp,
+    pass,
+    passXp,
+  };
 }

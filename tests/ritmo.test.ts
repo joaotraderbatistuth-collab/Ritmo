@@ -23,6 +23,7 @@ import { computeNotices } from '../src/lib/notices.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
 import { nextSteps } from '../src/lib/next-step.js';
 import { computeMedals, monthRecap, MEDALS, PUBLIC_MEDAL_GROUPS, RARITY, rarityOf } from '../src/lib/medals.js';
+import { eventOfWeek, eventBonus, EVENT_DAILY_MAX, WEEK_EVENTS, passReached, passView, SEASON_PASS, chestDaysInWeek, weekChestReward, mascotState, friendsRanking } from '../src/lib/game-extras.js';
 import { cardFromAchievement, cardFromMedal, shareMessage, shortLink, sanitizeShare, makeSlug, isSlug, escapeHtml } from '../src/lib/share-card.js';
 import { suggestedTarget, clampTarget, challengeProgress, challengeStatus, challengeNudge, challengeCode, isChallengeCode } from '../src/lib/challenges.js';
 import { canSendAuto, DAILY_PUSH_MAX } from '../src/lib/nudges.js';
@@ -885,7 +886,7 @@ export function runTests() {
     const before = computeXp({ habitLogs: logs.slice(0, drop.at - 1), tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: day, seed });
     const after = computeXp({ habitLogs: logs, tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: day, seed });
     assert(before.luckyToday?.hit === false && before.luckyToday?.xp === null, 'antes da hora o valor é segredo');
-    assert(after.luckyToday?.hit === true && after.luckyXp === drop.xp && after.total === drop.at * 10 + drop.xp, `bônus soma no total: ${JSON.stringify(after.luckyToday)}`);
+    assert(after.luckyToday?.hit === true && after.luckyXp === drop.xp && after.total === drop.at * 10 + drop.xp + after.eventXp + after.passXp, `bônus soma no total: ${JSON.stringify(after.luckyToday)}`);
     const noSeed = computeXp({ habitLogs: logs, tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: day });
     assert(noSeed.luckyXp === 0 && noSeed.total === drop.at * 10, 'sem pessoa não há bônus (contas antigas iguais)');
     const capped = computeXp({ habitLogs: Array.from({ length: 30 }, () => ({ date: day, completed: true })), tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: day, seed });
@@ -1091,6 +1092,39 @@ export function runTests() {
     assert(XP_RULES.convite.xp === 50 && XP_DAILY_MAX < 700, 'convite não mexe no limite das ações');
   }
   console.log('✓ Compartilhar e cara de jogo ok');
+
+  // ---- Evento da semana, passe, baú semanal, mascote e ranking de amigos
+  {
+    assert(eventOfWeek('2026-11-08') === null && eventOfWeek('2026-11-09')?.id === WEEK_EVENTS[0].id && eventOfWeek('2026-11-15')?.id === WEEK_EVENTS[0].id && eventOfWeek('2026-11-16')?.id === WEEK_EVENTS[1].id, 'evento muda toda segunda');
+    assert(eventOfWeek('2027-01-04') !== null && WEEK_EVENTS.every((e) => e.sources.length > 0), 'eventos giram para sempre');
+    assert(eventBonus('2026-11-10', { foco: 30, habito: 60 }) === 30 && eventBonus('2026-11-10', { foco: 90, meta: 40 }) === EVENT_DAILY_MAX && eventBonus('2026-11-01', { foco: 30 }) === 0, 'dobro só do tema e com teto');
+    const ev = computeXp({ habitLogs: [], tasks: [], sessions: [{ date: '2026-11-10', status: 'completed', durationMinutes: 25 }], journal: [], transactions: [], posts: [], comments: [], today: '2026-11-10', seed: 7 });
+    assert(ev.eventXp === 15 && ev.eventToday === 15 && ev.todayXp >= 30, `foco em dobro na Semana do Foco: ${ev.eventXp}`);
+    const noSeed = computeXp({ habitLogs: [], tasks: [], sessions: [{ date: '2026-11-10', status: 'completed', durationMinutes: 25 }], journal: [], transactions: [], posts: [], comments: [], today: '2026-11-10' });
+    assert(noSeed.eventXp === 0 && noSeed.total === 15, 'sem pessoa (seed), sem evento');
+    const days: Record<string, number> = { '2026-11-01': 40, '2026-11-02': 20, '2026-11-03': 300, '2026-10-31': 999 };
+    const pr = passReached(days, '2026-11');
+    assert(pr.length === 3 && pr[0].day === '2026-11-02' && pr[1].day === '2026-11-03' && pr[2].step === 3 && pr[2].day === '2026-11-03', `degraus do passe: ${JSON.stringify(pr)}`);
+    assert(passReached({ '2026-10-05': 5000 }, '2026-10').length === 0, 'passe começa em novembro');
+    const pv = passView(320);
+    assert(pv.step === 3 && pv.next?.step === 4 && pv.next.missing === 180 && Math.abs(pv.progress - 0.1) < 1e-9 && passView(5000).next === null, 'tela do passe');
+    assert(SEASON_PASS.length === 10 && SEASON_PASS.every((p, i) => i === 0 || p.points > SEASON_PASS[i - 1].points), '10 degraus em ordem');
+    const px = computeXp({ habitLogs: Array.from({ length: 6 }, () => ({ date: '2026-11-03', completed: true })), tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: '2026-11-03', seed: 3 });
+    assert(px.passXp === 10 && px.pass['2026-11'].steps === 1 && px.pass['2026-11'].base === 60 + px.luckyXp, `prêmio do passe entra no total: ${JSON.stringify(px.pass)}`);
+    assert(chestDaysInWeek(['2026-11-09', '2026-11-10', '2026-11-10', '2026-11-15', '2026-11-16', '2026-11-08'], '2026-11-09') === 3, 'dias de baú na semana');
+    const wr = weekChestReward(5, '2026-11-09');
+    assert(wr === weekChestReward(5, '2026-11-09') && wr >= 60 && wr <= 150, 'baú semanal fixo por semana');
+    const wk = computeXp({ habitLogs: [{ date: '2026-11-03', completed: true }], tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: '2026-11-04', weekBonus: [{ day: '2026-11-03', xp: 80 }, { day: '2026-11-03', xp: 80 }] });
+    assert(wk.weekChestXp === 80 && wk.total === 90, 'baú semanal soma uma vez');
+    const m0 = mascotState(0, null, '2026-11-10');
+    assert(m0.emoji === '🌰' && m0.mood === 'dormindo' && m0.next?.missing === 3, 'mascote começa semente');
+    const m1 = mascotState(12, '2026-11-10', '2026-11-10');
+    assert(m1.name === 'Muda' && m1.mood === 'radiante' && mascotState(12, '2026-11-08', '2026-11-10').mood === 'com_sede' && mascotState(250, '2026-11-01', '2026-11-10').next === null, 'mascote cresce e muda de humor');
+    assert(!/culpa|vergonha|morreu|fracass/i.test(['radiante', 'tranquilo', 'com_sede', 'dormindo'].map((d) => mascotState(5, d === 'radiante' ? '2026-11-10' : d === 'tranquilo' ? '2026-11-09' : d === 'com_sede' ? '2026-11-08' : '2026-11-01', '2026-11-10').message).join(' ')), 'mascote sem culpa');
+    const fr = friendsRanking([{ userId: 1, xp: 50, level: 2, name: 'Ana' }, { userId: 2, xp: 80, level: 1, name: 'Bia' }, { userId: 3, xp: 50, level: 4, name: 'Caio' }]);
+    assert(fr.map((r) => r.userId).join() === '2,3,1' && fr[0].rank === 1, 'ranking de amigos');
+  }
+  console.log('✓ Evento, passe, baú semanal, mascote e amigos ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

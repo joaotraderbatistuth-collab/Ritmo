@@ -6,7 +6,7 @@ import { CommunityError } from '../lib/community-db.js';
 import { mediaOwnedBy, parseMediaUrl, mediaUrl } from '../lib/media.js';
 import { updateUserRecord } from '../lib/server-db.js';
 import { getUserXp } from '../lib/xp-server.js';
-import { buildGame, openChest, syncSeason } from '../lib/game-server.js';
+import { buildGame, friendsWeek, openChest, openWeekChest, saveWeekXp, syncSeason } from '../lib/game-server.js';
 
 // GET  /api/xp                          → pontos, nível, progresso e foto de perfil
 // POST /api/xp { action: 'set_avatar', imageUrl }   → define a foto de perfil (enviada antes em /api/media)
@@ -23,6 +23,8 @@ export const Route = createFileRoute('/api/xp')({
         try {
           const xp = await getUserXp(payload.userId);
           if (!xp) return Response.json({ error: 'Sessão expirada.' }, { status: 401 });
+          const game = buildGame(payload.userId, xp);
+          await saveWeekXp(payload.userId, xp, game.week.xp);
           return Response.json({
             bonusXp: xp.bonusXp,
             xp: xp.total,
@@ -35,8 +37,9 @@ export const Route = createFileRoute('/api/xp')({
             avatarUrl: xp.avatarUrl,
             bio: xp.bio,
             today: xp.today,
-            ...buildGame(payload.userId, xp),
+            ...game,
             season: await syncSeason(payload.userId, xp),
+            friends: await friendsWeek(payload.userId, xp, game.week.xp),
             leagueOptOut: xp.leagueOptOut,
           });
         } catch (e) {
@@ -65,6 +68,13 @@ export const Route = createFileRoute('/api/xp')({
             const r = await openChest(user.id, xp);
             if (!r.ok) throw new CommunityError(400, r.error);
             return Response.json({ success: true, reward: r.reward });
+          }
+          if (body.action === 'open_week_chest') {
+            const xp = await getUserXp(user.id);
+            if (!xp) throw new CommunityError(401, 'Sessão expirada.');
+            const r = await openWeekChest(user.id, xp);
+            if (!r.ok) throw new CommunityError(400, r.error);
+            return Response.json({ success: true, xp: r.xp });
           }
           if (body.action === 'league_opt_out') {
             await updateUserRecord(user.id, { leagueOptOut: Boolean(body.value) } as any);

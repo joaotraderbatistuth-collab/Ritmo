@@ -380,6 +380,45 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS "share_cards_user_idx" ON "share_cards" ("user_id", "created_at")`,
 
+  // ---- jogo: pontos da semana (ranking entre amigos), baú semanal e stories dentro do app
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "week_key" text`,
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "week_xp" integer NOT NULL DEFAULT 0`,
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "story_auto" boolean NOT NULL DEFAULT false`,
+  `CREATE TABLE IF NOT EXISTS "week_chests" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "week" text NOT NULL,
+    "day" text NOT NULL,
+    "xp" integer NOT NULL,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "week_chests_user_week" ON "week_chests" ("user_id", "week")`,
+  `CREATE TABLE IF NOT EXISTS "stories" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "kind" text NOT NULL,
+    "emoji" text NOT NULL DEFAULT '',
+    "tag" text NOT NULL DEFAULT '',
+    "title" text NOT NULL,
+    "subtitle" text NOT NULL DEFAULT '',
+    "big" text,
+    "big_label" text,
+    "color" text NOT NULL DEFAULT '#34d399',
+    "live" boolean NOT NULL DEFAULT false,
+    "auto" boolean NOT NULL DEFAULT false,
+    "expires_at" timestamp NOT NULL,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "stories_user_idx" ON "stories" ("user_id", "expires_at")`,
+  `CREATE INDEX IF NOT EXISTS "stories_exp_idx" ON "stories" ("expires_at")`,
+  `CREATE TABLE IF NOT EXISTS "story_views" (
+    "story_id" integer NOT NULL REFERENCES "stories"("id") ON DELETE CASCADE,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "clapped" boolean NOT NULL DEFAULT false,
+    "created_at" timestamp DEFAULT now() NOT NULL,
+    PRIMARY KEY ("story_id", "user_id")
+  )`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

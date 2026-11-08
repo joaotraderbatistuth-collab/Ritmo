@@ -1,9 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { getUserXp } from '../lib/xp-server.js';
 import { buildGame } from '../lib/game-server.js';
-import { PUBLIC_MEDAL_GROUPS } from '../lib/medals.js';
+import { MEDALS, PUBLIC_MEDAL_GROUPS } from '../lib/medals.js';
+import { division } from '../lib/season.js';
+import { hasActiveStory } from '../lib/stories-db.js';
 import { requireMember, communityError } from '../lib/community-auth.js';
-import { CommunityError, getPublicProfile, listPosts, setBio } from '../lib/community-db.js';
+import { CommunityError, getPublicProfile, listPosts, profileRitus, setBio } from '../lib/community-db.js';
 
 // GET  /api/profile?id=123[&before=456]  → perfil público + publicações do Feed geral dessa pessoa
 // POST /api/profile { action: 'set_bio', bio }  → muda a bio do próprio perfil
@@ -20,15 +22,36 @@ export const Route = createFileRoute('/api/profile')({
           const feed = await listPosts(user.id, { authorId: id, beforeId: before, limit: 10 });
           if (before) return Response.json(feed);
           const profile = await getPublicProfile(user.id, id);
-          // conquistas ganhas (só de grupos que não expõem saúde, finanças, diário ou treinos)
-          let medals: { id: string; emoji: string; name: string }[] = [];
+          // conquistas ganhas (só de grupos que não expõem saúde, finanças, diário ou treinos) e o lado "jogo" do perfil
+          let medals: { id: string; emoji: string; name: string; desc: string; rarity: string; group: string }[] = [];
+          let game: Record<string, unknown> | null = null;
           try {
             const xp = await getUserXp(id);
-            if (xp) medals = buildGame(id, xp).medals.filter((m) => m.earned && PUBLIC_MEDAL_GROUPS.includes(m.group)).map((m) => ({ id: m.id, emoji: m.emoji, name: m.name }));
+            if (xp) {
+              const g = buildGame(id, xp);
+              const pub = g.medals.filter((m) => PUBLIC_MEDAL_GROUPS.includes(m.group));
+              medals = pub.filter((m) => m.earned).map((m) => ({ id: m.id, emoji: m.emoji, name: m.name, desc: m.desc, rarity: m.rarity, group: m.group }));
+              const tier = Number(xp.seasonTier) || 0;
+              const d = division(tier);
+              const best = division(xp.seasonMaxTier || 0);
+              game = {
+                activeDays: xp.activeDays,
+                streak: { days: g.streak.days, best: Math.max(g.streak.best || 0, g.streak.days || 0) },
+                week: { xp: g.week.xp, activeDays: g.week.activeDays },
+                medalsEarned: medals.length,
+                medalsTotal: MEDALS.filter((m) => PUBLIC_MEDAL_GROUPS.includes(m.group)).length,
+                challengesDone: xp.challengesDone,
+                division: xp.leagueOptOut ? null : { name: d.name, emoji: d.emoji, color: d.color, best: best.name, bestEmoji: best.emoji },
+                pass: { step: g.pass.step },
+                seals: g.seals,
+                mascot: g.mascot,
+              };
+            }
           } catch {
             medals = [];
           }
-          return Response.json({ profile: profile ? { ...profile, medals } : profile, ...feed });
+          const [ritus, story] = await Promise.all([profileRitus(id).catch(() => ({ owned: [], member: [] })), hasActiveStory(id)]);
+          return Response.json({ profile: profile ? { ...profile, medals, game, ritus, story } : profile, ...feed });
         } catch (e) {
           return communityError(e);
         }

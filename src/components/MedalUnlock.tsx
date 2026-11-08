@@ -4,6 +4,7 @@ import { RARITY, type Medal, type Rarity } from '../lib/medals.js';
 import { cardFromMedal } from '../lib/share-card.js';
 import { openShare } from '../lib/share-feed.js';
 import { playFanfare } from './XpBurst.js';
+import { postStory } from '../lib/stories-client.js';
 
 // "Conquista desbloqueada!": tela cheia com raios girando, medalha que pula, confete e fanfarra.
 // Quanto mais rara, mais brilho e mais longa a música. Daqui dá para compartilhar no Stories/WhatsApp/Feed.
@@ -26,7 +27,9 @@ export const MedalUnlock: React.FC<{ queue: Medal[]; onNext: () => void }> = ({ 
   }, [m?.id, rarityIdx]);
 
   useEffect(() => {
-    if (m) playFanfare(rarityIdx);
+    if (!m) return;
+    playFanfare(rarityIdx);
+    postStory(cardFromMedal(m), true); // vai para os stories do Ritmo se a pessoa ligou a opção automática
   }, [m?.id]);
 
   if (!m) return null;

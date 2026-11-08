@@ -38,6 +38,8 @@ const OWN: [string, AnyTable, string][] = [
   ['consentimentos', schema.consents, 'userId'],
   ['dias_de_uso', schema.userActivity, 'userId'],
   ['conquistas_compartilhadas', schema.shareCards, 'userId'],
+  ['baus_semanais', schema.weekChests, 'userId'],
+  ['stories', schema.stories, 'userId'],
   ['baus_das_missoes', schema.missionDays, 'userId'],
   ['ligas_semanais', schema.leagueWeeks, 'userId'],
   ['pessoas_que_voce_segue', schema.follows, 'followerId'],
