@@ -96,6 +96,7 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     bonus: chests.map((c) => ({ day: c.day, xp: c.xp })),
     since: (user as any).createdAt ? toDay((user as any).createdAt) : null,
     today,
+    seed: userId,
   });
   const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 86400_000).toISOString().slice(0, 10);
   const planejar = tasks.filter((t) => t.date === tomorrow && t.createdAt && toDay(t.createdAt) === today).length;

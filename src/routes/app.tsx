@@ -61,7 +61,8 @@ import {
 import { localDateStr } from '../lib/chain.js';
 import { nextDateAfter, normalizeTaskRule } from '../lib/recurrence.js';
 import { ScrollableNav } from '../components/ScrollableNav.js';
-import { LevelCard, LevelUpModal, XpToast, useXp } from '../components/LevelUp.js';
+import { LevelCard, LevelUpModal, useXp } from '../components/LevelUp.js';
+import { XpBurst } from '../components/XpBurst.js';
 import { MissionsCard, LastWeekBanner, LeagueCard, StreakCard, WeekSummaryCard } from '../components/Missions.js';
 import { ProfilePhotoCard } from '../components/ProfilePhotoCard.js';
 import { TabWorkout, WorkoutLiveBar } from '../components/TabWorkout.js';
@@ -916,7 +917,7 @@ function RitmoApp() {
         />
       )}
       {user && <LegalUpdateModal />}
-      <XpToast gain={xp.gain} />
+      <XpBurst burst={xp.burst} />
       <LevelUpModal info={xp.levelUp} initials={userInitials} avatarUrl={xp.data?.avatarUrl} onClose={xp.closeLevelUp} />
 
       {/* Auth Modal */}

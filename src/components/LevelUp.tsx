@@ -4,6 +4,8 @@ import { LevelAvatar } from './LevelAvatar.js';
 import { FRAMES, LEVELS, LevelInfo, XP_RULES, XP_SOURCES, XpSource, levelDef } from '../lib/levels.js';
 import { shareToFeed } from '../lib/share-feed.js';
 import type { GameData } from './Missions.js';
+import { Burst, GoalRing, RewardSettings, getFxPrefs, playGain, useFxPrefs } from './XpBurst.js';
+import { cheerFor, goalProgress, nearNextLevel, nextCombo } from '../lib/rewards.js';
 
 export interface XpData extends GameData {
   xp: number;
@@ -14,6 +16,7 @@ export interface XpData extends GameData {
   avatarUrl: string | null;
   bio?: string;
   bonusXp?: number;
+  luckyToday?: { hit: boolean; xp: number | null } | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -108,6 +111,8 @@ export const LevelUpModal: React.FC<{
 
 export const LevelChip: React.FC<{ data: XpData | null; initials: string; name: string; onClick: () => void }> = ({ data, initials, name, onClick }) => {
   const info = data?.level;
+  const fx = useFxPrefs();
+  const goalPct = data ? Math.min(1, data.todayXp / fx.goal) : 0;
   return (
     <button
       type="button"
@@ -116,7 +121,9 @@ export const LevelChip: React.FC<{ data: XpData | null; initials: string; name: 
       className="flex items-center gap-2 p-0.5 sm:pl-1 sm:pr-3 sm:py-1 rounded-full sm:bg-[#161b22] sm:border border-[#30363d] hover:border-emerald-500/50 transition-colors"
     >
       <span className="relative inline-flex">
-        <LevelAvatar initials={initials} avatarUrl={data?.avatarUrl} level={info?.level || 1} size="sm" />
+        <GoalRing progress={goalPct} size={42} title={data ? `Meta do dia: ${data.todayXp}/${fx.goal} XP` : undefined}>
+          <LevelAvatar initials={initials} avatarUrl={data?.avatarUrl} level={info?.level || 1} size="sm" />
+        </GoalRing>
         {data?.chest?.ready && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-[#0d1117] animate-pulse" title="Baú pronto para abrir" />}
       </span>
       {data?.streak && data.streak.days > 0 && (
@@ -181,6 +188,8 @@ export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEdit
         </div>
       </div>
 
+      <RewardSettings todayXp={data.todayXp} />
+
       <div>
         <h4 className="text-sm font-semibold text-[#f0f6fc] mb-2">Como ganhar pontos</h4>
         <div className="grid sm:grid-cols-2 gap-2">
@@ -233,8 +242,12 @@ export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEdit
 export function useXp(userId: number | null, signature: string) {
   const [data, setData] = useState<XpData | null>(null);
   const [gain, setGain] = useState<{ id: number; amount: number } | null>(null);
+  const [burst, setBurst] = useState<Burst | null>(null);
   const [levelUp, setLevelUp] = useState<LevelInfo | null>(null);
   const last = useRef<number | null>(null);
+  const lastData = useRef<XpData | null>(null);
+  const combo = useRef<{ count: number; at: number } | null>(null);
+  const gains = useRef(0);
 
   const refresh = async () => {
     if (!userId) return;
@@ -244,8 +257,34 @@ export function useXp(userId: number | null, signature: string) {
       const d = (await res.json()) as XpData;
       if (typeof d?.xp !== 'number') return;
       setData(d);
-      if (last.current !== null && d.xp > last.current) setGain({ id: Date.now(), amount: d.xp - last.current });
+      const prev = lastData.current;
+      if (last.current !== null && d.xp > last.current) {
+        const amount = d.xp - last.current;
+        setGain({ id: Date.now(), amount });
+        // comemoração: combo, bônus surpresa que acabou de sair, meta do dia e "quase lá"
+        const now = Date.now();
+        combo.current = nextCombo(combo.current, now);
+        gains.current += 1;
+        const luckyNow = d.luckyToday?.hit && !(prev?.luckyToday?.hit) && prev?.today === d.today ? d.luckyToday.xp : null;
+        const goal = getFxPrefs().goal;
+        const g = goalProgress(d.todayXp, goal, prev && prev.today === d.today ? prev.todayXp : null);
+        setBurst({
+          id: now,
+          amount,
+          combo: combo.current.count,
+          cheer: luckyNow ? 'Que sorte!' : g.justHit ? 'Meta do dia!' : cheerFor(gains.current + userId, combo.current.count),
+          lucky: luckyNow ?? null,
+          near: d.level.level === prev?.level.level ? nearNextLevel(d.level) : null,
+          progress: d.level.progress,
+          levelLabel: `Nv ${d.level.level} · ${d.level.name}`,
+          todayXp: d.todayXp,
+          goal,
+          goalJustHit: g.justHit,
+        });
+        playGain(combo.current.count, Boolean(luckyNow) || g.justHit);
+      }
       last.current = d.xp;
+      lastData.current = d;
 
       // "subiu de nível" só aparece quando o nível passa do último que a pessoa já viu neste aparelho
       const key = `ritmo_level_seen_${userId}`;
@@ -262,6 +301,8 @@ export function useXp(userId: number | null, signature: string) {
 
   useEffect(() => {
     last.current = null;
+    lastData.current = null;
+    combo.current = null;
     setData(null);
   }, [userId]);
 
@@ -290,5 +331,5 @@ export function useXp(userId: number | null, signature: string) {
     };
   }, []);
 
-  return { data, setData, gain, levelUp, closeLevelUp: () => setLevelUp(null), refresh };
+  return { data, setData, gain, burst, levelUp, closeLevelUp: () => setLevelUp(null), refresh };
 }

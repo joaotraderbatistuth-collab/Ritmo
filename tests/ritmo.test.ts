@@ -21,6 +21,7 @@ import { detectStop, detectResume, personalRecords, newRecords, recordValueLabel
 import { pickMissions, missionProgress, chestReward, computeStreak, nextMilestone, weekSummary, nextTier, rankInGroup, mondayOf, MISSION_POOL } from '../src/lib/missions.js';
 import { computeNotices } from '../src/lib/notices.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
+import { luckyDrop, LUCKY_START, nextCombo, goalProgress, normalizeGoal, cheerFor, nearNextLevel, gainTone, COMBO_WINDOW_MS } from '../src/lib/rewards.js';
 import { nextDateAfter, normalizeTaskRule } from '../src/lib/recurrence.js';
 import { normalizeFrequency, frequencyLabel } from '../src/lib/chain.js';
 import { stepDaysFor } from '../src/lib/roadmap.js';
@@ -836,6 +837,48 @@ export function runTests() {
     assert(slotForAnyHour(6) === 'manha' && slotForAnyHour(15) === 'tarde' && slotForAnyHour(2) === 'noite', 'período para qualquer hora');
   }
   console.log('✓ Datas e horários livres ok');
+
+  // ---- Recompensas: bônus surpresa, combo, meta do dia
+  {
+    // sorteio fixo por pessoa e dia
+    assert(JSON.stringify(luckyDrop(7, '2026-11-20')) === JSON.stringify(luckyDrop(7, '2026-11-20')), 'bônus surpresa é fixo para a pessoa e o dia');
+    assert(luckyDrop(7, '2026-01-01') === null && luckyDrop(0, '2026-11-20') === null, 'não vale antes do início nem sem pessoa');
+    let days = 0, withDrop = 0, minAt = 99, maxAt = 0;
+    for (let u = 1; u <= 40; u++) for (let d = 10; d <= 28; d++) {
+      days++;
+      const r = luckyDrop(u, `2026-11-${d}`);
+      if (r) { withDrop++; minAt = Math.min(minAt, r.at); maxAt = Math.max(maxAt, r.at); assert([10, 15, 20, 30, 50].includes(r.xp), 'prêmio da tabela'); }
+    }
+    assert(withDrop / days > 0.5 && withDrop / days < 0.8, `cerca de 2 em cada 3 dias têm surpresa: ${withDrop}/${days}`);
+    assert(minAt >= 2 && maxAt <= 6, 'a surpresa sai entre a 2ª e a 6ª ação');
+    // entra no XP só quando a pessoa faz ações de verdade
+    let seed = 1, day = '2026-11-20';
+    while (!luckyDrop(seed, day)) seed++;
+    const drop = luckyDrop(seed, day)!;
+    const logs = Array.from({ length: drop.at }, () => ({ date: day, completed: true }));
+    const before = computeXp({ habitLogs: logs.slice(0, drop.at - 1), tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: day, seed });
+    const after = computeXp({ habitLogs: logs, tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: day, seed });
+    assert(before.luckyToday?.hit === false && before.luckyToday?.xp === null, 'antes da hora o valor é segredo');
+    assert(after.luckyToday?.hit === true && after.luckyXp === drop.xp && after.total === drop.at * 10 + drop.xp, `bônus soma no total: ${JSON.stringify(after.luckyToday)}`);
+    const noSeed = computeXp({ habitLogs: logs, tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: day });
+    assert(noSeed.luckyXp === 0 && noSeed.total === drop.at * 10, 'sem pessoa não há bônus (contas antigas iguais)');
+    const capped = computeXp({ habitLogs: Array.from({ length: 30 }, () => ({ date: day, completed: true })), tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], today: day, seed });
+    assert(capped.luckyXp <= drop.xp, 'não dá para farmar: no máximo um bônus por dia');
+    // combo
+    const c1 = nextCombo(null, 1000);
+    const c2 = nextCombo(c1, 1000 + 60_000);
+    const c3 = nextCombo(c2, 1000 + 60_000 + COMBO_WINDOW_MS + 1);
+    assert(c1.count === 1 && c2.count === 2 && c3.count === 1, 'combo soma em sequência e recomeça depois de 4 min');
+    // meta do dia
+    assert(goalProgress(45, 50, 40).justHit === false && goalProgress(55, 50, 45).justHit === true && goalProgress(70, 50, 55).justHit === false, 'meta batida só uma vez');
+    assert(goalProgress(25, 50).progress === 0.5 && goalProgress(25, 50).left === 25, 'progresso da meta');
+    assert(normalizeGoal(80) === 80 && normalizeGoal(999) === 50, 'meta só com valores da lista');
+    assert(cheerFor(3, 1).length > 0 && cheerFor(3, 3) !== cheerFor(3, 1), 'frase muda no combo');
+    assert(nearNextLevel({ progress: 0.9, xpToNext: 12, nextName: 'Broto' }) === 'Faltam só 12 XP para Broto!' && nearNextLevel({ progress: 0.4, xpToNext: 60, nextName: 'Broto' }) === null, 'quase lá só perto do nível');
+    assert(gainTone(3)[0].freq > gainTone(1)[0].freq && gainTone(1, true).length > gainTone(1).length, 'som sobe no combo e é maior na surpresa');
+    assert(LUCKY_START === '2026-11-08', 'início do bônus surpresa');
+  }
+  console.log('✓ Recompensas (surpresa, combo, meta) ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

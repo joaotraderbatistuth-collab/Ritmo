@@ -27,6 +27,7 @@ export const Route = createFileRoute('/api/xp')({
             bonusXp: xp.bonusXp,
             xp: xp.total,
             todayXp: xp.todayXp,
+            luckyToday: xp.luckyToday,
             activeDays: xp.activeDays,
             breakdown: xp.breakdown,
             level: xp.info,

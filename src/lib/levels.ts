@@ -1,3 +1,4 @@
+import { luckyDrop } from './rewards.js';
 // Pontos de Ritmo (XP), níveis e molduras do perfil. Regras PURAS, testadas em tests/.
 //
 // O XP é calculado a partir do que a pessoa realmente fez (hábitos, tarefas, foco, diário,
@@ -134,6 +135,8 @@ export interface XpInput {
   bonus?: { day: string; xp: number }[];
   /** Hoje (YYYY-MM-DD) no fuso da pessoa. Nada depois de hoje conta. */
   today: string;
+  /** Id da pessoa: sorteia o bônus surpresa do dia (sem ele, não há bônus surpresa). */
+  seed?: number;
 }
 
 export interface XpResult {
@@ -146,6 +149,10 @@ export interface XpResult {
   bonusXp: number;
   /** Dia a dia: pontos e quantas vezes fez cada coisa (sem o limite diário). */
   days: Record<string, { xp: number; raw: Partial<Record<XpSource, number>> }>;
+  /** Pontos dos bônus surpresa (já somados no total). */
+  luckyXp: number;
+  /** Bônus surpresa de hoje: só diz o valor depois que saiu (o momento é segredo). */
+  luckyToday: { hit: boolean; xp: number | null } | null;
 }
 
 const ymd = (v: string | null | undefined) => String(v || '').slice(0, 10);
@@ -211,5 +218,24 @@ export function computeXp(input: XpInput): XpResult {
     (days[day] ||= { xp: 0, raw: {} }).xp += xp;
     if (day === today) todayXp += xp;
   }
-  return { total: total + bonusXp, todayXp, breakdown, activeDays, bonusXp, days };
+  // Bônus surpresa: sai na N-ésima ação que CONTA no dia (dentro dos limites diários)
+  let luckyXp = 0;
+  let luckyToday: XpResult['luckyToday'] = null;
+  if (input.seed) {
+    for (const [day, m] of perDay) {
+      const drop = luckyDrop(input.seed, day);
+      if (!drop) continue;
+      let counted = 0;
+      for (const [src, n] of m) counted += Math.min(n, XP_RULES[src].dailyCap);
+      const hit = counted >= drop.at;
+      if (hit) {
+        luckyXp += drop.xp;
+        days[day].xp += drop.xp;
+        if (day === today) todayXp += drop.xp;
+      }
+      if (day === today) luckyToday = { hit, xp: hit ? drop.xp : null };
+    }
+    if (!luckyToday && luckyDrop(input.seed, today)) luckyToday = { hit: false, xp: null };
+  }
+  return { total: total + bonusXp + luckyXp, todayXp, breakdown, activeDays, bonusXp, days, luckyXp, luckyToday };
 }
