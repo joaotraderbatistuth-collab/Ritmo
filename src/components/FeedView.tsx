@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { MedalsStrip } from './Medals.js';
 import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame, Trophy, Activity, UserPlus, UserCheck } from 'lucide-react';
 import { RouteSvg } from './RouteSvg.js';
 import { SPORTS, formatDuration, formatKm, formatPace, paceSPerKm, speedKmh } from '../lib/workout.js';
@@ -558,6 +559,9 @@ export const ProfileModal: React.FC<{ userId: number | null; onClose: () => void
                 </button>
               )}
               {profile.memberSince && <p className="mt-3 text-xs text-[#6e7681]">No Ritmo desde {monthYear(profile.memberSince)}</p>}
+              {Array.isArray((profile as any).medals) && (profile as any).medals.length > 0 && (
+                <div className="mt-4 w-full text-left"><MedalsStrip medals={(profile as any).medals} /></div>
+              )}
               {profile.isMe && onEditMine && (
                 <button type="button" onClick={() => { onClose(); onEditMine(); }} className="mt-3 px-4 py-2 rounded-lg border border-[#30363d] text-sm text-[#c9d1d9] hover:bg-[#21262d]">Editar meu perfil</button>
               )}

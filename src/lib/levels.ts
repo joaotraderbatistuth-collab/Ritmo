@@ -65,6 +65,10 @@ export const focusXp = (minutes: number | null | undefined) => Math.max(5, Math.
  *  O que conta é treinar em dias diferentes, não a distância nem o tempo. */
 export const CONSTANCY_BONUS = [0, 5, 10, 15, 20, 20, 20];
 
+/** Volta depois de 3 dias ou mais sem usar: os pontos do dia valem em dobro, até +50. */
+export const COMEBACK_GAP_DAYS = 3;
+export const COMEBACK_MAX = 50;
+
 /** Máximo de pontos possíveis num único dia (somando todos os limites). */
 export const XP_DAILY_MAX = XP_SOURCES.reduce((a, k) => a + XP_RULES[k].xp * XP_RULES[k].dailyCap, 0);
 
@@ -195,6 +199,10 @@ export interface XpResult {
   days: Record<string, { xp: number; raw: Partial<Record<XpSource, number>> }>;
   /** Pontos dos bônus surpresa (já somados no total). */
   luckyXp: number;
+  /** Pontos em dobro na volta (depois de 3 dias ou mais sem usar), até +50 por volta. */
+  comebackXp: number;
+  /** Hoje é dia de volta (pontos em dobro). */
+  comebackToday: boolean;
   /** Bônus surpresa de hoje: só diz o valor depois que saiu (o momento é segredo). */
   luckyToday: { hit: boolean; xp: number | null } | null;
 }
@@ -268,6 +276,22 @@ export function computeXp(input: XpInput): XpResult {
     if (day === today) todayXp = dayXp;
     days[day] = { xp: dayXp, raw };
   }
+  // Volta: o primeiro dia ativo depois de 3 dias ou mais parado vale em dobro (até +50). Sem bronca.
+  let comebackXp = 0;
+  const activeSorted = Object.keys(days).filter((d) => days[d].xp > 0).sort();
+  for (let k = 1; k < activeSorted.length; k++) {
+    const gap = Math.round((Date.parse(`${activeSorted[k]}T12:00:00Z`) - Date.parse(`${activeSorted[k - 1]}T12:00:00Z`)) / 86400_000);
+    if (gap >= COMEBACK_GAP_DAYS + 1) {
+      const extra = Math.min(COMEBACK_MAX, days[activeSorted[k]].xp);
+      comebackXp += extra;
+      days[activeSorted[k]].xp += extra;
+      if (activeSorted[k] === today) todayXp += extra;
+    }
+  }
+  const beforeToday = activeSorted.filter((d) => d < today);
+  const lastBefore = beforeToday[beforeToday.length - 1];
+  const comebackToday = Boolean(lastBefore) && Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${lastBefore}T12:00:00Z`)) / 86400_000) >= COMEBACK_GAP_DAYS + 1;
+
   let bonusXp = 0;
   const bonusDays = new Set<string>();
   for (const b of input.bonus || []) {
@@ -298,5 +322,5 @@ export function computeXp(input: XpInput): XpResult {
     }
     if (!luckyToday && luckyDrop(input.seed, today)) luckyToday = { hit: false, xp: null };
   }
-  return { total: total + bonusXp + luckyXp, todayXp, breakdown, activeDays, bonusXp, days, luckyXp, luckyToday };
+  return { total: total + comebackXp + bonusXp + luckyXp, todayXp, breakdown, activeDays, bonusXp, days, luckyXp, luckyToday, comebackXp, comebackToday };
 }

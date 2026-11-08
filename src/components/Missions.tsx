@@ -23,6 +23,8 @@ export interface MissionView {
 export interface GameData {
   today?: string;
   todayCounts?: Record<string, number>;
+  medals?: import('../lib/medals.js').Medal[];
+  recap?: { current: import('../lib/medals.js').MonthRecap; previous: import('../lib/medals.js').MonthRecap };
   trainDaysWeek?: number;
   missions?: MissionView[];
   chest?: { ready: boolean; opened: { reward: string; xp: number; label: string } | null; doneCount: number };

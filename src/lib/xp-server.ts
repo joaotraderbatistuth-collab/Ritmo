@@ -1,6 +1,6 @@
 // Calcula os Pontos de Ritmo de uma pessoa a partir dos dados dela e guarda uma cópia
 // (xp_total e level) na tabela de usuários, para o Feed mostrar nível e moldura sem recalcular.
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { computeXp, levelInfo, XpResult, LevelInfo, XpSource } from './levels.js';
@@ -43,6 +43,12 @@ export interface UserXp extends XpResult {
   leagueTier: number;
   leagueOptOut: boolean;
   seasonTier: number;
+  /** treinos resumidos (dia e distância), para conquistas e retrospectiva */
+  workoutsLite: { day: string; distanceM: number }[];
+  /** maior divisão já alcançada na temporada */
+  seasonMaxTier: number;
+  /** desafios com amigos cumpridos */
+  challengesDone: number;
 }
 
 export async function getUserXp(userId: number): Promise<UserXp | null> {
@@ -107,6 +113,17 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     );
   }
 
+  let seasonMaxTier = Number((user as any).seasonTier) || 0;
+  let challengesDone = 0;
+  if (await checkDb()) {
+    try {
+      const [m] = await db.select({ t: sql<number>`coalesce(max(${schema.seasonMonths.tier}), 0)` }).from(schema.seasonMonths).where(eq(schema.seasonMonths.userId, userId));
+      seasonMaxTier = Math.max(seasonMaxTier, Number(m?.t) || 0);
+    } catch {
+      // temporada ainda sendo criada
+    }
+  }
+
   const result = computeXp({
     habitLogs: logs.map((l) => ({ date: l.date, completed: l.completed })),
     tasks: tasks.map((t) => ({ date: t.date, completed: t.completed, completedAt: t.completedAt ? toDay(t.completedAt) : null, createdAt: t.createdAt ? toDay(t.createdAt) : null })),
@@ -143,5 +160,8 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     leagueTier: Number((user as any).leagueTier) || 0,
     leagueOptOut: Boolean((user as any).leagueOptOut),
     seasonTier: Number((user as any).seasonTier) || 0,
+    workoutsLite: workouts.map((w) => ({ day: toDay(w.startedAt), distanceM: w.distanceM || 0 })),
+    seasonMaxTier,
+    challengesDone,
   };
 }

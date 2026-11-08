@@ -61,6 +61,7 @@ import { LevelCard, LevelUpModal, useXp } from '../components/LevelUp.js';
 import { XpBurst } from '../components/XpBurst.js';
 import { MissionsCard, LastWeekBanner, StreakCard, WeekSummaryCard } from '../components/Missions.js';
 import { ProgressFab, SeasonCard, SeasonResultModal } from '../components/Season.js';
+import { MedalsCard, RecapCard } from '../components/Medals.js';
 import { useFxPrefs } from '../components/XpBurst.js';
 import { ProfilePhotoCard } from '../components/ProfilePhotoCard.js';
 import { TabWorkout, WorkoutLiveBar } from '../components/TabWorkout.js';
@@ -817,6 +818,10 @@ function RitmoApp() {
           {activeTab === 'progresso' && user && (
             <div className="mb-6 max-w-5xl mx-auto space-y-6">
               <SeasonCard season={xp.data?.season} optedOut={Boolean(xp.data?.leagueOptOut)} onChanged={() => xp.refresh()} />
+              <div className="grid gap-6 lg:grid-cols-2">
+                <RecapCard recap={xp.data?.recap} name={user.name} history={xp.data?.season?.history || []} medalsEarned={(xp.data?.medals || []).filter((m) => m.earned).length} />
+                <MedalsCard medals={xp.data?.medals} />
+              </div>
               <LevelCard data={xp.data} initials={userInitials} onEditPhoto={() => setActiveTab('configuracoes')} />
               <div className="grid gap-6 lg:grid-cols-2">
                 <StreakCard data={xp.data} />

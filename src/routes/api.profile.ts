@@ -1,4 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { getUserXp } from '../lib/xp-server.js';
+import { buildGame } from '../lib/game-server.js';
+import { PUBLIC_MEDAL_GROUPS } from '../lib/medals.js';
 import { requireMember, communityError } from '../lib/community-auth.js';
 import { CommunityError, getPublicProfile, listPosts, setBio } from '../lib/community-db.js';
 
@@ -17,7 +20,15 @@ export const Route = createFileRoute('/api/profile')({
           const feed = await listPosts(user.id, { authorId: id, beforeId: before, limit: 10 });
           if (before) return Response.json(feed);
           const profile = await getPublicProfile(user.id, id);
-          return Response.json({ profile, ...feed });
+          // conquistas ganhas (só de grupos que não expõem saúde, finanças, diário ou treinos)
+          let medals: { id: string; emoji: string; name: string }[] = [];
+          try {
+            const xp = await getUserXp(id);
+            if (xp) medals = buildGame(id, xp).medals.filter((m) => m.earned && PUBLIC_MEDAL_GROUPS.includes(m.group)).map((m) => ({ id: m.id, emoji: m.emoji, name: m.name }));
+          } catch {
+            medals = [];
+          }
+          return Response.json({ profile: profile ? { ...profile, medals } : profile, ...feed });
         } catch (e) {
           return communityError(e);
         }

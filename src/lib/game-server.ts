@@ -4,6 +4,8 @@ import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { checkDb, updateUserRecord } from './server-db.js';
 import { UserXp, getUserXp } from './xp-server.js';
+import { computeMedals, monthRecap } from './medals.js';
+import { levelInfo } from './levels.js';
 import { SEASON_GROUP_SIZE, daysLeftIn, division, lastDayOf, monthOf, nextDivision, prevMonth, rankOf, seasonGoals, seasonLabel, seasonNudge, seasonPoints, zoneFor, zoneSizes } from './season.js';
 import { displayName, initials } from './feed-rules.js';
 import {
@@ -60,7 +62,23 @@ export function buildGame(userId: number, xp: UserXp) {
   const thisWeek = mondayOf(today);
   let trainDaysWeek = 0;
   for (let i = 0; i < 7; i++) if ((xp.days[shiftDay(thisWeek, i)]?.raw.treino || 0) > 0) trainDaysWeek++;
+  const level = levelInfo(xp.total).level;
+  const medalCounts = Object.fromEntries(Object.entries(xp.breakdown).map(([k, v]) => [k, v.count]));
+  const medals = computeMedals({
+    days: xp.days as any,
+    counts: medalCounts,
+    activeDays: xp.activeDays,
+    bestStreak: Math.max(streak.best || 0, streak.days || 0),
+    level,
+    seasonMaxTier: xp.seasonMaxTier,
+    workouts: xp.workoutsLite,
+    challengesDone: xp.challengesDone,
+  });
+  const month = today.slice(0, 7);
+  const recap = { current: monthRecap(xp.days as any, xp.workoutsLite, month), previous: monthRecap(xp.days as any, xp.workoutsLite, prevMonth(month)) };
   return {
+    medals,
+    recap,
     todayCounts: raw,
     trainDaysWeek,
     missions,

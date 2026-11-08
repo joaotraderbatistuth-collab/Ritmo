@@ -254,6 +254,14 @@ export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEdit
 /* Lógica: busca os pontos, mostra "+XP" e o "subiu de nível"          */
 /* ------------------------------------------------------------------ */
 
+/** Primeira conquista nova desde a última vez (no mesmo uso do app). */
+function newMedal(prev: XpData | null, next: XpData): string | null {
+  if (!prev?.medals || !next.medals) return null;
+  const had = new Set(prev.medals.filter((m) => m.earned).map((m) => m.id));
+  const m = next.medals.find((x) => x.earned && !had.has(x.id));
+  return m ? `${m.emoji} Nova conquista: ${m.name}!` : null;
+}
+
 /** "Subiu para 3º no grupo!" / "Entrou na zona de subida!" quando a posição melhora no mesmo mês. */
 function rankMessage(prev: SeasonView | null | undefined, next: SeasonView | null | undefined): string | null {
   if (!prev || !next || prev.month !== next.month || !prev.rank || !next.rank) return null;
@@ -306,6 +314,7 @@ export function useXp(userId: number | null, signature: string) {
           goal,
           goalJustHit: g.justHit,
           rankUp: rankMessage(prev?.season, d.season),
+          medal: newMedal(prev, d),
         });
         if (rankMessage(prev?.season, d.season)) setRankPulse(now);
         playGain(combo.current.count, Boolean(luckyNow) || g.justHit);
