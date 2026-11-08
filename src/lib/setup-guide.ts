@@ -71,20 +71,6 @@ export const GUIDE_STEPS: GuideStep[] = [
     tasks: ['Lance suas receitas e algumas despesas recentes.', 'Cadastre contas a vencer e parcelas.', 'Defina um orçamento por categoria para acompanhar o mês.'],
   },
   {
-    id: 'whatsapp',
-    tab: 'whatsapp',
-    title: 'WhatsApp Bot',
-    intro: 'Lance gastos pelo WhatsApp, sem abrir o app.',
-    tasks: ['Leia como enviar um lançamento pelo WhatsApp.', 'Confira as regras de privacidade e segurança do bot.', 'Se for usar, siga as instruções da aba para cadastrar o seu número.'],
-  },
-  {
-    id: 'planilha',
-    tab: 'planilha',
-    title: 'Planilhas',
-    intro: 'Exporte seus dados ou mantenha uma planilha sempre atualizada.',
-    tasks: ['Veja a estrutura padronizada das colunas.', 'Se quiser, configure a planilha do Google para sincronizar.', 'Use a exportação quando precisar levar seus dados para outro lugar.'],
-  },
-  {
     id: 'afiliados',
     tab: 'afiliados',
     title: 'Indique e Ganhe',

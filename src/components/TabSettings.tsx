@@ -25,7 +25,6 @@ export const TabSettings: React.FC<TabSettingsProps> = ({
 }) => {
   const [name, setName] = useState(user?.name || '');
   const [timezone, setTimezone] = useState(user?.timezone || 'America/Sao_Paulo');
-  const [whatsappPhone, setWhatsappPhone] = useState(user?.whatsappPhone || '');
 
   // Reminders state
   const [remindTasks, setRemindTasks] = useState(true);
@@ -62,7 +61,6 @@ export const TabSettings: React.FC<TabSettingsProps> = ({
       await onUpdateProfile({
         name,
         timezone,
-        whatsappPhone,
       });
 
       // Also update reminders in integrations config
@@ -158,18 +156,6 @@ export const TabSettings: React.FC<TabSettingsProps> = ({
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-[#8b949e] mb-1">
-                WhatsApp Autorizado (para Lançamentos)
-              </label>
-              <input
-                type="text"
-                placeholder="Ex: 5511999998888"
-                value={whatsappPhone}
-                onChange={(e) => setWhatsappPhone(e.target.value)}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-[#f0f6fc] font-mono focus:outline-none focus:border-emerald-500"
-              />
-            </div>
           </div>
         </div>
 

@@ -9,8 +9,6 @@ import { TabHabits } from '../components/TabHabits.js';
 import { TabFocus } from '../components/TabFocus.js';
 import { TabJournal } from '../components/TabJournal.js';
 import { TabFinance } from '../components/TabFinance.js';
-import { TabWhatsApp } from '../components/TabWhatsApp.js';
-import { TabSheets } from '../components/TabSheets.js';
 import { TabAffiliates } from '../components/TabAffiliates.js';
 import { TabProgress } from '../components/TabProgress.js';
 import { TabSettings } from '../components/TabSettings.js';
@@ -44,8 +42,6 @@ import {
   Sparkles,
   BookOpen,
   DollarSign,
-  Smartphone,
-  FileSpreadsheet,
   Share2,
   TrendingUp,
   Settings,
@@ -544,14 +540,6 @@ function RitmoApp() {
     await fetch(`/api/finance?id=${id}`, { method: 'DELETE' });
   };
 
-  const refreshFinance = async () => {
-    const res = await fetch('/api/finance');
-    const data = await res.json();
-    if (data.transactions) {
-      setTransactions(data.transactions);
-    }
-  };
-
   // Handlers for User & Account
   const handleLogout = async () => {
     await fetch('/api/auth', {
@@ -607,8 +595,6 @@ function RitmoApp() {
     { id: 'foco', label: 'Sessões de Foco', icon: <Clock className="w-4 h-4" /> },
     { id: 'diario', label: 'Diário & Revisões', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'financas', label: 'Finanças Pessoais', icon: <DollarSign className="w-4 h-4" /> },
-    { id: 'whatsapp', label: 'WhatsApp Bot', icon: <Smartphone className="w-4 h-4" /> },
-    { id: 'planilha', label: 'Planilhas', icon: <FileSpreadsheet className="w-4 h-4" /> },
     { id: 'afiliados', label: 'Indique e Ganhe', icon: <Share2 className="w-4 h-4" /> },
     { id: 'progresso', label: 'Progresso', icon: <TrendingUp className="w-4 h-4" /> },
     { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4" /> },
@@ -785,21 +771,6 @@ function RitmoApp() {
               onAddTransaction={handleAddTransaction}
               onDeleteTransaction={handleDeleteTransaction}
               onUpdateTransaction={handleUpdateTransaction}
-            />
-          )}
-
-          {activeTab === 'whatsapp' && (
-            <TabWhatsApp
-              userPhone={user?.whatsappPhone || undefined}
-              onRefreshFinance={refreshFinance}
-            />
-          )}
-
-          {activeTab === 'planilha' && (
-            <TabSheets
-              onExportCSV={() => {
-                window.open('/api/finance?format=csv', '_blank');
-              }}
             />
           )}
 

@@ -133,7 +133,7 @@ export const WelcomeTour: React.FC<WelcomeTourProps> = ({
       bullets: [
         'Registre receitas e despesas, parcelas, contas a pagar e orçamento por categoria.',
         'Filtre por período e exporte em CSV.',
-        'Opcional: registrar gastos pelo WhatsApp e sincronizar com uma planilha.',
+        'Ou só fale para o secretário: "gastei 32 no almoço" e ele lança para você.',
         'É uma ferramenta de organização, não consultoria financeira.',
       ],
       tab: 'financas',

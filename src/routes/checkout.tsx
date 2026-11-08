@@ -454,11 +454,7 @@ function CheckoutPage() {
                 </div>
                 <div className="flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span>Integração WhatsApp Bot para registro de gastos</span>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span>Sincronização em tempo real com Google Sheets</span>
+                  <span>Secretário por voz: fale e ele lança gastos, agenda e lembretes</span>
                 </div>
                 <div className="flex items-start gap-2.5 text-emerald-400 font-medium">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />

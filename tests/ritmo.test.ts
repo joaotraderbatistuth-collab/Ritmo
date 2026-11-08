@@ -334,7 +334,7 @@ export function runTests() {
 
   // 10. Modo ajuda de configuração (primeiro acesso)
   console.log('10. Testando o modo ajuda de configuração...');
-  const NAV_IDS = ['hoje', 'roteiro', 'rotina', 'quadros', 'habitos', 'foco', 'diario', 'financas', 'whatsapp', 'planilha', 'afiliados', 'feed', 'progresso', 'configuracoes'];
+  const NAV_IDS = ['hoje', 'roteiro', 'rotina', 'quadros', 'habitos', 'foco', 'diario', 'financas', 'afiliados', 'feed', 'progresso', 'configuracoes'];
   assert(GUIDE_STEPS.map((x) => x.tab).join() === NAV_IDS.join(), 'o guia passa por TODAS as abas, na ordem do menu');
   assert(new Set(GUIDE_STEPS.map((x) => x.id)).size === GUIDE_STEPS.length && GUIDE_STEPS.every((x) => x.tasks.length >= 2 && x.title && x.intro), 'cada passo tem título, explicação e tarefas');
   assert(GUIDE_STEPS.find((x) => x.tab === 'roteiro')?.action?.id === 'open_cycle', 'passo da meta oferece abrir o ciclo');

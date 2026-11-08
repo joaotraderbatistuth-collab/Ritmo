@@ -5,7 +5,7 @@ import {
   Bell, Smartphone, BookOpen, Gift,
   Mic, MapPin, Activity, Target, UserPlus, Moon,
   Zap, Keyboard, Hourglass, Navigation,
-  CalendarCheck, LayoutGrid, ListChecks, NotebookPen, BarChart3, Settings, FileSpreadsheet, Home, Compass, Download, TrendingUp,
+  CalendarCheck, LayoutGrid, ListChecks, NotebookPen, BarChart3, Settings, Home, Compass, Download, TrendingUp,
 } from 'lucide-react';
 import { InstallPwaButton } from './InstallPwaButton.js';
 import { TEAM_PLATFORM_FEE_PERCENT, splitTeamPayment } from '../lib/teams-plan.js';
@@ -908,7 +908,6 @@ const ALL_FEATURES: { icon: typeof Flame; title: string; text: string }[] = [
   { icon: Crown, title: 'Níveis e ligas', text: '12 níveis, molduras para a foto e ligas semanais (opcionais).' },
   { icon: BarChart3, title: 'Progresso', text: 'Calendário de constância, resumo da semana, recordes e o caminho dos níveis.' },
   { icon: Compass, title: 'Ritus', text: '10 Ritus gratuitos para começar, e você pode criar o seu e vender por assinatura.' },
-  { icon: FileSpreadsheet, title: 'Planilhas', text: 'Exporte seus lançamentos em CSV ou espelhe na sua planilha do Google.' },
   { icon: Bell, title: 'Avisos e lembretes', text: 'Sino com contas a vencer e até 3 lembretes por dia no celular, no seu fuso.' },
   { icon: Users, title: 'Indique e Ganhe', text: 'Link exclusivo, comissão recorrente e saque por Pix com comprovante.' },
   { icon: Settings, title: 'Do seu jeito', text: 'Perfil com foto e bio, tela inicial personalizável e guia de primeiros passos.' },

@@ -91,7 +91,7 @@ function TutorialPage() {
       highlights: [
         'Entradas, saídas e previsões de vencimento',
         'Orçamentos por categoria com barra de progresso em tempo real',
-        'Exportação limpa em CSV compatível com Excel e Google Sheets',
+        'Exportação em CSV que abre no Excel e no Google Planilhas',
       ],
       previewContent: {
         title: 'Painel Financeiro',
@@ -100,21 +100,21 @@ function TutorialPage() {
       },
     },
     {
-      title: '5. Automatize com WhatsApp e Planilhas',
-      badge: 'Automação',
+      title: '5. Fale com o seu secretário',
+      badge: 'Por voz',
       icon: Smartphone,
       color: 'emerald',
       description:
-        'Envie despesas diretamente pelo WhatsApp em português natural ("Gastei 42,50 no almoço") e nosso robô registra automaticamente. Seus dados podem ser sincronizados em tempo real com o Google Sheets.',
+        'Toque no microfone e fale em português do dia a dia ("Gastei 42,50 no almoço"). O secretário lança o gasto, marca compromissos, cria lembretes e conta como está o seu dia.',
       highlights: [
-        'Parser inteligente que entende gírias e valores brasileiros (ex: "80 conto")',
-        'Sincronização bidirecional e backup transparente em nuvem',
-        'Sem necessidade de abrir o aplicativo toda vez que fizer uma compra',
+        'Entende valores do jeito brasileiro (ex: "2 mil", "150,90")',
+        'Agenda, lembretes que se repetem, tarefas, cards e diário por voz',
+        'Sem precisar preencher formulário toda vez que fizer uma compra',
       ],
       previewContent: {
-        title: 'Mensagem WhatsApp',
-        meta: '"Paguei 120 de luz hoje no pix" ➔ Registrado em Moradia (R$ 120,00)',
-        status: 'Conciliado e Sincronizado',
+        title: 'Exemplo de comando de voz',
+        meta: '"Paguei 120 de luz hoje" ➔ Lançado em Moradia (R$ 120,00)',
+        status: 'Lançado pelo secretário',
       },
     },
     {
@@ -412,7 +412,7 @@ function TutorialPage() {
               </div>
               <h3 className="text-lg font-bold text-white mb-2">Gestão Financeira Sem Estresse</h3>
               <p className="text-slate-400 text-sm leading-relaxed mb-4">
-                Organize despesas, orçamentos e contas a pagar com suporte nativo a linguagem natural e WhatsApp.
+                Organize despesas, orçamentos e contas a pagar, e lance gastos só falando com o secretário.
               </p>
               <ul className="text-xs text-slate-300 space-y-1.5">
                 <li>• Orçamentos por categorias</li>

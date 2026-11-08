@@ -51,7 +51,7 @@ function PrivacidadePage() {
 
           <section>
             <H>5. Com quem compartilhamos</H>
-            <p>Somente com fornecedores necessários para o serviço funcionar, que tratam os dados em nosso nome: Netlify (hospedagem e banco de dados), Mercado Pago (pagamentos), Resend (e-mails como recuperação de senha), serviços de notificação do seu aparelho (Google, Apple ou Mozilla), serviços de mapa (CARTO e OpenStreetMap, que recebem a região do mapa exibida) e o serviço de voz do seu navegador. Integrações que você ligar por conta própria (Google Planilhas, WhatsApp) recebem os dados necessários para funcionar. Alguns desses fornecedores podem guardar dados fora do Brasil, com as garantias previstas na LGPD. Não vendemos dados pessoais.</p>
+            <p>Somente com fornecedores necessários para o serviço funcionar, que tratam os dados em nosso nome: Netlify (hospedagem e banco de dados), Mercado Pago (pagamentos), Resend (e-mails como recuperação de senha), serviços de notificação do seu aparelho (Google, Apple ou Mozilla), serviços de mapa (CARTO e OpenStreetMap, que recebem a região do mapa exibida) e o serviço de voz do seu navegador. Alguns desses fornecedores podem guardar dados fora do Brasil, com as garantias previstas na LGPD. Não vendemos dados pessoais.</p>
           </section>
 
           <section>

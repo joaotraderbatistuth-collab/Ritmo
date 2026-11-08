@@ -6,9 +6,8 @@ import {
   deleteFinanceTransaction,
   updateFinanceTransaction,
   getFinanceTransactions,
-  getIntegrationsConfig,
 } from '../lib/server-db.js';
-import { convertTransactionsToCSV, syncTransactionToGoogleSheet } from '../lib/sheets-sync.js';
+import { convertTransactionsToCSV } from '../lib/sheets-sync.js';
 
 export const Route = createFileRoute('/api/finance')({
   server: {
@@ -89,14 +88,7 @@ export const Route = createFileRoute('/api/finance')({
 
         const tx = await createFinanceTransaction(payload.userId, body);
 
-        // Check if user has Google Sheets auto-sync enabled
-        const integrations = await getIntegrationsConfig(payload.userId);
-        let syncStatus = null;
-        if (integrations?.sheetsAutoSync && integrations?.sheetsSpreadsheetId) {
-          syncStatus = await syncTransactionToGoogleSheet(integrations.sheetsSpreadsheetId, tx);
-        }
-
-        return Response.json({ transaction: tx, syncStatus }, { status: 201 });
+        return Response.json({ transaction: tx }, { status: 201 });
       },
 
       PATCH: async ({ request }) => {
