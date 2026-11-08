@@ -13,6 +13,8 @@ export interface User {
   referralCode: string;
   referredBy?: string | null;
   whatsappPhone?: string | null;
+  /** preenchimento automático entre agenda, quadros, finanças e lembretes (padrão: ligado) */
+  autofill?: boolean;
   access?: { hasAccess: boolean; effectiveStatus: string; daysLeft: number };
   createdAt?: string;
   updatedAt?: string;

@@ -32,6 +32,7 @@ import { nextDateAfter, normalizeTaskRule } from '../src/lib/recurrence.js';
 import { normalizeFrequency, frequencyLabel } from '../src/lib/chain.js';
 import { stepDaysFor } from '../src/lib/roadmap.js';
 import { normalizePushHours, slotForAnyHour } from '../src/lib/nudges.js';
+import { detectMoney, findAmount, stripAmount, moneyLabel, planReminders, isRoutineRule, isDoneListTitle, describeAuto, guessTaskCategory, minusMinutes, localToInstant, instantToLocal } from '../src/lib/autofill.js';
 import { SURVEY_QUESTIONS, normalizeAnswers, answeredCount, shouldAskSurvey, summarizeSurveys, surveyCsvCells, surveyCsvHeader, optionLabel } from '../src/lib/survey.js';
 
 /**
@@ -1010,6 +1011,53 @@ export function runTests() {
     assert(starterHabits({}).length === 2 && starterHabits({ objetivos: ['saude'] }).map((h) => h.category).join() === 'movimento,alimentacao', 'sempre 2 hábitos');
   }
   console.log('✓ Hábitos iniciais ok');
+
+  // ---- Preenchimento automático: um compromisso preenche agenda, quadro, finanças e lembretes
+  {
+    const ipva = detectMoney('Pagar IPVA R$ 1.250');
+    assert(ipva?.type === 'expense' && ipva.amountCents === 125000 && ipva.label === 'IPVA' && ipva.category === 'transporte', `IPVA: ${JSON.stringify(ipva)}`);
+    const luz = detectMoney('Pagar a conta de luz 189,90');
+    assert(luz?.amountCents === 18990 && luz.label === 'Conta de luz' && luz.category === 'moradia', `luz: ${JSON.stringify(luz)}`);
+    assert(detectMoney('Receber salário')?.type === 'income', 'salário é a receber');
+    assert(detectMoney('Reunião com cliente') === null && detectMoney('Visitar casa para aluguel') === null && detectMoney('Receber visita da sogra') === null, 'sem dinheiro, sem provisão');
+    assert(detectMoney('Paguei o IPVA') === null, 'já pago não vira conta');
+    assert(detectMoney('Parcela 3', { type: 'expense', amountCents: 50000 })?.amountCents === 50000, 'dica de quem chamou vale');
+    assert(findAmount('Pagar parcela 3 do carro') === null && findAmount('aluguel 1500 reais')?.cents === 150000, 'número solto não é valor');
+    assert(stripAmount('Pagar IPVA R$ 1.250') === 'Pagar IPVA' && moneyLabel('Tenho que pagar o boleto da escola') === 'Boleto da escola', 'título e nome limpos');
+    const rem = planReminders({ title: 'Pagar IPVA', date: '2026-11-10', money: ipva });
+    assert(rem.length === 2 && rem[0].date === '2026-11-09' && rem[0].time === '09:00' && rem[0].text.startsWith('Amanhã vence: Pagar IPVA') && rem[1].date === '2026-11-10', `lembretes da conta: ${JSON.stringify(rem)}`);
+    const dent = planReminders({ title: 'Dentista', date: '2026-11-10', time: '15:00', money: null });
+    assert(dent.length === 1 && dent[0].time === '14:30' && dent[0].fallbackTime === '15:00', 'compromisso com hora: 30 min antes');
+    assert(planReminders({ title: 'Ler', date: '2026-11-10', money: null }).length === 0, 'sem hora e sem conta: sem lembrete');
+    assert(minusMinutes('00:10', 30) === '00:00', 'não volta para o dia anterior');
+    assert(isRoutineRule('daily') && isRoutineRule('weekly:1,2,3,4,5') && !isRoutineRule('monthly:10') && !isRoutineRule('weekly:2') && !isRoutineRule(''), 'rotina não vira card');
+    assert(isDoneListTitle('Concluído') && isDoneListTitle('Feito') && !isDoneListTitle('A fazer') && !isDoneListTitle('Em andamento'), 'lista de concluído');
+    assert(guessTaskCategory('Consulta no dentista', null) === 'saude' && guessTaskCategory('Pagar IPVA', ipva) === 'financas', 'categoria pela frase');
+    assert(describeAuto([{ kind: 'card' }, { kind: 'tx', detail: 'provisão de R$ 1.250,00 a pagar em Finanças' }, { kind: 'reminder' }, { kind: 'reminder' }]) .replace(/\s/g, ' ') === 'card no quadro Agenda, provisão de R$ 1.250,00 a pagar em Finanças e 2 lembretes', 'frase do aviso');
+    // fuso: 9h em São Paulo = 12h UTC
+    const at = localToInstant('2026-11-09', '09:00', 'America/Sao_Paulo');
+    assert(at.toISOString() === '2026-11-09T12:00:00.000Z', `fuso: ${at.toISOString()}`);
+    const back = instantToLocal(at, 'America/Sao_Paulo');
+    assert(back.date === '2026-11-09' && back.time === '09:00', 'volta para o horário local');
+    // secretário entende conta futura
+    const now = new Date(2026, 10, 8, 12, 0); // domingo
+    const b1 = parseCommand('pagar IPVA terça-feira', now);
+    assert(b1.kind === 'bill' && b1.title === 'Pagar IPVA' && b1.date === '2026-11-10' && b1.type === 'expense', `bill: ${JSON.stringify(b1)}`);
+    const b2 = parseCommand('agenda pagar IPVA terça R$ 1.250', now);
+    assert(b2.kind === 'bill' && b2.amountCents === 125000 && b2.title === 'Pagar IPVA', `bill com valor: ${JSON.stringify(b2)}`);
+    const b3 = parseCommand('vou receber 3 mil do cliente sexta', now);
+    assert(b3.kind === 'bill' && b3.type === 'income' && b3.amountCents === 300000, `a receber: ${JSON.stringify(b3)}`);
+    assert(parseCommand('vence o boleto da faculdade sexta', now).kind === 'bill', 'vencimento vira conta');
+    assert(parseCommand('paguei 50 de gasolina', now).kind === 'expense' && parseCommand('quais contas vencem essa semana', now).kind === 'bills' && parseCommand('contas a vencer', now).kind === 'bills', 'pago e pergunta continuam como antes');
+    const exp = parseCommand('pagar IPVA terça-feira 1200 reais', now);
+    assert(exp.kind === 'bill' && exp.amountCents === 120000, 'valor junto');
+    const g = parseCommand('gastei 30 na feira', now);
+    assert(g.kind === 'expense' && g.category === 'alimentacao', 'feira de verdade continua alimentação');
+    // próximo passo: conta da véspera
+    const ns = nextSteps({ hour: 10, today: '2026-11-09', habits: [], habitsDoneToday: [], tasksToday: [{ id: 1, title: 'x', completed: true }], plannedTomorrow: true, focusToday: 1, diaryToday: true, trainedToday: true, trainingDaysThisWeek: 5, billsDue: [{ description: 'IPVA', dueDate: '2026-11-10', amountCents: 125000 }], missions: [], chestReady: false });
+    assert(ns[0].id === 'conta' && ns[0].title.replace(/\s/g, ' ') === 'Pagar IPVA (R$ 1.250,00)' && ns[0].why.startsWith('Vence amanhã'), `próximo passo da conta: ${JSON.stringify(ns[0])}`);
+  }
+  console.log('✓ Preenchimento automático ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

@@ -6,7 +6,9 @@ import {
   deleteFinanceTransaction,
   updateFinanceTransaction,
   getFinanceTransactions,
+  getFinanceTransactionById,
 } from '../lib/server-db.js';
+import { autofillFromTransaction, cascadeDelete, syncFromTransaction } from '../lib/autofill-server.js';
 import { convertTransactionsToCSV } from '../lib/sheets-sync.js';
 
 export const Route = createFileRoute('/api/finance')({
@@ -87,8 +89,10 @@ export const Route = createFileRoute('/api/finance')({
         }
 
         const tx = await createFinanceTransaction(payload.userId, body);
+        // conta a pagar/receber com vencimento: vira compromisso na agenda, card e lembretes
+        const auto = body.autofill === false ? null : await autofillFromTransaction(payload.userId, tx);
 
-        return Response.json({ transaction: tx }, { status: 201 });
+        return Response.json({ transaction: tx, auto }, { status: 201 });
       },
 
       PATCH: async ({ request }) => {
@@ -97,8 +101,11 @@ export const Route = createFileRoute('/api/finance')({
         const auth = await authorizeData(token);
         if ('response' in auth) return auth.response;
         const body = await request.json().catch(() => ({}));
+        const before = await getFinanceTransactionById(auth.payload.userId, Number(body.id));
         const tx = await updateFinanceTransaction(Number(body.id), auth.payload.userId, body);
-        return tx ? Response.json({ transaction: tx }) : Response.json({ error: 'Lançamento não encontrado.' }, { status: 404 });
+        if (!tx) return Response.json({ error: 'Lançamento não encontrado.' }, { status: 404 });
+        const linked = await syncFromTransaction(auth.payload.userId, before, tx);
+        return Response.json({ transaction: tx, linked });
       },
 
       DELETE: async ({ request }) => {
@@ -113,7 +120,8 @@ export const Route = createFileRoute('/api/finance')({
         if (!id) return Response.json({ error: 'ID do lançamento é obrigatório.' }, { status: 400 });
 
         await deleteFinanceTransaction(Number(id), payload.userId);
-        return Response.json({ success: true });
+        const linked = await cascadeDelete(payload.userId, 'tx', Number(id));
+        return Response.json({ success: true, linked });
       },
     },
   },

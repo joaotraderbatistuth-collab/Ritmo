@@ -6,6 +6,7 @@ import {
   Moon,
   Sun,
   CheckCircle2,
+  Zap,
 } from 'lucide-react';
 import { PushToggle } from './PushToggle.js';
 import { InstallAppCard } from './InstallPwaButton.js';
@@ -38,6 +39,17 @@ export const TabSettings: React.FC<TabSettingsProps> = ({
       : 'default'
   );
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [autofill, setAutofill] = useState(user?.autofill !== false);
+  const toggleAutofill = async () => {
+    const next = !autofill;
+    setAutofill(next);
+    try {
+      await onUpdateProfile({ autofill: next });
+      setSaveStatus(next ? 'Preenchimento automático ligado.' : 'Preenchimento automático desligado.');
+    } catch {
+      setAutofill(!next);
+    }
+  };
   const [loading, setLoading] = useState(false);
 
   const handleRequestNotification = async () => {
@@ -104,6 +116,36 @@ export const TabSettings: React.FC<TabSettingsProps> = ({
           <span>{saveStatus}</span>
         </div>
       )}
+
+      {/* Preenchimento automático */}
+      <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-6 space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-[#f0f6fc] flex items-center gap-2">
+              <Zap className="w-4 h-4 text-emerald-400" />
+              Preenchimento automático
+            </h3>
+            <p className="text-xs text-[#8b949e] mt-1 leading-relaxed">
+              Anotou um compromisso, uma conta ou um card com data? O resto se preenche sozinho: card no quadro Agenda,
+              provisão em Finanças (contas a pagar e a receber) e lembretes na véspera e no dia. Concluir, mudar a data ou
+              apagar em um lugar atualiza os outros.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autofill}
+            aria-label="Preenchimento automático"
+            onClick={toggleAutofill}
+            className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${autofill ? 'bg-emerald-500' : 'bg-[#30363d]'}`}
+          >
+            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${autofill ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+        <p className="text-[11px] text-[#6e7681]">
+          Exemplo: "Pagar IPVA terça R$ 1.250" vira tarefa na terça, card em Agenda, R$ 1.250 a pagar em Finanças e aviso na segunda.
+        </p>
+      </div>
 
       <form onSubmit={handleSaveSettings} className="space-y-6">
         {/* Profile Card */}

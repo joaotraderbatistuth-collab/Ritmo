@@ -352,6 +352,19 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
     PRIMARY KEY ("user_id", "day")
   )`,
 
+  // ---- preenchimento automático: um compromisso preenche Quadros, Finanças e lembretes
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "autofill" boolean NOT NULL DEFAULT true`,
+  `CREATE TABLE IF NOT EXISTS "item_links" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "grp" text NOT NULL,
+    "kind" text NOT NULL,
+    "item_id" integer NOT NULL,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "item_links_item_idx" ON "item_links" ("user_id", "kind", "item_id")`,
+  `CREATE INDEX IF NOT EXISTS "item_links_grp_idx" ON "item_links" ("user_id", "grp")`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

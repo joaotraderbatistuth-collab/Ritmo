@@ -4,6 +4,7 @@ import { PushToggle } from './PushToggle.js';
 import { RemindersEditor } from './RemindersEditor.js';
 import { ConsentPrompt, hasConsent, loadConsents } from './Consents.js';
 import { callApi } from '../lib/client-api.js';
+import { announceAuto, type AutoInfo } from '../lib/autofill-client.js';
 import {
   AssistantTab,
   Intent,
@@ -59,6 +60,7 @@ const EXAMPLES = [
   'Recebi 2 mil de salário',
   'Marca na agenda dentista amanhã às 3 da tarde',
   'Me lembra de pagar a luz dia 10',
+  'Pagar IPVA terça, 1.250 reais',
   'Vou iniciar uma corrida agora',
   'Cria um card revisar proposta',
   'Concluí a tarefa enviar relatório',
@@ -166,6 +168,12 @@ export const Assistant: React.FC<{
   useEffect(() => {
     loadAssistant();
   }, [loadAssistant]);
+  // o preenchimento automático criou ou mudou lembretes em outra aba
+  useEffect(() => {
+    const h = () => loadAssistant();
+    window.addEventListener('ritmo:reminders-changed', h);
+    return () => window.removeEventListener('ritmo:reminders-changed', h);
+  }, [loadAssistant]);
 
   useEffect(() => {
     listEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -217,12 +225,23 @@ export const Assistant: React.FC<{
   const pushTip = () => (typeof Notification !== 'undefined' && Notification.permission !== 'granted' ? ' Dica: ligue as notificações no sino para eu te avisar mesmo com o app fechado.' : '');
 
   const addReminder = async (text: string, at: Date, taskId: number | null = null, repeat: string | null = null) => {
-    const r = await callApi<{ reminder?: Reminder; error?: string }>('/api/assistant', { action: 'add_reminder', text, remindAt: at.toISOString(), taskId, repeat });
+    const r = await callApi<{ reminder?: Reminder; auto?: AutoInfo | null; error?: string }>('/api/assistant', { action: 'add_reminder', text, remindAt: at.toISOString(), taskId, repeat });
     if (r.ok && r.data.reminder) {
       setReminders((list) => [...list, r.data.reminder!].sort((a, b) => a.remindAt.localeCompare(b.remindAt)));
-      return r.data.reminder;
+      return { ...r.data.reminder, auto: r.data.auto || null };
     }
     throw new Error(r.data.error || 'Não consegui criar o lembrete.');
+  };
+
+  /** "Também coloquei card no quadro Agenda, provisão de R$ 1.250,00 a pagar em Finanças e 2 lembretes." */
+  const autoLine = (a?: AutoInfo | null) => (a?.message ? ` Também coloquei ${a.message}.` : '');
+
+  /** Desfaz um compromisso: o servidor apaga junto o card, a provisão em aberto e os lembretes ligados. */
+  const undoTask = async (taskId: number, msg: string) => {
+    await fetch(`/api/tasks?id=${taskId}`, { method: 'DELETE' });
+    announceAuto(null, true);
+    onDataChanged();
+    say(msg);
   };
 
   const run = async (intent: Intent): Promise<void> => {
@@ -263,24 +282,45 @@ export const Assistant: React.FC<{
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return say(data.error || 'Não consegui agendar agora.');
         onDataChanged();
+        announceAuto(data.auto);
         const taskId = data.task?.id ?? null;
-        let reminderId: number | null = null;
-        let extra = '';
-        if (intent.time) {
-          const before = new Date(when.at.getTime() - 30 * 60_000);
-          const at = before.getTime() > now.getTime() ? before : when.at.getTime() > now.getTime() ? when.at : null;
-          if (at) {
-            try {
-              reminderId = (await addReminder(`${intent.title} às ${timeLabel(intent.time)}`, at, taskId)).id;
-              extra = at === before ? ' Te aviso 30 minutos antes.' : ' Te aviso na hora.';
-            } catch {}
-          }
-        }
+        const remind = (data.auto?.items || []).some((x: { kind: string }) => x.kind === 'reminder');
         return say(
-          `Agendei ${intent.title} ${dayLabel(when.date, now)}${intent.time ? ` às ${timeLabel(intent.time)}` : ''}.${extra}${extra ? pushTip() : ''}`,
-          taskId
-            ? { label: 'Desfazer', run: async () => { await fetch(`/api/tasks?id=${taskId}`, { method: 'DELETE' }); if (reminderId) await doneReminder(reminderId); onDataChanged(); say('Desmarquei esse compromisso.'); } }
-            : undefined
+          `Agendei ${intent.title} ${dayLabel(when.date, now)}${intent.time ? ` às ${timeLabel(intent.time)}` : ''}.${autoLine(data.auto)}${remind ? pushTip() : ''}`,
+          taskId ? { label: 'Desfazer', run: () => undoTask(taskId, 'Desmarquei esse compromisso.') } : undefined
+        );
+      }
+
+      case 'bill': {
+        if (!intent.date && !intent.time) {
+          pending.current = intent;
+          return say(`Para quando é ${intent.title.toLowerCase()}? Pode falar "terça" ou "dia 10".`);
+        }
+        const when = resolveDateTime(intent.date, intent.time, now);
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: intent.title,
+            date: when.date,
+            startTime: intent.time || '',
+            timeBlock: intent.time ? timeBlockFor(intent.time) : 'Manhã',
+            category: 'financas',
+            priority: 'alta',
+            estimatedMinutes: 15,
+            autofillHint: { type: intent.type, amountCents: intent.amountCents },
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return say(data.error || 'Não consegui anotar agora.');
+        onDataChanged();
+        announceAuto(data.auto);
+        const taskId = data.task?.id ?? null;
+        const value = intent.amountCents ? `, ${brl(intent.amountCents)}` : '';
+        const noValue = !intent.amountCents && (data.auto?.items || []).some((x: { kind: string }) => x.kind === 'tx') ? ' Quando souber o valor, é só editar em Finanças.' : '';
+        return say(
+          `Anotei: ${intent.title} ${dayLabel(when.date, now)}${value}.${autoLine(data.auto)}${noValue}${pushTip()}`,
+          taskId ? { label: 'Desfazer', run: () => undoTask(taskId, 'Pronto, desfiz tudo.') } : undefined
         );
       }
 
@@ -308,9 +348,16 @@ export const Assistant: React.FC<{
         if (when.at.getTime() < now.getTime() - 60_000) return say('Esse horário já passou. Me diga outro horário.');
         try {
           const r = await addReminder(intent.text, when.at);
-          return say(`Combinado! Vou te lembrar de ${intent.text.toLowerCase()} ${dayLabel(when.date, now)} às ${timeLabel(when.time)}.${pushTip()}`, {
+          announceAuto(r.auto);
+          const autoTask = (r.auto?.items || []).find((x) => x.kind === 'task');
+          if (r.auto?.items?.length) onDataChanged();
+          return say(`Combinado! Vou te lembrar de ${intent.text.toLowerCase()} ${dayLabel(when.date, now)} às ${timeLabel(when.time)}.${autoLine(r.auto)}${pushTip()}`, {
             label: 'Desfazer',
-            run: async () => { await doneReminder(r.id); say('Lembrete cancelado.'); },
+            run: async () => {
+              await doneReminder(r.id);
+              if (autoTask) return undoTask(autoTask.id, 'Lembrete cancelado e tirei da agenda.');
+              say('Lembrete cancelado.');
+            },
           });
         } catch (e: any) {
           return say(e.message);
@@ -322,8 +369,9 @@ export const Assistant: React.FC<{
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return say(data.error || 'Não consegui criar a tarefa.');
         onDataChanged();
+        announceAuto(data.auto);
         const id = data.task?.id;
-        return say(`Anotei a tarefa "${intent.title}" para ${dayLabel(intent.date, now)}.`, id ? { label: 'Desfazer', run: async () => { await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' }); onDataChanged(); say('Tarefa apagada.'); } } : undefined);
+        return say(`Anotei a tarefa "${intent.title}" para ${dayLabel(intent.date, now)}.${autoLine(data.auto)}`, id ? { label: 'Desfazer', run: () => undoTask(id, 'Tarefa apagada.') } : undefined);
       }
 
       case 'habit_done': {
@@ -382,13 +430,21 @@ export const Assistant: React.FC<{
         const lists = fr.ok ? fr.data.lists || [] : [];
         if (!lists.length) return say(`O quadro ${board.title} não tem listas. Crie uma na aba Quadros.`);
         const list = (intent.list && (lists.find((l) => fold(l.title) === fold(intent.list!)) || lists.find((l) => fold(l.title).includes(fold(intent.list!))))) || lists[0];
-        const r = await callApi<{ card?: { id: number }; error?: string }>('/api/boards', { action: 'create_card', listId: list.id, title: intent.title, dueDate: intent.dueDate || undefined });
+        const r = await callApi<{ card?: { id: number }; auto?: AutoInfo | null; error?: string }>('/api/boards', { action: 'create_card', listId: list.id, title: intent.title, dueDate: intent.dueDate || undefined });
         if (!r.ok || !r.data.card) return say(r.data.error || 'Não consegui criar o card.');
         const cardId = r.data.card.id;
         window.dispatchEvent(new Event('ritmo:boards-changed'));
-        return say(`Card "${intent.title}" criado no quadro ${board.title}, lista ${list.title}${intent.dueDate ? `, para ${dayLabel(intent.dueDate, now)}` : ''}.`, {
+        announceAuto(r.data.auto);
+        const cardTask = (r.data.auto?.items || []).find((x) => x.kind === 'task');
+        return say(`Card "${intent.title}" criado no quadro ${board.title}, lista ${list.title}${intent.dueDate ? `, para ${dayLabel(intent.dueDate, now)}` : ''}.${autoLine(r.data.auto)}`, {
           label: 'Desfazer',
-          run: async () => { await callApi('/api/boards', { action: 'delete_card', cardId }); window.dispatchEvent(new Event('ritmo:boards-changed')); say('Card apagado.'); },
+          run: async () => {
+            await callApi('/api/boards', { action: 'delete_card', cardId });
+            if (cardTask) await fetch(`/api/tasks?id=${cardTask.id}`, { method: 'DELETE' });
+            announceAuto(null, true);
+            onDataChanged();
+            say('Card apagado.');
+          },
         });
       }
 
@@ -526,7 +582,7 @@ export const Assistant: React.FC<{
       }
 
       case 'help':
-        return say(`Eu lanço gastos e entradas, agendo na sua agenda, crio lembretes, tarefas e cards, concluo tarefas, marco hábitos, anoto no diário, faço o resumo do dia, conto quanto você gastou e começo treinos e focos. Experimente: "${EXAMPLES[0]}", "${EXAMPLES[4]}" ou "${EXAMPLES[5]}".`);
+        return say(`Eu lanço gastos e entradas, anoto contas a pagar e a receber (vão sozinhas para a agenda, o quadro e Finanças), agendo na sua agenda, crio lembretes, tarefas e cards, concluo tarefas, marco hábitos, anoto no diário, faço o resumo do dia, conto quanto você gastou e começo treinos e focos. Experimente: "${EXAMPLES[0]}", "${EXAMPLES[4]}" ou "${EXAMPLES[5]}".`);
       case 'thanks':
         return say(`Por nada${firstName ? `, ${firstName}` : ''}! Tô aqui.`);
       case 'cancel':

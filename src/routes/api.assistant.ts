@@ -4,6 +4,7 @@ import { authorizeData } from '../lib/session.js';
 import { findUserById, updateUserRecord } from '../lib/server-db.js';
 import { cleanAssistantName } from '../lib/assistant-parser.js';
 import { isValidRepeat } from '../lib/recurrence.js';
+import { autofillFromReminder } from '../lib/autofill-server.js';
 import { REMINDER_LIMITS, countRecentReminders, createReminder, finishReminder, listReminders, updateReminder } from '../lib/reminders-db.js';
 
 // GET  /api/assistant                                   → nome do secretário + lembretes ativos
@@ -44,7 +45,10 @@ export const Route = createFileRoute('/api/assistant')({
           if ((await countRecentReminders(userId)) >= REMINDER_LIMITS.activeMax) return Response.json({ error: 'Você já tem muitos lembretes ativos.' }, { status: 429 });
           const taskId = Number.isInteger(body.taskId) ? body.taskId : null;
           const repeat = isValidRepeat(body.repeat) ? body.repeat : null;
-          return Response.json({ success: true, reminder: await createReminder(userId, { text, remindAt: at, taskId, repeat }) });
+          const reminder = await createReminder(userId, { text, remindAt: at, taskId, repeat });
+          // lembrete avulso: também vira compromisso na agenda, card (e provisão, se for conta)
+          const auto = body.autofill === false ? null : await autofillFromReminder(userId, reminder);
+          return Response.json({ success: true, reminder, auto });
         }
 
         if (body.action === 'update_reminder') {

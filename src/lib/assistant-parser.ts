@@ -9,6 +9,7 @@ export type Intent =
   | { kind: 'appointment'; title: string; date: string | null; time: string | null }
   | { kind: 'reminder'; text: string; date: string | null; time: string | null; repeat?: string | null }
   | { kind: 'task'; title: string; date: string }
+  | { kind: 'bill'; type: 'expense' | 'income'; title: string; amountCents: number | null; date: string | null; time: string | null }
   | { kind: 'habit_done'; name: string }
   | { kind: 'agenda'; date: string }
   | { kind: 'spent'; period: 'hoje' | 'ontem' | 'semana' | 'mes' }
@@ -71,7 +72,8 @@ const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 export function tidy(s: string): string {
   const STOP = /^(?:de|do|da|dos|das|no|na|nos|nas|em|com|pra|pro|para|por|o|a|os|as|um|uma|que|e|ai|la|isso|sobre|referente|ao|aos)\s+/;
   const STOP_END = /\s+(?:de|do|da|no|na|em|com|pra|para|por|o|a|e|que|hoje|agora|por favor|pfv|ok)$/;
-  let t = s.replace(/[.,;!?]+/g, ' ').replace(/\s+/g, ' ').trim();
+  // pontuação some, mas "R$ 1.250,90" continua inteiro
+  let t = s.replace(/[;!?]+/g, ' ').replace(/[.,](?!\d)|(?<!\d)[.,]/g, ' ').replace(/\s+/g, ' ').trim();
   for (let i = 0; i < 6; i++) {
     const before = t;
     t = t.replace(STOP, '').replace(STOP_END, '').trim();
@@ -251,7 +253,8 @@ const CATEGORY_WORDS: [RegExp, string][] = [
 ];
 
 export function guessCategory(text: string, kind: 'expense' | 'income'): string {
-  const n = fold(text);
+  // "terça-feira" não é feira de alimentação
+  const n = fold(text).replace(/\b(segunda|terca|quarta|quinta|sexta)[- ]feira\b/g, ' ');
   for (const [re, cat] of CATEGORY_WORDS) if (re.test(n)) return kind === 'income' && cat !== 'renda' ? 'renda' : cat;
   return kind === 'income' ? 'renda' : 'outros';
 }
@@ -357,6 +360,39 @@ export function parseCommand(raw: string, now: Date = new Date(), assistantName 
     return { kind: 'reminder', text: tidy(p.orig), date: when.date, time: when.time, repeat };
   }
 
+  // conta a pagar ou a receber no futuro: "pagar IPVA terça", "tenho que pagar o aluguel dia 10 de 1500 reais",
+  // "vence o boleto da faculdade sexta", "receber o salário dia 5". Vira compromisso + provisão + card + lembretes.
+  {
+    const past = /\b(paguei|pago ontem|quitei|gastei|comprei|recebi|ganhei|entrou|caiu)\b/.test(n0);
+    const question = /^(quais|qual|quanto|quantas?|quando|o que|tenho alguma|tenho contas|mostra\w*|lista\w*|me (mostra|diz|fala))\b/.test(n0);
+    const payWord = /\b(pagar|pagamento|quitar|vence|vencimento|boleto|fatura|ipva|iptu|darf)\b/.test(n0);
+    const incomeWord = /\b(receber|vai cair|cai o)\b/.test(n0);
+    if (!past && !question && (payWord || incomeWord)) {
+      const q = new Phrase(fixHalfPast(text));
+      const future = /\b(vou|tenho (que|de|pra)|preciso|devo|precisa|vai|vence|vencimento)\b/.test(n0);
+      const when = extractWhen(q, now);
+      const today = ymd(now);
+      if ((when.date && when.date >= today) || (future && !when.date && !when.time)) {
+        const amountCents = extractAmount(q);
+        q.cut(/\b(?:na|em|pra|para a|no)\s+(?:minha\s+|meu\s+)?(?:agenda|calendario|financas)\b/);
+        for (let i = 0; i < 4; i++) {
+          if (!q.cut(/^\s*(?:eu\s+)?(?:vou|tenho (?:que|de|pra)|preciso(?: de)?|devo|precisa|agenda|anota|coloca|marca|lanca)\b/)) break;
+        }
+        q.cut(/\b(?:no )?valor\b/);
+        const type = incomeWord && !payWord ? 'income' : 'expense';
+        let what = tidy(q.orig)
+          .replace(type === 'income' ? /^(?:receber|recebimento)\s+(?:(?:o|a|os|as)\s+)?/i : /^(?:pagar|pagamento|quitar|vence|vencimento)\s+(?:(?:d[oa]s?|o|a|os|as|de)\s+)?/i, '')
+          .replace(/^(?:o|a|os|as)\s+/i, '');
+        what = what.replace(/\s+(?:vence|vencimento)$/i, '').trim();
+        if (what) {
+          const keep = /^[A-ZÀ-Ú]{2}/.test(what) ? what : what[0].toLowerCase() + what.slice(1);
+          const title = `${type === 'income' ? 'Receber' : 'Pagar'} ${keep}`.slice(0, 120);
+          return { kind: 'bill', type, title, amountCents, date: when.date, time: when.time };
+        }
+      }
+    }
+  }
+
   // consultas (antes dos lançamentos: "quanto gastei" não é um gasto)
   if (/\bquanto (eu )?(gastei|gasto|ja gastei)\b/.test(n0)) {
     const period = /\bontem\b/.test(n0) ? 'ontem' : /\bhoje\b/.test(n0) ? 'hoje' : /\bsemana\b/.test(n0) ? 'semana' : 'mes';
@@ -457,7 +493,7 @@ export function completeWith(pending: Intent, raw: string, now: Date = new Date(
     const text = p.orig.trim();
     return text.length >= 2 ? { kind: 'diary', text: capitalize(text).slice(0, 2000) } : null;
   }
-  if (pending.kind === 'reminder' || pending.kind === 'appointment') {
+  if (pending.kind === 'reminder' || pending.kind === 'appointment' || pending.kind === 'bill') {
     const when = extractWhen(p, now);
     if (!when.date && !when.time) return null;
     return { ...pending, date: when.date ?? pending.date, time: when.time ?? pending.time };

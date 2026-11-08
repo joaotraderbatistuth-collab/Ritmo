@@ -327,7 +327,8 @@ export const Route = createFileRoute('/api/auth')({
           whatsappPhone: body.whatsappPhone,
           pixKey: body.pixKey,
           pixKeyType: body.pixKeyType,
-        });
+          autofill: typeof body.autofill === 'boolean' ? body.autofill : undefined,
+        } as any);
 
         if (!updated) return Response.json({ error: 'Usuário não encontrado.' }, { status: 404 });
         const { passwordHash: _, ...safeUser } = updated;

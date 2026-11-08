@@ -1,6 +1,7 @@
 import { authorizeData } from '../lib/session.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { extractTokenFromRequest } from '../lib/auth.js';
+import { autofillFromCard, syncFromCard, unlinkCard } from '../lib/autofill-server.js';
 import {
   getBoards,
   createBoard,
@@ -18,6 +19,7 @@ import {
   updateCard,
   moveCard,
   deleteCard,
+  getCardById,
   addChecklistItem,
   toggleChecklistItem,
   updateChecklistItemText,
@@ -166,7 +168,9 @@ export const Route = createFileRoute('/api/boards')({
                 assignee: body.assignee,
                 dueDate: body.dueDate,
               });
-              return Response.json({ success: true, card }, { status: 201 });
+              // card com data: vira compromisso na agenda (e provisão + lembretes, se for conta)
+              const auto = body.autofill === false ? null : await autofillFromCard(userId, card);
+              return Response.json({ success: true, card, auto }, { status: 201 });
             } catch (e: any) {
               return Response.json({ error: e.message || 'Não foi possível criar o cartão.' }, { status: 400 });
             }
@@ -174,6 +178,7 @@ export const Route = createFileRoute('/api/boards')({
 
           if (action === 'update_card') {
             if (!body.cardId) return Response.json({ error: 'ID do cartão é obrigatório.' }, { status: 400 });
+            const before = await getCardById(userId, Number(body.cardId));
             const card = await updateCard(Number(body.cardId), userId, {
               title: body.title,
               description: body.description,
@@ -183,28 +188,36 @@ export const Route = createFileRoute('/api/boards')({
               dueDate: body.dueDate,
             });
             if (!card) return Response.json({ error: 'Cartão não encontrado.' }, { status: 404 });
-            return Response.json({ success: true, card });
+            const linked = await syncFromCard(userId, before, card);
+            // card que ganhou data agora: vira compromisso na agenda (e conta, se for o caso)
+            const auto = !linked && card.dueDate && !before?.dueDate && body.autofill !== false ? await autofillFromCard(userId, card) : null;
+            return Response.json({ success: true, card, linked, auto });
           }
 
           if (action === 'move_card') {
             if (!body.cardId || !body.targetListId || body.targetPosition === undefined) {
               return Response.json({ error: 'Cartão, lista de destino e posição são obrigatórios.' }, { status: 400 });
             }
+            const before = await getCardById(userId, Number(body.cardId));
             const ok = await moveCard(Number(body.cardId), userId, Number(body.targetListId), Number(body.targetPosition));
             if (!ok) return Response.json({ error: 'Não foi possível mover o cartão (verifique se pertence à sua conta).' }, { status: 404 });
-            return Response.json({ success: true });
+            // arrastou para "Concluído": conclui o compromisso e marca a conta como paga (e o contrário)
+            const linked = before && before.listId !== Number(body.targetListId) ? await syncFromCard(userId, before, await getCardById(userId, Number(body.cardId))) : false;
+            return Response.json({ success: true, linked });
           }
 
           if (action === 'archive_card') {
             if (!body.cardId) return Response.json({ error: 'ID do cartão é obrigatório.' }, { status: 400 });
             const card = await updateCard(Number(body.cardId), userId, { archived: body.archived !== false });
             if (!card) return Response.json({ error: 'Cartão não encontrado.' }, { status: 404 });
+            if (card.archived) await unlinkCard(userId, card.id);
             return Response.json({ success: true, card });
           }
 
           if (action === 'delete_card') {
             if (!body.cardId) return Response.json({ error: 'ID do cartão é obrigatório.' }, { status: 400 });
             await deleteCard(Number(body.cardId), userId);
+            await unlinkCard(userId, Number(body.cardId));
             return Response.json({ success: true });
           }
 

@@ -446,7 +446,9 @@ export async function updateUserRecord(id: number, data: Partial<typeof schema.u
   }
   const user = memStore.users.find((u) => u.id === id);
   if (user) {
-    Object.assign(user, data, { updatedAt: new Date().toISOString() });
+    // campos não enviados (undefined) não apagam o que já existe
+    const defined = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+    Object.assign(user, defined, { updatedAt: new Date().toISOString() });
     forgetSession(id);
     return user;
   }
@@ -618,6 +620,29 @@ export async function getTasks(userId: number, filterDate?: string): Promise<Tas
   }
 
   return memStore.tasks.filter((t) => t.userId === userId && (!filterDate || t.date === filterDate));
+}
+
+/** Uma tarefa da pessoa pelo id (usado pelo preenchimento automático). */
+export async function getTaskById(userId: number, taskId: number): Promise<TaskItem | null> {
+  if (!Number.isInteger(taskId)) return null;
+  if (await checkDb()) {
+    try {
+      const [t] = await db.select().from(schema.tasks).where(and(eq(schema.tasks.id, taskId), eq(schema.tasks.userId, userId)));
+      if (!t) return null;
+      return {
+        ...t,
+        category: t.category as any,
+        priority: t.priority as any,
+        timeBlock: (t.timeBlock || 'Manhã') as any,
+        completedAt: t.completedAt ? t.completedAt.toISOString() : null,
+        estimatedMinutes: t.estimatedMinutes || 30,
+        createdAt: t.createdAt.toISOString(),
+      };
+    } catch {
+      // fallback
+    }
+  }
+  return memStore.tasks.find((t) => t.id === taskId && t.userId === userId) || null;
 }
 
 export async function createTask(userId: number, data: Partial<TaskItem>): Promise<TaskItem> {
@@ -1271,6 +1296,24 @@ export async function createFinanceTransaction(
   };
   memStore.financeTransactions.push(newTx);
   return newTx;
+}
+
+/** Um lançamento da pessoa pelo id (usado pelo preenchimento automático). */
+export async function getFinanceTransactionById(userId: number, txId: number): Promise<FinanceTransactionItem | null> {
+  if (!Number.isInteger(txId)) return null;
+  if (await checkDb()) {
+    try {
+      const [tx] = await db
+        .select()
+        .from(schema.financeTransactions)
+        .where(and(eq(schema.financeTransactions.id, txId), eq(schema.financeTransactions.userId, userId)));
+      if (!tx) return null;
+      return { ...tx, type: tx.type as any, status: tx.status as any, source: tx.source as any, createdAt: tx.createdAt.toISOString() } as FinanceTransactionItem;
+    } catch {
+      // fallback
+    }
+  }
+  return memStore.financeTransactions.find((t) => t.id === txId && t.userId === userId) || null;
 }
 
 /** Edita um lançamento da própria pessoa (datas, valores e situação livres). Só os campos permitidos. */
@@ -3378,6 +3421,21 @@ export async function getBoardCards(boardId: number, userId: number): Promise<Bo
     .filter((c) => c.boardId === boardId && c.userId === userId && !c.archived)
     .sort((a, b) => a.position - b.position || a.id - b.id)
     .map(mapCard);
+}
+
+/** Um card da pessoa pelo id (usado pelo preenchimento automático). */
+export async function getCardById(userId: number, cardId: number): Promise<BoardCardItem | null> {
+  if (!Number.isInteger(cardId)) return null;
+  if (await checkDb()) {
+    try {
+      const [c] = await db.select().from(schema.boardCards).where(and(eq(schema.boardCards.id, cardId), eq(schema.boardCards.userId, userId)));
+      return c ? mapCard(c) : null;
+    } catch {
+      // fallback
+    }
+  }
+  const c = memStore.boardCards.find((x) => x.id === cardId && x.userId === userId);
+  return c ? mapCard(c) : null;
 }
 
 export async function createCard(

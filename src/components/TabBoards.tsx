@@ -27,6 +27,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { shareToFeed } from '../lib/share-feed.js';
+import { announceAuto } from '../lib/autofill-client.js';
 
 // -----------------------------------------------------------------------------
 // Módulo "Quadros" — organização visual estilo Kanban, persistido via /api/boards.
@@ -62,6 +63,8 @@ async function api(action: string, payload: Record<string, any> = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Erro ao comunicar com o servidor.');
+  // preenchimento automático: card com data vira compromisso; "Concluído" conclui e paga a conta ligada
+  announceAuto(data.auto, data.linked);
   return data;
 }
 

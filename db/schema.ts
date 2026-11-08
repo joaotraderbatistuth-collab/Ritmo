@@ -28,6 +28,7 @@ export const users = pgTable("users", {
   pushOptOut: boolean("push_opt_out").notNull().default(false), // desligou as notificações de propósito (padrão: ligadas)
   xpTotal: integer("xp_total").notNull().default(0), // Pontos de Ritmo (cópia do cálculo, para o Feed)
   level: integer("level").notNull().default(1), // nível atual (1 a 12), define a moldura da foto
+  autofill: boolean("autofill").notNull().default(true), // preenchimento automático entre agenda, quadros, finanças e lembretes
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -632,4 +633,15 @@ export const pushLog = pgTable("push_log", {
   day: text("day").notNull(), // YYYY-MM-DD no fuso da pessoa
   count: integer("count").notNull().default(0),
   kinds: text("kinds").notNull().default(""), // tipos enviados no dia, separados por vírgula
+});
+
+// Preenchimento automático: itens ligados entre si (compromisso, card, provisão e lembretes).
+// Itens com o mesmo "grp" andam juntos: concluir, mudar a data ou apagar um mexe nos outros.
+export const itemLinks = pgTable("item_links", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  grp: text("grp").notNull(),
+  kind: text("kind").notNull(), // task | tx | card | reminder
+  itemId: integer("item_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });

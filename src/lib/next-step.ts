@@ -29,7 +29,8 @@ export interface NextStepInput {
   diaryToday: boolean;
   trainedToday: boolean;
   trainingDaysThisWeek: number;
-  billsDue: { description: string }[];
+  /** contas a pagar que vencem hoje, amanhã ou já venceram (ordenadas pelo vencimento) */
+  billsDue: { description: string; dueDate?: string; amountCents?: number }[];
   missions: { title: string; done: boolean; tab: string }[];
   chestReady: boolean;
 }
@@ -55,7 +56,13 @@ export function nextSteps(i: NextStepInput): Step[] {
 
   if (pendingTasks[0]) push({ id: `tarefa-${pendingTasks[0].id}`, title: pendingTasks[0].title, why: pendingTasks[0].startTime ? `Marcada para ${pendingTasks[0].startTime}.` : pendingTasks.length > 1 ? `${pendingTasks.length} tarefas para hoje. Esta é a próxima.` : 'Sua tarefa de hoje.', xp: 5, kind: 'task', ref: pendingTasks[0].id, cta: 'Concluí' });
 
-  if (i.billsDue[0]) push({ id: 'conta', title: `Conta: ${i.billsDue[0].description}`, why: 'Vence hoje ou já venceu. Confira e marque como paga.', xp: null, kind: 'tab', tab: 'financas', cta: 'Ver conta' });
+  if (i.billsDue[0]) {
+    const b = i.billsDue[0];
+    const value = b.amountCents ? ` (${(b.amountCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : '';
+    const when = !b.dueDate || b.dueDate === i.today ? 'Vence hoje.' : b.dueDate < i.today ? 'Já venceu.' : 'Vence amanhã. Deixe agendado hoje e fica livre.';
+    const name = /^pag/i.test(b.description) ? b.description : `Pagar ${b.description}`;
+    push({ id: 'conta', title: `${name}${value}`, why: `${when} Ao marcar como paga, a agenda e o quadro se atualizam sozinhos.`, xp: null, kind: 'tab', tab: 'financas', cta: 'Ver conta' });
+  }
 
   if (!i.trainedToday && i.trainingDaysThisWeek < 5) {
     const n = i.trainingDaysThisWeek + 1;

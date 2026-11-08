@@ -74,6 +74,9 @@ import { callApi } from '../lib/client-api.js';
 import { ProfileSurveyModal, ProfileSurveyCard } from '../components/ProfileSurvey.js';
 import { starterHabits } from '../lib/survey.js';
 import { initials as initialsOf } from '../lib/feed-rules.js';
+import { announceAuto } from '../lib/autofill-client.js';
+import { AutoFillToast } from '../components/AutoFillToast.js';
+import { fold } from '../lib/assistant-parser.js';
 
 export const Route = createFileRoute('/app')({
   component: RitmoApp,
@@ -426,6 +429,7 @@ function RitmoApp() {
     if (data.task) {
       setTasks((prev) => [data.task, ...prev]);
     }
+    announceAuto(data.auto);
   };
 
   const handleUpdateTask = async (id: number, updates: Partial<TaskItem>) => {
@@ -434,17 +438,45 @@ function RitmoApp() {
       if (await spawnNextOccurrence(current)) updates = { ...updates, isRecurring: false };
     }
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
-    await fetch('/api/tasks', {
+    const res = await fetch('/api/tasks', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...updates }),
     });
+    const data = await res.json().catch(() => ({}));
+    announceAuto(null, data.linked);
   };
 
   const handleDeleteTask = async (id: number) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    announceAuto(null, data.linked);
   };
+
+  // Preenchimento automático: quando algo ligado muda em outra aba, recarrega tarefas, finanças e quadros.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const reload = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try {
+          const [tr, fr] = await Promise.all([fetch('/api/tasks'), fetch('/api/finance')]);
+          const td = await tr.json().catch(() => ({}));
+          const fd = await fr.json().catch(() => ({}));
+          if (Array.isArray(td.tasks)) setTasks(td.tasks);
+          if (Array.isArray(fd.transactions)) setTransactions(fd.transactions);
+        } catch {}
+        window.dispatchEvent(new Event('ritmo:boards-changed'));
+        window.dispatchEvent(new Event('ritmo:reminders-changed'));
+      }, 250);
+    };
+    window.addEventListener('ritmo:linked-changed', reload);
+    return () => {
+      window.removeEventListener('ritmo:linked-changed', reload);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   // Handlers for Habits
   const handleToggleHabit = async (habitId: number, completed: boolean, date?: string) => {
@@ -542,6 +574,7 @@ function RitmoApp() {
     if (data.transaction) {
       setTransactions((prev) => [data.transaction, ...prev]);
     }
+    announceAuto(data.auto);
   };
 
   const handleUpdateTransaction = async (id: number, updates: Partial<FinanceTransactionItem>) => {
@@ -553,11 +586,14 @@ function RitmoApp() {
     });
     const data = await res.json().catch(() => ({}));
     if (data.transaction) setTransactions((prev) => prev.map((t) => (t.id === id ? data.transaction : t)));
+    announceAuto(null, data.linked);
   };
 
   const handleDeleteTransaction = async (id: number) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
-    await fetch(`/api/finance?id=${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/finance?id=${id}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    announceAuto(null, data.linked);
   };
 
   // Handlers for User & Account
@@ -611,7 +647,12 @@ function RitmoApp() {
       diaryToday: journalEntries.some((j) => j.date === today && j.entryType === 'daily_checkin'),
       trainedToday: (xp.data?.todayCounts?.treino || 0) > 0,
       trainingDaysThisWeek: xp.data?.trainDaysWeek || 0,
-      billsDue: transactions.filter((t) => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue') && t.dueDate && t.dueDate <= today).map((t) => ({ description: t.description })),
+      // contas que vencem hoje, amanhã ou já venceram (a de hoje já aparece como tarefa "Pagar ...", então não repete)
+      billsDue: transactions
+        .filter((t) => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue') && t.dueDate && t.dueDate <= tomorrow)
+        .filter((t) => !tasks.some((k) => !k.completed && k.date === today && t.dueDate === today && fold(k.title).includes(fold(t.description))))
+        .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
+        .map((t) => ({ description: t.description, dueDate: t.dueDate || today, amountCents: t.amountCents })),
       missions: (xp.data?.missions || []).map((m) => ({ title: m.title, done: m.done, tab: m.tab })),
       chestReady: Boolean(xp.data?.chest?.ready),
     });
@@ -926,6 +967,7 @@ function RitmoApp() {
       )}
       {user && <LegalUpdateModal />}
       <XpBurst burst={xp.burst} />
+      <AutoFillToast />
       {user && activeTab !== 'progresso' && (
         <ProgressFab
           season={xp.data?.season}
