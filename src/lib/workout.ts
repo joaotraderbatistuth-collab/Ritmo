@@ -56,11 +56,19 @@ export function haversine(a: { lat: number; lng: number }, b: { lat: number; lng
 /* ---------------- Filtro do GPS ---------------- */
 
 export const GPS_LIMITS = {
-  /** Pontos com precisão pior que isto são ignorados. */
-  maxAccuracyM: 35,
-  /** Movimentos menores que isto são "tremida" do GPS parado. */
+  /** Pontos com precisão pior que isto são ignorados. Celulares no navegador costumam ficar
+   *  entre 10 e 60 m (pior debaixo de árvores e prédios); com 35 m, muita gente não gravava nada. */
+  maxAccuracyM: 65,
+  /** Movimentos menores que isto são "tremida" do GPS parado (com GPS bom). */
   minMoveM: 3,
 } as const;
+
+/** Quanto precisa andar para contar, conforme a precisão: GPS bom (até 20 m) = 3 m; GPS fraco pede
+ *  um passo maior, para a tremida não virar distância falsa (35 m → 12 m, 45 m → 18 m, 65 m → 30 m). */
+export function minMoveFor(acc: number | null | undefined): number {
+  if (acc == null || !Number.isFinite(acc) || acc <= 20) return GPS_LIMITS.minMoveM;
+  return Math.max(GPS_LIMITS.minMoveM, Math.round((acc - 15) * 0.6));
+}
 
 /**
  * Decide o que fazer com uma nova leitura do GPS:
@@ -73,7 +81,7 @@ export function classifyPoint(prev: GpsPoint | null, next: GpsPoint, sport: Spor
   if (next.acc != null && next.acc > GPS_LIMITS.maxAccuracyM) return 'skip';
   if (!prev) return 'add';
   const d = haversine(prev, next);
-  if (d < GPS_LIMITS.minMoveM) return 'still';
+  if (d < minMoveFor(next.acc)) return 'still';
   const dt = (next.t - prev.t) / 1000;
   if (dt <= 0) return 'skip';
   const kmh = (d / dt) * 3.6;
@@ -432,8 +440,8 @@ export function detectStop(fixes: Fix[], sport: SportId, now: number): { stopped
 /** Voltou a se mover depois da pausa automática? */
 export function detectResume(anchor: Fix | null, fix: Fix, sport: SportId): boolean {
   if (!anchor) return false;
-  if (fix.acc != null && fix.acc > 30) return false;
-  return haversine(anchor, fix) >= AUTO_PAUSE[sport].resumeM;
+  if (fix.acc != null && fix.acc > GPS_LIMITS.maxAccuracyM) return false;
+  return haversine(anchor, fix) >= Math.max(AUTO_PAUSE[sport].resumeM, minMoveFor(fix.acc));
 }
 
 /* ---------------- Recordes pessoais ---------------- */

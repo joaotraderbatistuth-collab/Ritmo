@@ -1,7 +1,7 @@
 // Gravador do treino com GPS (só no navegador).
 // Fica fora do React de propósito: trocar de aba no app não para o treino.
 // O estado é salvo no aparelho a cada poucos segundos; se a página recarregar, o treino volta pausado.
-import { classifyPoint, detectResume, detectStop, GpsPoint, SportId } from './workout.js';
+import { classifyPoint, detectResume, detectStop, GPS_LIMITS, GpsPoint, SportId } from './workout.js';
 
 export type RecStatus = 'idle' | 'recording' | 'paused';
 
@@ -229,7 +229,7 @@ export function setSport(sport: SportId) {
 export function start(sport: SportId) {
   const now = Date.now();
   // aproveita a posição atual (se for boa) como primeiro ponto
-  const first = state.fix && state.fix.acc != null && state.fix.acc <= 35 && now - state.fix.t < 15000 ? [{ ...state.fix, t: now }] : [];
+  const first = state.fix && state.fix.acc != null && state.fix.acc <= GPS_LIMITS.maxAccuracyM && now - state.fix.t < 15000 ? [{ ...state.fix, t: now }] : [];
   recent = [];
   anchor = null;
   set({ status: 'recording', sport, startedAt: now, segments: [first], activeMs: 0, runStart: now, recovered: false, autoPaused: false });

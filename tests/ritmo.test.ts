@@ -42,6 +42,7 @@ function assert(condition: boolean, message: string) {
 import { computeMetrics, sourceLabel, weekStart } from '../src/lib/metrics.js';
 import { cleanError, fingerprint as errFingerprint, isNoise, scrub } from '../src/lib/error-rules.js';
 import { parseCommand, completeWith, resolveDateTime, extractAmount as _ea, dayLabel, timeLabel, cleanAssistantName, guessCategory, tidy, fold } from '../src/lib/assistant-parser.js';
+import { minMoveFor } from '../src/lib/workout.js';
 import { haversine, classifyPoint, trackStats, currentPace, formatDuration, formatPace, formatKm, encodePolyline, decodePolyline, simplify, simplifyTo, trimRoute, validateWorkout, autoTitle, totals as workoutTotals, SPORTS } from '../src/lib/workout.js';
 import { computeXp, levelInfo, LEVELS, XP_RULES, XP_DAILY_MAX, frameForLevel, MAX_LEVEL } from '../src/lib/levels.js';
 import { NUDGES, PUSH_HOURS, personalize, pickNudge, slotForHour } from '../src/lib/nudges.js';
@@ -498,6 +499,12 @@ export function runTests() {
   assert(classifyPoint(p0, { ...p0, lat: p0.lat + step * 0.1, t: 3000 }, 'corrida') === 'still', 'tremida parada não soma');
   assert(classifyPoint(p0, { ...p0, lat: p0.lat + step * 100, t: 3000 }, 'corrida') === 'skip', 'pulo de 1 km em 3 s é erro do GPS');
   assert(classifyPoint(p0, { ...p0, lat: p0.lat + step * 5, t: 3000 }, 'bike') === 'add', 'pedal rápido é aceito');
+  // GPS de celular no navegador (±45 m): grava andando, sem somar a tremida parado
+  const m1 = 1 / 111_320; // ~1 m em latitude
+  assert(classifyPoint(p0, { ...p0, lat: p0.lat + m1 * 25, t: 15000, acc: 45 }, 'caminhada') === 'add', 'GPS fraco (45 m) também grava quando anda');
+  assert(classifyPoint(p0, { ...p0, lat: p0.lat + m1 * 10, t: 15000, acc: 45 }, 'caminhada') === 'still', 'GPS fraco: tremida de 10 m não vira distância');
+  assert(classifyPoint(p0, { ...p0, lat: p0.lat + m1 * 5, t: 3000, acc: 8 }, 'caminhada') === 'add', 'GPS bom continua sensível (5 m)');
+  assert(minMoveFor(10) === 3 && minMoveFor(45) === 18 && minMoveFor(65) === 30 && minMoveFor(null) === 3, 'passo mínimo conforme a precisão');
   // formatos
   assert(formatDuration(0) === '0:00' && formatDuration(65) === '1:05' && formatDuration(3725) === '1:02:05', 'cronômetro');
   assert(formatPace(332) === '5:32' && formatPace(null) === '--:--' && formatPace(0) === '--:--', 'ritmo min/km');

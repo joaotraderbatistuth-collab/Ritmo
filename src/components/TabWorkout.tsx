@@ -26,6 +26,7 @@ import {
   trackStats,
   trimRoute,
   recordValueLabel,
+  GPS_LIMITS,
 } from '../lib/workout.js';
 import type { RecordEntry } from '../lib/workout.js';
 import { workoutImage } from '../lib/workout-share-image.js';
@@ -215,7 +216,7 @@ const GpsBadge: React.FC<{ acc: number | null; error: string | null }> = ({ acc,
   if (error) return <span className="text-xs text-rose-300 text-right max-w-[60%]">{error}</span>;
   if (acc == null) return <span className="inline-flex items-center gap-1.5 text-xs text-[#8b949e] whitespace-nowrap"><Satellite className="w-3.5 h-3.5 animate-pulse" /> Procurando GPS...</span>;
   const good = acc <= 15;
-  const ok = acc <= 35;
+  const ok = acc <= GPS_LIMITS.maxAccuracyM;
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap ${good ? 'text-emerald-400' : ok ? 'text-amber-300' : 'text-rose-300'}`}>
       <Satellite className="w-3.5 h-3.5" /> GPS {good ? 'bom' : ok ? 'razoável' : 'fraco'} (±{Math.round(acc)} m)
