@@ -155,7 +155,7 @@ export const XpBurst: React.FC<{ burst: Burst | null }> = ({ burst }) => {
   const big = Boolean(visible.lucky) || visible.combo >= 3;
 
   return (
-    <div key={visible.id} className="fixed z-[60] bottom-24 right-4 sm:right-8 pointer-events-none ritmo-burst-in" style={visible.lucky || visible.goalJustHit || visible.rankUp ? { animationDuration: '4.2s' } : undefined} aria-live="polite">
+    <div key={visible.id} className="fixed z-[60] ritmo-above-nav-high right-4 sm:right-8 pointer-events-none ritmo-burst-in" style={visible.lucky || visible.goalJustHit || visible.rankUp ? { animationDuration: '4.2s' } : undefined} aria-live="polite">
       <div className="relative w-64 rounded-2xl border border-emerald-500/40 bg-[#0d1117]/95 backdrop-blur px-4 py-3 shadow-2xl shadow-emerald-500/20">
         {sparks.map((p) => (
           <span

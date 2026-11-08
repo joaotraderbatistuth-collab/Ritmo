@@ -48,15 +48,15 @@ import {
   Flame,
   LayoutGrid,
   Map as MapIcon,
-  Lightbulb,
-  ListChecks,
   Users as UsersIcon,
   Activity,
 } from 'lucide-react';
 
-import { localDateStr } from '../lib/chain.js';
+import { addDays, localDateStr } from '../lib/chain.js';
+import { nextSteps, Step } from '../lib/next-step.js';
+import { NextStepCard } from '../components/NextStep.js';
 import { nextDateAfter, normalizeTaskRule } from '../lib/recurrence.js';
-import { ScrollableNav } from '../components/ScrollableNav.js';
+import { AppNav, NavItem } from '../components/AppNav.js';
 import { LevelCard, LevelUpModal, useXp } from '../components/LevelUp.js';
 import { XpBurst } from '../components/XpBurst.js';
 import { MissionsCard, LastWeekBanner, StreakCard, WeekSummaryCard } from '../components/Missions.js';
@@ -70,6 +70,7 @@ import { PushAutoPrompt } from '../components/PushAutoPrompt.js';
 import { LegalUpdateModal, PrivacyCard } from '../components/Consents.js';
 import { callApi } from '../lib/client-api.js';
 import { ProfileSurveyModal, ProfileSurveyCard } from '../components/ProfileSurvey.js';
+import { starterHabits } from '../lib/survey.js';
 import { initials as initialsOf } from '../lib/feed-rules.js';
 
 export const Route = createFileRoute('/app')({
@@ -77,7 +78,7 @@ export const Route = createFileRoute('/app')({
 });
 
 function RitmoApp() {
-  const [activeTab, setActiveTab] = useState<string>('feed');
+  const [activeTab, setActiveTab] = useState<string>('hoje');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -577,6 +578,41 @@ function RitmoApp() {
   };
 
   // Botão "Ir" das missões: abre a aba certa (ou o secretário)
+  // Próximo passo: a ação certa para agora (Hoje)
+  const steps = useMemo(() => {
+    if (!user) return [];
+    const today = localDateStr();
+    const tomorrow = addDays(today, 1);
+    const doneHabits = habitLogs.filter((l) => l.date === today && l.completed).map((l) => l.habitId);
+    return nextSteps({
+      hour: new Date().getHours(),
+      today,
+      habits: habits.filter((h) => h.isActive !== false).map((h) => ({ id: h.id, name: h.name })),
+      habitsDoneToday: doneHabits,
+      tasksToday: tasks.filter((t) => t.date === today).map((t) => ({ id: t.id, title: t.title, completed: t.completed, startTime: t.startTime })),
+      plannedTomorrow: tasks.some((t) => t.date === tomorrow),
+      focusToday: sessions.filter((x) => x.date === today && x.status === 'completed').length,
+      diaryToday: journalEntries.some((j) => j.date === today && j.entryType === 'daily_checkin'),
+      trainedToday: (xp.data?.todayCounts?.treino || 0) > 0,
+      trainingDaysThisWeek: xp.data?.trainDaysWeek || 0,
+      billsDue: transactions.filter((t) => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue') && t.dueDate && t.dueDate <= today).map((t) => ({ description: t.description })),
+      missions: (xp.data?.missions || []).map((m) => ({ title: m.title, done: m.done, tab: m.tab })),
+      chestReady: Boolean(xp.data?.chest?.ready),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, habits, habitLogs, tasks, sessions, journalEntries, transactions, xp.data]);
+
+  const runStep = async (st: Step) => {
+    if (st.kind === 'habit' && st.ref) return handleToggleHabit(st.ref, true);
+    if (st.kind === 'task' && st.ref) return handleToggleTask(st.ref, true);
+    if (st.kind === 'focus') return handleQuickStartFocus(st.minutes || 25, '');
+    if (st.kind === 'chest') {
+      document.getElementById('ritmo-missoes')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    if (st.tab) goMission(st.tab);
+  };
+
   const goMission = (tab: string) => {
     if (tab === 'secretario') {
       window.dispatchEvent(new Event('ritmo:open-assistant'));
@@ -587,20 +623,20 @@ function RitmoApp() {
   };
 
   // Navigation items definition
-  const NAV_ITEMS = [
-    { id: 'feed', label: 'Feed', icon: <UsersIcon className="w-4 h-4" /> },
-    { id: 'hoje', label: 'Hoje', icon: <Flame className="w-4 h-4" /> },
-    { id: 'roteiro', label: 'Roteiro de Metas', icon: <MapIcon className="w-4 h-4" /> },
-    { id: 'rotina', label: 'Rotina & Tarefas', icon: <Calendar className="w-4 h-4" /> },
-    { id: 'quadros', label: 'Quadros', icon: <LayoutGrid className="w-4 h-4" /> },
-    { id: 'habitos', label: 'Hábitos & Saúde', icon: <Sparkles className="w-4 h-4" /> },
-    { id: 'treino', label: 'Treino', icon: <Activity className="w-4 h-4" /> },
-    { id: 'foco', label: 'Sessões de Foco', icon: <Clock className="w-4 h-4" /> },
-    { id: 'diario', label: 'Diário & Revisões', icon: <BookOpen className="w-4 h-4" /> },
-    { id: 'financas', label: 'Finanças Pessoais', icon: <DollarSign className="w-4 h-4" /> },
-    { id: 'afiliados', label: 'Indique e Ganhe', icon: <Share2 className="w-4 h-4" /> },
-    { id: 'progresso', label: 'Progresso', icon: <TrendingUp className="w-4 h-4" /> },
-    { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4" /> },
+  const NAV_ITEMS: NavItem[] = [
+    { id: 'hoje', label: 'Hoje', icon: <Flame className="w-5 h-5" /> },
+    { id: 'feed', label: 'Feed', icon: <UsersIcon className="w-5 h-5" /> },
+    { id: 'treino', label: 'Treino', icon: <Activity className="w-5 h-5" /> },
+    { id: 'progresso', label: 'Progresso', icon: <TrendingUp className="w-5 h-5" /> },
+    { id: 'habitos', label: 'Hábitos & Saúde', short: 'Hábitos', hint: 'Água, alimentação, sono, leitura', icon: <Sparkles className="w-5 h-5" /> },
+    { id: 'rotina', label: 'Rotina & Tarefas', short: 'Tarefas', hint: 'O que fazer hoje e amanhã', icon: <Calendar className="w-5 h-5" /> },
+    { id: 'foco', label: 'Sessões de Foco', short: 'Foco', hint: 'Cronômetro de foco', icon: <Clock className="w-5 h-5" /> },
+    { id: 'financas', label: 'Finanças Pessoais', short: 'Finanças', hint: 'Gastos, entradas e contas', icon: <DollarSign className="w-5 h-5" /> },
+    { id: 'roteiro', label: 'Roteiro de Metas', short: 'Metas', hint: 'Sua meta e os marcos', icon: <MapIcon className="w-5 h-5" /> },
+    { id: 'diario', label: 'Diário & Revisões', short: 'Diário', hint: 'Check-in e revisão da semana', icon: <BookOpen className="w-5 h-5" /> },
+    { id: 'quadros', label: 'Quadros', hint: 'Projetos em cards', icon: <LayoutGrid className="w-5 h-5" /> },
+    { id: 'afiliados', label: 'Indique e Ganhe', short: 'Indique', hint: 'Seu link e comissões', icon: <Share2 className="w-5 h-5" /> },
+    { id: 'configuracoes', label: 'Configurações', short: 'Ajustes', hint: 'Perfil, notificações, privacidade', icon: <Settings className="w-5 h-5" /> },
   ];
 
   return (
@@ -642,52 +678,28 @@ function RitmoApp() {
       />
 
       {/* Main Container */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-28 sm:pb-6">
         {user && <InstallBanner />}
         {user && <PushAutoPrompt />}
-        {/* Navigation Bar Tabs */}
-        <ScrollableNav dark={theme === 'dark'}>
-          <nav className="flex space-x-1 sm:space-x-2 min-w-max px-1">
-            {NAV_ITEMS.map((item) => {
-              const active = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-                    active
-                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                      : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#161b22]'
-                  } ${isGuideOpen && guideTab === item.id ? 'ring-2 ring-amber-300 ring-offset-2 ring-offset-[#0d1117]' : ''}`}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-            <NoticeBell notices={notices} onOpenTab={(tab) => setActiveTab(tab)} />
-            <button
-              onClick={() => setIsGuideOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10 transition-all"
-            >
-              <ListChecks className="w-4 h-4" />
-              <span>Modo ajuda</span>
-            </button>
-            <button
-              onClick={() => setIsTourOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-amber-300 hover:bg-amber-500/10 transition-all"
-            >
-              <Lightbulb className="w-4 h-4" />
-              <span>Como usar</span>
-            </button>
-          </nav>
-        </ScrollableNav>
+        {/* Menu enxuto: Hoje, Feed, Treino, Progresso e Mais (no celular, embaixo) */}
+        {user ? (
+          <AppNav
+            items={NAV_ITEMS}
+            active={activeTab}
+            onSelect={setActiveTab}
+            bell={<NoticeBell notices={notices} onOpenTab={(tab) => setActiveTab(tab)} />}
+            onHelp={() => setIsGuideOpen(true)}
+            onTour={() => setIsTourOpen(true)}
+            highlight={isGuideOpen ? guideTab : null}
+          />
+        ) : null}
 
         {/* Tab Content Display */}
         <main>
           {(activeTab === 'feed' || activeTab === 'hoje') && user && (
             <div className="max-w-5xl mx-auto">
               {activeTab === 'feed' && <LastWeekBanner data={xp.data} />}
+              {activeTab === 'hoje' && <NextStepCard steps={steps} comeback={Boolean(xp.data?.comebackToday)} onRun={runStep} />}
               <MissionsCard
                 data={xp.data}
                 onGo={goMission}
@@ -916,7 +928,17 @@ function RitmoApp() {
         initialReferralCode={refParam}
       />
 
-      <ProfileSurveyModal isOpen={Boolean(user) && surveyStage === 'open'} onClose={() => setSurveyStage('done')} />
+      <ProfileSurveyModal
+        isOpen={Boolean(user) && surveyStage === 'open'}
+        onClose={async (saved) => {
+          setSurveyStage('done');
+          // cadastro em 1 minuto: quem ainda não tem hábitos já começa com 2, escolhidos pelo que quer melhorar
+          if (saved && habits.length === 0) {
+            for (const h of starterHabits(saved.answers)) await handleAddHabit({ name: h.name, category: h.category as any, targetFrequency: 'diario' });
+            setActiveTab('hoje');
+          }
+        }}
+      />
 
       <WelcomeTour
         isOpen={isTourOpen}

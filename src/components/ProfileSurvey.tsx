@@ -175,7 +175,7 @@ export const ProfileSurveyModal: React.FC<{
           <div className="p-8 text-center">
             <span className="mx-auto w-14 h-14 rounded-full bg-emerald-500/15 text-emerald-300 flex items-center justify-center"><Check className="w-7 h-7" /></span>
             <h3 className="mt-4 font-bold text-xl">Valeu!</h3>
-            <p className="mt-1 text-sm text-[#c9d1d9]">Agora o Ritmo conhece você um pouco melhor.</p>
+            <p className="mt-1 text-sm text-[#c9d1d9]">+30 pontos! Agora o Ritmo conhece você um pouco melhor{editing ? '.' : '. Na tela Hoje você já vê por onde começar.'}</p>
           </div>
         )}
       </div>

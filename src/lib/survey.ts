@@ -292,3 +292,24 @@ export function surveyCsvHeader(): string[] {
 export function surveyCsvCells(answers: SurveyAnswers): string[] {
   return SURVEY_QUESTIONS.map((q) => answerLabels(q.id, answers[q.id]).join(' | '));
 }
+
+/** Dois hábitos para começar, a partir do que a pessoa quer melhorar (cadastro em 1 minuto). */
+const STARTER: Record<string, { name: string; category: string }[]> = {
+  rotina: [{ name: 'Planejar o dia (2 minutos)', category: 'personalizado' }],
+  habitos: [{ name: 'Beber água ao acordar', category: 'hidratacao' }],
+  financas: [{ name: 'Anotar os gastos do dia', category: 'personalizado' }],
+  saude: [{ name: 'Caminhar 20 minutos', category: 'movimento' }, { name: 'Comer uma fruta', category: 'alimentacao' }],
+  estudos: [{ name: 'Ler 10 páginas', category: 'estudo' }],
+  trabalho: [{ name: 'Um bloco de foco sem celular', category: 'desconexao' }],
+  renda_extra: [{ name: 'Divulgar meu link de indicação', category: 'personalizado' }],
+  bem_estar: [{ name: 'Dormir no mesmo horário', category: 'sono' }, { name: 'Respirar 5 minutos', category: 'mente' }],
+};
+const STARTER_DEFAULT = [{ name: 'Beber água ao acordar', category: 'hidratacao' }, { name: 'Caminhar 20 minutos', category: 'movimento' }];
+
+export function starterHabits(answers: SurveyAnswers): { name: string; category: string }[] {
+  const goals = Array.isArray(answers.objetivos) ? answers.objetivos : [];
+  const picked: { name: string; category: string }[] = [];
+  for (const g of goals) for (const h of STARTER[g] || []) if (picked.length < 2 && !picked.some((p) => p.name === h.name)) { picked.push(h); break; }
+  for (const h of [...goals.flatMap((g) => STARTER[g] || []), ...STARTER_DEFAULT]) if (picked.length < 2 && !picked.some((p) => p.name === h.name)) picked.push(h);
+  return picked;
+}

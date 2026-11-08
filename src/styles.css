@@ -76,6 +76,14 @@
   animation: ritmoXpFloat 2.2s ease-out forwards;
 }
 
+/* ---- Barra de navegação de baixo (celular): botões flutuantes sobem para não ficar por cima ---- */
+:root { --ritmo-nav-h: 0px; }
+@media (max-width: 639px) {
+  html.ritmo-bottomnav { --ritmo-nav-h: calc(64px + env(safe-area-inset-bottom)); }
+}
+.ritmo-above-nav { bottom: calc(1.25rem + var(--ritmo-nav-h)); }
+.ritmo-above-nav-high { bottom: calc(6rem + var(--ritmo-nav-h)); }
+
 /* ---- Comemoração dos pontos ---- */
 @keyframes ritmoBurstIn {
   0% { opacity: 0; transform: translateY(18px) scale(0.92); }

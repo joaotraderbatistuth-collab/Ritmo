@@ -288,7 +288,7 @@ export const ProgressFab: React.FC<{ season: SeasonView | null | undefined; toda
       type="button"
       onClick={onOpen}
       aria-label={`Abrir progresso: ${season?.rank ? `${season.rank}º lugar na divisão ${season.division.name}, ` : ''}${todayXp} de ${goal} pontos hoje`}
-      className={`fixed z-[45] right-4 bottom-5 sm:right-6 sm:bottom-6 rounded-full bg-[#0d1117] border border-[#30363d] shadow-xl shadow-black/40 flex items-center justify-center ${bump ? 'ritmo-pop-pulse' : ''}`}
+      className={`fixed z-[45] right-4 ritmo-above-nav sm:right-6 rounded-full bg-[#0d1117] border border-[#30363d] shadow-xl shadow-black/40 flex items-center justify-center ${bump ? 'ritmo-pop-pulse' : ''}`}
       style={{ width: size, height: size }}
     >
       <svg width={size} height={size} className="absolute inset-0 -rotate-90" aria-hidden="true">

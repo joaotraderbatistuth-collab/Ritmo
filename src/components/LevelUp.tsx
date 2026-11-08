@@ -19,6 +19,7 @@ export interface XpData extends GameData {
   bonusXp?: number;
   luckyToday?: { hit: boolean; xp: number | null } | null;
   season?: SeasonView | null;
+  comebackToday?: boolean;
 }
 
 /* ------------------------------------------------------------------ */

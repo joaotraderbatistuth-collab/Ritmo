@@ -58,7 +58,11 @@ export function buildGame(userId: number, xp: UserXp) {
   );
 
   const thisWeek = mondayOf(today);
+  let trainDaysWeek = 0;
+  for (let i = 0; i < 7; i++) if ((xp.days[shiftDay(thisWeek, i)]?.raw.treino || 0) > 0) trainDaysWeek++;
   return {
+    todayCounts: raw,
+    trainDaysWeek,
     missions,
     chest: {
       ready: allDone && !opened,

@@ -777,7 +777,7 @@ export const Assistant: React.FC<{
 
       {/* botão flutuante: toque = falar · segurar = abrir a conversa */}
       {!open && (
-        <div className="fixed z-50 bottom-5 left-5 flex items-end gap-2">
+        <div className="fixed z-50 ritmo-above-nav left-5 flex items-end gap-2">
           {(listening || busy) && (
             <div className="absolute bottom-16 left-0 w-[min(80vw,320px)] rounded-2xl rounded-bl-md border border-[#30363d] bg-[#161b22]/95 backdrop-blur px-3.5 py-2.5 shadow-xl text-sm">
               <p className="text-[11px] font-bold text-rose-300">{listening ? 'Ouvindo... pode falar' : 'Entendendo...'}</p>

@@ -94,7 +94,7 @@ export function UpdateWatcher() {
 
   if (!hasUpdate || dismissed) return null;
   return (
-    <div className="fixed bottom-24 inset-x-0 z-[9998] flex justify-center px-3 pointer-events-none" role="status" aria-live="polite">
+    <div className="fixed ritmo-above-nav-high inset-x-0 z-[9998] flex justify-center px-3 pointer-events-none" role="status" aria-live="polite">
       <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-emerald-400/30 bg-[#1c2128]/95 backdrop-blur-md shadow-2xl shadow-black/50 flex items-center gap-3 p-3">
         <RefreshCw className="w-5 h-5 text-emerald-400 shrink-0" />
         <span className="flex-1 min-w-0 text-sm text-white/90">Saiu uma versão nova do Ritmo.</span>

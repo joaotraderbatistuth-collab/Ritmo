@@ -22,6 +22,8 @@ export interface MissionView {
 
 export interface GameData {
   today?: string;
+  todayCounts?: Record<string, number>;
+  trainDaysWeek?: number;
   missions?: MissionView[];
   chest?: { ready: boolean; opened: { reward: string; xp: number; label: string } | null; doneCount: number };
   streak?: { days: number; todayDone: boolean; weekRestUsed: boolean; extraRests: number; restDays: string[]; best: number; next: number | null };
@@ -274,7 +276,7 @@ export const MissionsCard: React.FC<{ data: (XpData & GameData) | null; onGo: (t
   };
 
   return (
-    <section className={`rounded-2xl border ${state === 'ready' ? 'border-amber-400/60 shadow-lg shadow-amber-500/10' : 'border-[#30363d]'} bg-gradient-to-br from-[#161b22] to-[#0d1117] p-4 sm:p-5 mb-5`} aria-label="Missões de hoje">
+    <section id="ritmo-missoes" className={`scroll-mt-4 rounded-2xl border ${state === 'ready' ? 'border-amber-400/60 shadow-lg shadow-amber-500/10' : 'border-[#30363d]'} bg-gradient-to-br from-[#161b22] to-[#0d1117] p-4 sm:p-5 mb-5`} aria-label="Missões de hoje">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-extrabold text-[#f0f6fc]">Missões de hoje</h2>
