@@ -1,6 +1,6 @@
 // Calcula os Pontos de Ritmo de uma pessoa a partir dos dados dela e guarda uma cópia
 // (xp_total e level) na tabela de usuários, para o Feed mostrar nível e moldura sem recalcular.
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { computeXp, levelInfo, XpResult, LevelInfo, XpSource } from './levels.js';
@@ -102,6 +102,25 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
       ['curtida', () => db.select({ d: schema.feedLikes.createdAt }).from(schema.feedLikes).where(eq(schema.feedLikes.userId, userId))],
       ['seguir', () => db.select({ d: schema.follows.createdAt }).from(schema.follows).where(eq(schema.follows.followerId, userId))],
       ['perfil', () => db.select({ d: schema.profileSurveys.completedAt }).from(schema.profileSurveys).where(eq(schema.profileSurveys.userId, userId))],
+      // amigo que entrou pelo link da pessoa: vale no dia em que ele usa o Ritmo pela 2ª vez (conta de verdade, não cadastro vazio)
+      ['convite', async () => {
+        const code = (user as any).referralCode;
+        if (!code) return [];
+        const rows = await db
+          .select({ uid: schema.userActivity.userId, day: schema.userActivity.day })
+          .from(schema.userActivity)
+          .innerJoin(schema.users, eq(schema.users.id, schema.userActivity.userId))
+          .where(and(eq(schema.users.referredBy, code), ne(schema.users.id, userId)))
+          .limit(20000);
+        const perFriend = new Map<number, Set<string>>();
+        for (const r of rows) (perFriend.get(r.uid) || perFriend.set(r.uid, new Set()).get(r.uid)!).add(r.day);
+        const out: { d: unknown }[] = [];
+        for (const days of perFriend.values()) {
+          const sorted = [...days].sort();
+          if (sorted.length >= 2) out.push({ d: `${sorted[1]}T15:00:00Z` }); // meio-dia em Brasília: não muda de dia no fuso
+        }
+        return out;
+      }],
     ];
     await Promise.all(
       more.map(async ([src, q]) => {

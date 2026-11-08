@@ -28,7 +28,8 @@ export type XpSource =
   | 'curtida'
   | 'seguir'
   | 'perfil'
-  | 'desafio';
+  | 'desafio'
+  | 'convite';
 
 /**
  * Tudo no Ritmo vale ponto: coisas simples valem pouco, coisas que pedem mais esforço valem mais.
@@ -56,6 +57,7 @@ export const XP_RULES: Record<XpSource, { xp: number; dailyCap: number; label: s
   seguir: { xp: 2, dailyCap: 5, label: 'Pessoa seguida' },
   perfil: { xp: 30, dailyCap: 1, label: 'Pesquisa de gostos respondida (uma vez)' },
   desafio: { xp: 50, dailyCap: 2, label: 'Meta de desafio com amigos cumprida' },
+  convite: { xp: 50, dailyCap: 2, label: 'Amigo que entrou pelo seu link e usou o Ritmo em 2 dias' },
 };
 
 export const XP_SOURCES = Object.keys(XP_RULES) as XpSource[];
@@ -72,7 +74,8 @@ export const COMEBACK_GAP_DAYS = 3;
 export const COMEBACK_MAX = 50;
 
 /** Máximo de pontos possíveis num único dia (somando todos os limites). */
-export const XP_DAILY_MAX = XP_SOURCES.reduce((a, k) => a + XP_RULES[k].xp * XP_RULES[k].dailyCap, 0);
+/** (o convite de amigos fica de fora: depende dos outros, não do que a pessoa faz no dia) */
+export const XP_DAILY_MAX = XP_SOURCES.filter((k) => k !== 'convite').reduce((a, k) => a + XP_RULES[k].xp * XP_RULES[k].dailyCap, 0);
 
 export type FrameId = 'simples' | 'bronze' | 'prata' | 'ouro' | 'diamante' | 'lendaria';
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Zap, Gift, Target, Volume2, VolumeX } from 'lucide-react';
-import { DAILY_GOALS, DEFAULT_DAILY_GOAL, gainTone, normalizeGoal } from '../lib/rewards.js';
+import { DAILY_GOALS, DEFAULT_DAILY_GOAL, fanfareTones, gainTone, normalizeGoal } from '../lib/rewards.js';
 
 // Comemoração a cada ponto: número que sobe, faíscas, "plim" que sobe de tom no combo,
 // vibração curtinha, bônus surpresa e meta do dia. Tudo desligável (som e vibração).
@@ -60,9 +60,18 @@ export function useFxPrefs(): FxPrefs {
 let ctx: AudioContext | null = null;
 
 export async function playGain(combo: number, lucky = false) {
+  return playTones(gainTone(combo, lucky), lucky ? [30, 40, 30, 40, 80] : combo >= 3 ? [25, 30, 40] : [25]);
+}
+
+/** Fanfarra de conquista desbloqueada (mais longa nas raras). */
+export async function playFanfare(rarity: number) {
+  return playTones(fanfareTones(rarity), rarity >= 2 ? [40, 50, 40, 50, 40, 50, 160] : [40, 50, 40, 50, 120]);
+}
+
+async function playTones(tones: { at: number; freq: number; dur: number; gain: number }[], vibration: number[]) {
   if (typeof window === 'undefined' || !getFxPrefs().sound) return;
   try {
-    navigator.vibrate?.(lucky ? [30, 40, 30, 40, 80] : combo >= 3 ? [25, 30, 40] : [25]);
+    navigator.vibrate?.(vibration);
   } catch {}
   const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
   if (!AC) return;
@@ -75,7 +84,7 @@ export async function playGain(combo: number, lucky = false) {
     master.gain.value = 0.35;
     master.connect(c.destination);
     const t0 = c.currentTime + 0.01;
-    for (const n of gainTone(combo, lucky)) {
+    for (const n of tones) {
       const osc = c.createOscillator();
       const env = c.createGain();
       osc.type = 'sine';

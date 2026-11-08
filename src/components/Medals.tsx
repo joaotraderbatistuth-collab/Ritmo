@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Award, Download, ChevronDown, ChevronUp, Lock, Share2 } from 'lucide-react';
-import type { Medal, MonthRecap } from '../lib/medals.js';
+import { Award, ChevronDown, ChevronUp, Lock, Share2 } from 'lucide-react';
+import { RARITY, type Medal, type MonthRecap } from '../lib/medals.js';
 import { division } from '../lib/season.js';
+import { cardFromMedal } from '../lib/share-card.js';
+import { openShare } from '../lib/share-feed.js';
 
 // Conquistas (medalhas) e retrospectiva do mês, na aba Progresso.
 
@@ -29,16 +31,37 @@ export const MedalsCard: React.FC<{ medals: Medal[] | undefined }> = ({ medals }
       <div className="mt-2 h-2 rounded-full bg-[#21262d] overflow-hidden"><div className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-700" style={{ width: `${Math.round((earned.length / list.length) * 100)}%` }} /></div>
       {next.length > 0 && !all && <p className="mt-3 text-xs text-[#8b949e]">Quase lá: <strong className="text-[#e6edf3]">{next[0].name}</strong> ({next[0].progress}/{next[0].goal})</p>}
       <div className="mt-3 grid grid-cols-3 sm:grid-cols-6 gap-2">
-        {shown.map((m) => (
-          <div key={m.id} title={`${m.name}: ${m.desc}`} className={`relative rounded-2xl border p-2 text-center ${m.earned ? 'border-amber-400/40 bg-amber-500/10' : 'border-[#30363d] bg-[#0d1117]'}`}>
-            <span className={`block text-3xl ${m.earned ? '' : 'grayscale opacity-40'}`} aria-hidden="true">{m.emoji}</span>
-            {!m.earned && <Lock className="absolute top-1.5 right-1.5 w-3 h-3 text-[#6e7681]" aria-hidden="true" />}
-            <span className="mt-1 block text-[10px] font-semibold leading-tight text-[#e6edf3]">{m.name}</span>
-            {!m.earned && (
-              <span className="mt-1 block h-1 rounded-full bg-[#21262d] overflow-hidden"><span className="block h-full bg-emerald-500" style={{ width: `${Math.round((m.progress / m.goal) * 100)}%` }} /></span>
-            )}
-          </div>
-        ))}
+        {shown.map((m) => {
+          const r = RARITY[m.rarity || 'comum'];
+          const body = (
+            <>
+              <span className={`block text-3xl ${m.earned ? '' : 'grayscale opacity-40'}`} aria-hidden="true">{m.emoji}</span>
+              {!m.earned && <Lock className="absolute top-1.5 right-1.5 w-3 h-3 text-[#6e7681]" aria-hidden="true" />}
+              {m.earned && <Share2 className="absolute top-1.5 right-1.5 w-3 h-3 text-[#8b949e]" aria-hidden="true" />}
+              <span className="mt-1 block text-[10px] font-semibold leading-tight text-[#e6edf3]">{m.name}</span>
+              <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-wide" style={{ color: m.earned ? r.color : '#6e7681' }}>{r.name}</span>
+              {!m.earned && (
+                <span className="mt-1 block h-1 rounded-full bg-[#21262d] overflow-hidden"><span className="block h-full bg-emerald-500" style={{ width: `${Math.round((m.progress / m.goal) * 100)}%` }} /></span>
+              )}
+            </>
+          );
+          return m.earned ? (
+            <button
+              type="button"
+              key={m.id}
+              title={`${m.name}: ${m.desc}. Toque para compartilhar.`}
+              onClick={() => openShare(cardFromMedal(m))}
+              className="relative rounded-2xl border p-2 text-center transition-transform active:scale-95 hover:scale-[1.03]"
+              style={{ borderColor: `${r.color}66`, background: `linear-gradient(160deg, ${r.glow.replace(/[\d.]+\)$/, '0.18)')}, transparent)` }}
+            >
+              {body}
+            </button>
+          ) : (
+            <div key={m.id} title={`${m.name}: ${m.desc}`} className="relative rounded-2xl border border-[#30363d] bg-[#0d1117] p-2 text-center">
+              {body}
+            </div>
+          );
+        })}
       </div>
       <button type="button" onClick={() => setAll((v) => !v)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:underline">
         {all ? <>Mostrar menos <ChevronUp className="w-3.5 h-3.5" /></> : <>Ver todas as {list.length} conquistas <ChevronDown className="w-3.5 h-3.5" /></>}
@@ -81,114 +104,34 @@ function statsOf(r: MonthRecap): [string, string][] {
   return out.slice(0, 6);
 }
 
-/** Imagem 1080×1920 (Stories/WhatsApp), desenhada no navegador. */
-async function recapImage(r: MonthRecap, name: string, tier: number | null, medalsEarned: number): Promise<Blob> {
-  const W = 1080;
-  const H = 1920;
-  const cv = document.createElement('canvas');
-  cv.width = W;
-  cv.height = H;
-  const g = cv.getContext('2d')!;
-  const bg = g.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#052e1f');
-  bg.addColorStop(0.5, '#0d1117');
-  bg.addColorStop(1, '#1e1b4b');
-  g.fillStyle = bg;
-  g.fillRect(0, 0, W, H);
-  g.textAlign = 'center';
-  g.fillStyle = '#34d399';
-  g.font = 'bold 44px system-ui, sans-serif';
-  g.fillText('RITMO · RETROSPECTIVA', W / 2, 180);
-  g.fillStyle = '#f0f6fc';
-  g.font = '800 92px system-ui, sans-serif';
-  g.fillText(monthName(r.month).replace(/^./, (c) => c.toUpperCase()), W / 2, 300);
-  g.fillStyle = '#8b949e';
-  g.font = '40px system-ui, sans-serif';
-  g.fillText(name, W / 2, 370);
-  g.fillStyle = '#fde68a';
-  g.font = '900 220px system-ui, sans-serif';
-  g.fillText(r.points.toLocaleString('pt-BR'), W / 2, 640);
-  g.fillStyle = '#c9d1d9';
-  g.font = 'bold 48px system-ui, sans-serif';
-  g.fillText('pontos no mês', W / 2, 715);
-  const stats = statsOf(r);
-  stats.forEach(([label, value], i) => {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const x = col === 0 ? 290 : 790;
-    const y = 880 + row * 230;
-    g.fillStyle = 'rgba(255,255,255,0.06)';
-    g.beginPath();
-    (g as any).roundRect ? (g as any).roundRect(x - 230, y - 120, 460, 190, 36) : g.rect(x - 230, y - 120, 460, 190);
-    g.fill();
-    g.fillStyle = '#f0f6fc';
-    g.font = '800 84px system-ui, sans-serif';
-    g.fillText(value, x, y);
-    g.fillStyle = '#8b949e';
-    g.font = '36px system-ui, sans-serif';
-    g.fillText(label, x, y + 52);
-  });
-  let y = 880 + Math.ceil(stats.length / 2) * 230 + 40;
-  if (tier !== null) {
-    const d = division(tier);
-    g.fillStyle = d.color;
-    g.font = 'bold 56px system-ui, sans-serif';
-    g.fillText(`${d.emoji}  Divisão ${d.name}`, W / 2, y);
-    y += 80;
-  }
-  if (medalsEarned) {
-    g.fillStyle = '#fde68a';
-    g.font = 'bold 44px system-ui, sans-serif';
-    g.fillText(`🏅 ${medalsEarned} conquistas`, W / 2, y);
-    y += 70;
-  }
-  if (r.bestDay) {
-    g.fillStyle = '#8b949e';
-    g.font = '36px system-ui, sans-serif';
-    g.fillText(`Melhor dia: ${brDay(r.bestDay.day)} (${r.bestDay.xp} pontos)`, W / 2, y);
-  }
-  g.fillStyle = '#34d399';
-  g.font = 'bold 46px system-ui, sans-serif';
-  g.fillText('Um pouco melhor a cada dia.', W / 2, H - 200);
-  g.fillStyle = '#6e7681';
-  g.font = '34px system-ui, sans-serif';
-  g.fillText('meu-ritmo.netlify.app', W / 2, H - 130);
-  return new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('imagem'))), 'image/png'));
-}
-
 export const RecapCard: React.FC<{
   recap: { current: MonthRecap; previous: MonthRecap } | undefined;
   name: string;
   history: { month: string; tier: number }[];
   medalsEarned: number;
-}> = ({ recap, name, history, medalsEarned }) => {
+}> = ({ recap, history, medalsEarned }) => {
   const [which, setWhich] = useState<'previous' | 'current'>('previous');
-  const [msg, setMsg] = useState('');
   if (!recap) return null;
   const hasPrev = recap.previous.points > 0;
   const r = which === 'previous' && hasPrev ? recap.previous : recap.current;
   const isPrev = r === recap.previous;
   const tier = history.find((h) => h.month === r.month)?.tier ?? null;
 
-  const share = async () => {
-    setMsg('');
-    try {
-      const blob = await recapImage(r, name, tier, medalsEarned);
-      const file = new File([blob], `ritmo-retrospectiva-${r.month}.png`, { type: 'image/png' });
-      const nav = navigator as any;
-      if (nav.canShare?.({ files: [file] })) await nav.share({ files: [file], title: `Minha retrospectiva de ${monthName(r.month)}` });
-      else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-        setMsg('Imagem baixada. É só postar no Stories ou no WhatsApp.');
-      }
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') setMsg('Não foi possível gerar a imagem agora.');
-    }
+  const share = () => {
+    const title = isPrev ? `Meu ${monthName(r.month)} no Ritmo` : `Meu ${monthName(r.month)} até agora`;
+    const d = tier !== null ? division(tier) : null;
+    openShare({
+      kind: 'retrospectiva',
+      emoji: d ? d.emoji : '📅',
+      tag: 'RETROSPECTIVA',
+      color: '#a855f7',
+      title,
+      subtitle: [d ? `Divisão ${d.name}` : '', medalsEarned ? `${medalsEarned} conquistas` : '', r.bestDay ? `melhor dia: ${brDay(r.bestDay.day)}` : ''].filter(Boolean).join(' · '),
+      big: r.points.toLocaleString('pt-BR'),
+      bigLabel: 'pontos no mês',
+      stats: statsOf(r),
+      feed: null,
+    });
   };
 
   return (
@@ -216,9 +159,8 @@ export const RecapCard: React.FC<{
       </div>
       {r.bestDay && <p className="mt-2 text-xs text-[#8b949e]">Melhor dia: {brDay(r.bestDay.day)}, com {r.bestDay.xp} pontos.</p>}
       <button type="button" onClick={share} disabled={r.points === 0} className="mt-4 w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold">
-        {typeof navigator !== 'undefined' && (navigator as any).canShare ? <Share2 className="w-4 h-4" /> : <Download className="w-4 h-4" />} Imagem para Stories e WhatsApp
+        <Share2 className="w-4 h-4" /> Compartilhar no Stories e WhatsApp
       </button>
-      {msg && <p className="mt-2 text-xs text-emerald-300">{msg}</p>}
     </section>
   );
 };

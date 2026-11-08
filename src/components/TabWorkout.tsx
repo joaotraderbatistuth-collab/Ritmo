@@ -3,7 +3,7 @@ import { Activity, Bike, Footprints, Mountain, Play, Pause, Square, Trash2, X, S
 import { RouteMap } from './RouteMap.js';
 import { RouteSvg } from './RouteSvg.js';
 import { callApi } from '../lib/client-api.js';
-import { shareToFeed } from '../lib/share-feed.js';
+import { shareAchievement } from '../lib/share-feed.js';
 import { FEED_ROUTE_MAX } from '../lib/feed-rules.js';
 import * as rec from '../lib/workout-recorder.js';
 import type { FinishedTrack } from '../lib/workout-recorder.js';
@@ -303,7 +303,7 @@ const WorkoutDetail: React.FC<{ id: number; onClose: () => void; onDeleted: () =
     if (!w) return;
     let route = encodePolyline(simplifyTo(sharePoints, 250));
     if (route.length > FEED_ROUTE_MAX) route = encodePolyline(simplifyTo(sharePoints, 120));
-    shareToFeed({ type: 'treino', sport: w.sport, distanceM: w.distanceM, durationS: w.movingS, ...(w.elevationGainM ? { elevationGainM: w.elevationGainM } : {}), ...(route && route.length <= FEED_ROUTE_MAX ? { route } : {}) });
+    shareAchievement({ type: 'treino', sport: w.sport, distanceM: w.distanceM, durationS: w.movingS, ...(w.elevationGainM ? { elevationGainM: w.elevationGainM } : {}), ...(route && route.length <= FEED_ROUTE_MAX ? { route } : {}) });
     onClose();
   };
 
@@ -416,7 +416,7 @@ const WorkoutDetail: React.FC<{ id: number; onClose: () => void; onDeleted: () =
                 </label>
               )}
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={toFeed} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold"><Share2 className="w-4 h-4" /> Compartilhar no Feed</button>
+                <button type="button" onClick={toFeed} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold"><Share2 className="w-4 h-4" /> Compartilhar</button>
                 <button type="button" onClick={toImage} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#30363d] text-sm text-[#c9d1d9] hover:bg-[#21262d]"><Download className="w-4 h-4" /> Imagem para Stories/WhatsApp</button>
               </div>
               {msg && <p className="text-xs text-emerald-400">{msg}</p>}

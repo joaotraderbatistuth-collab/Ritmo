@@ -645,3 +645,18 @@ export const itemLinks = pgTable("item_links", {
   itemId: integer("item_id").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Conquistas compartilhadas (Stories, WhatsApp): o link /c/<slug> mostra a conquista e leva ao cadastro
+// com o código de indicação de quem compartilhou. "image" é a prévia em JPEG (base64) para o WhatsApp.
+export const shareCards = pgTable("share_cards", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull().unique(),
+  kind: text("kind").notNull(),
+  emoji: text("emoji").notNull().default(""),
+  title: text("title").notNull(),
+  subtitle: text("subtitle").notNull().default(""),
+  image: text("image"),
+  views: integer("views").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

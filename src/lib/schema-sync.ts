@@ -365,6 +365,21 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS "item_links_item_idx" ON "item_links" ("user_id", "kind", "item_id")`,
   `CREATE INDEX IF NOT EXISTS "item_links_grp_idx" ON "item_links" ("user_id", "grp")`,
 
+  // ---- compartilhar conquistas (Stories, WhatsApp): cada imagem tem um link público com o convite da pessoa
+  `CREATE TABLE IF NOT EXISTS "share_cards" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "slug" text NOT NULL UNIQUE,
+    "kind" text NOT NULL,
+    "emoji" text NOT NULL DEFAULT '',
+    "title" text NOT NULL,
+    "subtitle" text NOT NULL DEFAULT '',
+    "image" text,
+    "views" integer NOT NULL DEFAULT 0,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS "share_cards_user_idx" ON "share_cards" ("user_id", "created_at")`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

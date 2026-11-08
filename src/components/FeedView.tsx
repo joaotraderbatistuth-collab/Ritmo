@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MedalsStrip } from './Medals.js';
-import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame, Trophy, Activity, UserPlus, UserCheck } from 'lucide-react';
+import { Flag, Heart, Link2, MessageCircle, Send, Sparkles, Timer, Trash2, Target, ListChecks, Crown, ImagePlus, X, KanbanSquare, CheckCircle2, Flame, Trophy, Activity, UserPlus, UserCheck, Award } from 'lucide-react';
 import { RouteSvg } from './RouteSvg.js';
 import { SPORTS, formatDuration, formatKm, formatPace, paceSPerKm, speedKmh } from '../lib/workout.js';
 import { LevelAvatar } from './LevelAvatar.js';
@@ -34,7 +34,7 @@ export interface FeedPostData {
   canDelete: boolean;
 }
 
-const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2, nivel: Trophy, treino: Activity, ofensiva: Flame, semana: Trophy, divisao: Trophy };
+const ICONS: Record<Achievement['type'], any> = { corrente: Link2, foco: Timer, tarefas: ListChecks, meta: Target, sessao: Flame, card: KanbanSquare, habito: CheckCircle2, tarefa: CheckCircle2, nivel: Trophy, treino: Activity, ofensiva: Flame, semana: Trophy, divisao: Trophy, medalha: Award };
 
 /* ------------------------------------------------------------------ */
 /* Foto: escolher, enviar e mostrar                                    */

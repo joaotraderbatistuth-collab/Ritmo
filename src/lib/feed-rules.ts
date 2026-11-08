@@ -1,5 +1,6 @@
 // Regras PURAS do Feed (texto, conquistas, limites e datas), testadas em tests/.
 import { levelDef, MAX_LEVEL } from './levels.js';
+import { MEDALS } from './medals.js';
 import { TOP_TIER, division } from './season.js';
 import { POLYLINE_RE, SPORTS, formatDuration, formatKm, formatPace, isSport, paceSPerKm, speedKmh, type SportId } from './workout.js';
 
@@ -58,6 +59,7 @@ export type Achievement =
   | { type: 'ofensiva'; days: number }
   | { type: 'semana'; xp: number; activeDays: number }
   | { type: 'divisao'; tier: number; name: string }
+  | { type: 'medalha'; id: string; name: string; emoji: string }
   | { type: 'treino'; sport: SportId; distanceM: number; durationS: number; elevationGainM?: number; route?: string };
 
 const int = (v: unknown, min: number, max: number): number | null => {
@@ -131,6 +133,11 @@ export function sanitizeAchievement(raw: unknown): Achievement | null {
       const tier = int(r.tier, 1, TOP_TIER);
       return tier ? { type: 'divisao', tier, name: division(tier).name } : null;
     }
+    case 'medalha': {
+      // nome e emoji vêm sempre da lista de conquistas, nunca do navegador
+      const m = MEDALS.find((x) => x.id === r.id);
+      return m ? { type: 'medalha', id: m.id, name: m.name, emoji: m.emoji } : null;
+    }
     case 'nivel': {
       // o nome vem sempre da tabela de níveis, nunca do navegador
       const level = int(r.level, 2, MAX_LEVEL);
@@ -165,6 +172,8 @@ export function achievementHeadline(a: Achievement): string {
       return `Ofensiva de ${a.days} dias seguidos no Ritmo`;
     case 'divisao':
       return `Subiu para a divisão ${a.name} na temporada do mês`;
+    case 'medalha':
+      return `Conquista desbloqueada: ${a.emoji} ${a.name}`;
     case 'semana':
       return `Semana fechada: ${a.xp} pontos em ${a.activeDays} ${a.activeDays === 1 ? 'dia ativo' : 'dias ativos'}`;
     case 'treino': {

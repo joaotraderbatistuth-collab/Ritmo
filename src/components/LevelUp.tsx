@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Sparkles, Share2, X, Lock, Check, Zap, Flame } from 'lucide-react';
 import { LevelAvatar } from './LevelAvatar.js';
 import { FRAMES, LEVELS, LevelInfo, XP_RULES, XP_SOURCES, XpSource, levelDef } from '../lib/levels.js';
-import { shareToFeed } from '../lib/share-feed.js';
+import { shareAchievement } from '../lib/share-feed.js';
+import type { Medal } from '../lib/medals.js';
 import type { GameData } from './Missions.js';
 import type { SeasonView } from './Season.js';
 import { Burst, GoalRing, RewardSettings, getFxPrefs, playGain, useFxPrefs } from './XpBurst.js';
@@ -94,12 +95,12 @@ export const LevelUpModal: React.FC<{
           <button
             type="button"
             onClick={() => {
-              shareToFeed({ type: 'nivel', level: info.level, name: info.name });
+              shareAchievement({ type: 'nivel', level: info.level, name: info.name });
               onClose();
             }}
             className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
           >
-            <Share2 className="w-4 h-4" /> Compartilhar no Feed
+            <Share2 className="w-4 h-4" /> Compartilhar no Stories, WhatsApp ou Feed
           </button>
           <button type="button" onClick={onClose} className="w-full px-4 py-2 rounded-xl text-sm text-[#8b949e] hover:text-white">Continuar</button>
         </div>
@@ -171,6 +172,7 @@ const SOURCE_HINT: Record<XpSource, string> = {
   seguir: 'Feed',
   perfil: 'Configurações → Seus gostos',
   desafio: 'Progresso → Desafios',
+  convite: 'Compartilhe suas conquistas com o seu link',
 };
 
 export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEditPhoto?: () => void }> = ({ data, initials, onEditPhoto }) => {
@@ -278,6 +280,7 @@ export function useXp(userId: number | null, signature: string) {
   const [burst, setBurst] = useState<Burst | null>(null);
   const [rankPulse, setRankPulse] = useState(0);
   const [levelUp, setLevelUp] = useState<LevelInfo | null>(null);
+  const [medalQueue, setMedalQueue] = useState<Medal[]>([]);
   const last = useRef<number | null>(null);
   const lastData = useRef<XpData | null>(null);
   const combo = useRef<{ count: number; at: number } | null>(null);
@@ -331,6 +334,22 @@ export function useXp(userId: number | null, signature: string) {
       if (d.level.level > seen) {
         try { localStorage.setItem(key, String(d.level.level)); } catch {}
       }
+
+      // "Conquista desbloqueada!": só as que a pessoa ainda não viu neste aparelho.
+      // Na primeira vez em um aparelho, só anota as que já tem (sem enxurrada de comemorações).
+      if (Array.isArray(d.medals)) {
+        const mkey = `ritmo_medals_seen_${userId}`;
+        const earned = d.medals.filter((m) => m.earned);
+        let seenIds: string[] | null = null;
+        try { seenIds = JSON.parse(localStorage.getItem(mkey) || 'null'); } catch {}
+        if (Array.isArray(seenIds)) {
+          const fresh = earned.filter((m) => !seenIds!.includes(m.id));
+          if (fresh.length) setMedalQueue((q) => [...q, ...fresh.filter((m) => !q.some((x) => x.id === m.id))]);
+        }
+        if (!Array.isArray(seenIds) || earned.some((m) => !seenIds!.includes(m.id))) {
+          try { localStorage.setItem(mkey, JSON.stringify(earned.map((m) => m.id))); } catch {}
+        }
+      }
     } catch {
       // sem conexão: tenta de novo na próxima ação
     }
@@ -368,5 +387,5 @@ export function useXp(userId: number | null, signature: string) {
     };
   }, []);
 
-  return { data, setData, gain, burst, rankPulse, levelUp, closeLevelUp: () => setLevelUp(null), refresh };
+  return { data, setData, gain, burst, rankPulse, levelUp, closeLevelUp: () => setLevelUp(null), medalQueue, nextMedal: () => setMedalQueue((q) => q.slice(1)), refresh };
 }

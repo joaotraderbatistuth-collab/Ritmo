@@ -485,6 +485,14 @@ export async function createPost(userId: number, input: { body?: unknown; teamId
       throw new CommunityError(400, 'Esses números não batem com a sua semana.');
     }
   }
+  if (achievement?.type === 'medalha') {
+    // só compartilha uma conquista que a pessoa realmente ganhou
+    const { getUserXp } = await import('./xp-server.js');
+    const { buildGame } = await import('./game-server.js');
+    const xp = await getUserXp(userId);
+    const game = xp ? buildGame(userId, xp) : null;
+    if (!game?.medals.some((m) => m.id === achievement.id && m.earned)) throw new CommunityError(400, 'Você ainda não ganhou essa conquista.');
+  }
   if (achievement?.type === 'divisao') {
     // só compartilha uma divisão que a pessoa realmente alcançou
     const [u] = await db.select({ tier: schema.users.seasonTier }).from(schema.users).where(eq(schema.users.id, userId));

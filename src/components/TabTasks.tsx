@@ -20,7 +20,7 @@ import {
   ChevronLeft,
   Share2,
 } from 'lucide-react';
-import { shareToFeed } from '../lib/share-feed.js';
+import { shareAchievement } from '../lib/share-feed.js';
 
 interface TabTasksProps {
   tasks: TaskItem[];
@@ -348,9 +348,9 @@ export const TabTasks: React.FC<TabTasksProps> = ({
                           <div className="flex flex-col gap-1 shrink-0">
                             {t.completed && (
                               <button
-                                onClick={() => shareToFeed({ type: 'tarefa', title: t.title.slice(0, 100) })}
-                                title="Compartilhar no Feed"
-                                aria-label="Compartilhar no Feed"
+                                onClick={() => shareAchievement({ type: 'tarefa', title: t.title.slice(0, 100) })}
+                                title="Compartilhar"
+                                aria-label="Compartilhar"
                                 className="text-emerald-500 hover:text-emerald-300 p-1"
                               >
                                 <Share2 className="w-3 h-3" />

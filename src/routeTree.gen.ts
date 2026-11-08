@@ -18,11 +18,13 @@ import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as ApiXpRouteImport } from './routes/api.xp'
 import { Route as ApiWorkoutsRouteImport } from './routes/api.workouts'
 import { Route as ApiTeamsRouteImport } from './routes/api.teams'
 import { Route as ApiTasksRouteImport } from './routes/api.tasks'
 import { Route as ApiSurveyRouteImport } from './routes/api.survey'
+import { Route as ApiShareRouteImport } from './routes/api.share'
 import { Route as ApiPushRouteImport } from './routes/api.push'
 import { Route as ApiProfileRouteImport } from './routes/api.profile'
 import { Route as ApiMilestonesRouteImport } from './routes/api.milestones'
@@ -96,6 +98,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CSlugRoute = CSlugRouteImport.update({
+  id: '/c/$slug',
+  path: '/c/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiXpRoute = ApiXpRouteImport.update({
   id: '/api/xp',
   path: '/api/xp',
@@ -119,6 +126,11 @@ const ApiTasksRoute = ApiTasksRouteImport.update({
 const ApiSurveyRoute = ApiSurveyRouteImport.update({
   id: '/api/survey',
   path: '/api/survey',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiShareRoute = ApiShareRouteImport.update({
+  id: '/api/share',
+  path: '/api/share',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPushRoute = ApiPushRouteImport.update({
@@ -291,11 +303,13 @@ export interface FileRoutesByFullPath {
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
+  '/api/share': typeof ApiShareRoute
   '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
   '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
+  '/c/$slug': typeof CSlugRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/cron/lembretes-secretario': typeof ApiCronLembretesSecretarioRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
@@ -334,11 +348,13 @@ export interface FileRoutesByTo {
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
+  '/api/share': typeof ApiShareRoute
   '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
   '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
+  '/c/$slug': typeof CSlugRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/cron/lembretes-secretario': typeof ApiCronLembretesSecretarioRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
@@ -378,11 +394,13 @@ export interface FileRoutesById {
   '/api/milestones': typeof ApiMilestonesRoute
   '/api/profile': typeof ApiProfileRoute
   '/api/push': typeof ApiPushRoute
+  '/api/share': typeof ApiShareRoute
   '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
   '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
+  '/c/$slug': typeof CSlugRoute
   '/api/cron/lembretes': typeof ApiCronLembretesRoute
   '/api/cron/lembretes-secretario': typeof ApiCronLembretesSecretarioRoute
   '/api/cron/notificacoes': typeof ApiCronNotificacoesRoute
@@ -423,11 +441,13 @@ export interface FileRouteTypes {
     | '/api/milestones'
     | '/api/profile'
     | '/api/push'
+    | '/api/share'
     | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
     | '/api/workouts'
     | '/api/xp'
+    | '/c/$slug'
     | '/api/cron/lembretes'
     | '/api/cron/lembretes-secretario'
     | '/api/cron/notificacoes'
@@ -466,11 +486,13 @@ export interface FileRouteTypes {
     | '/api/milestones'
     | '/api/profile'
     | '/api/push'
+    | '/api/share'
     | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
     | '/api/workouts'
     | '/api/xp'
+    | '/c/$slug'
     | '/api/cron/lembretes'
     | '/api/cron/lembretes-secretario'
     | '/api/cron/notificacoes'
@@ -509,11 +531,13 @@ export interface FileRouteTypes {
     | '/api/milestones'
     | '/api/profile'
     | '/api/push'
+    | '/api/share'
     | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
     | '/api/workouts'
     | '/api/xp'
+    | '/c/$slug'
     | '/api/cron/lembretes'
     | '/api/cron/lembretes-secretario'
     | '/api/cron/notificacoes'
@@ -553,11 +577,13 @@ export interface RootRouteChildren {
   ApiMilestonesRoute: typeof ApiMilestonesRoute
   ApiProfileRoute: typeof ApiProfileRoute
   ApiPushRoute: typeof ApiPushRoute
+  ApiShareRoute: typeof ApiShareRoute
   ApiSurveyRoute: typeof ApiSurveyRoute
   ApiTasksRoute: typeof ApiTasksRoute
   ApiTeamsRoute: typeof ApiTeamsRoute
   ApiWorkoutsRoute: typeof ApiWorkoutsRoute
   ApiXpRoute: typeof ApiXpRoute
+  CSlugRoute: typeof CSlugRoute
   ApiCronLembretesRoute: typeof ApiCronLembretesRoute
   ApiCronLembretesSecretarioRoute: typeof ApiCronLembretesSecretarioRoute
   ApiCronNotificacoesRoute: typeof ApiCronNotificacoesRoute
@@ -629,6 +655,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/c/$slug': {
+      id: '/c/$slug'
+      path: '/c/$slug'
+      fullPath: '/c/$slug'
+      preLoaderRoute: typeof CSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/xp': {
       id: '/api/xp'
       path: '/api/xp'
@@ -662,6 +695,13 @@ declare module '@tanstack/react-router' {
       path: '/api/survey'
       fullPath: '/api/survey'
       preLoaderRoute: typeof ApiSurveyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/share': {
+      id: '/api/share'
+      path: '/api/share'
+      fullPath: '/api/share'
+      preLoaderRoute: typeof ApiShareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/push': {
@@ -889,11 +929,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMilestonesRoute: ApiMilestonesRoute,
   ApiProfileRoute: ApiProfileRoute,
   ApiPushRoute: ApiPushRoute,
+  ApiShareRoute: ApiShareRoute,
   ApiSurveyRoute: ApiSurveyRoute,
   ApiTasksRoute: ApiTasksRoute,
   ApiTeamsRoute: ApiTeamsRoute,
   ApiWorkoutsRoute: ApiWorkoutsRoute,
   ApiXpRoute: ApiXpRoute,
+  CSlugRoute: CSlugRoute,
   ApiCronLembretesRoute: ApiCronLembretesRoute,
   ApiCronLembretesSecretarioRoute: ApiCronLembretesSecretarioRoute,
   ApiCronNotificacoesRoute: ApiCronNotificacoesRoute,

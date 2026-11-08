@@ -25,6 +25,8 @@ export interface MedalDef {
   value: (i: MedalInput, d: Derived) => number;
 }
 
+export type Rarity = 'comum' | 'rara' | 'epica' | 'lendaria';
+
 export interface Medal {
   id: string;
   emoji: string;
@@ -34,7 +36,23 @@ export interface Medal {
   goal: number;
   progress: number;
   earned: boolean;
+  rarity: Rarity;
 }
+
+/** Raridade: quanto mais difícil, mais brilho na comemoração e no story. */
+export const RARITY: Record<Rarity, { name: string; color: string; glow: string }> = {
+  comum: { name: 'Comum', color: '#34d399', glow: 'rgba(52,211,153,0.45)' },
+  rara: { name: 'Rara', color: '#38bdf8', glow: 'rgba(56,189,248,0.5)' },
+  epica: { name: 'Épica', color: '#a855f7', glow: 'rgba(168,85,247,0.55)' },
+  lendaria: { name: 'Lendária', color: '#f59e0b', glow: 'rgba(245,158,11,0.6)' },
+};
+
+const RARITY_OF: Record<string, Rarity> = {
+  ativo30: 'rara', ofensiva7: 'rara', habito100: 'rara', tarefa50: 'rara', treino10: 'rara', km5: 'rara', revisao4: 'rara', fin30: 'rara', marco5: 'rara', desafio1: 'rara', nivel5: 'rara', convite1: 'rara',
+  ofensiva30: 'epica', foco50: 'epica', semanas4: 'epica', km42: 'epica', divisao3: 'epica', desafio5: 'epica', convite5: 'epica',
+  ativo100: 'lendaria', habito500: 'lendaria', km100: 'lendaria', nivel10: 'lendaria', divisao7: 'lendaria',
+};
+export const rarityOf = (id: string): Rarity => RARITY_OF[id] || 'comum';
 
 interface Derived {
   trainDays: number;
@@ -96,6 +114,8 @@ export const MEDALS: MedalDef[] = [
   { id: 'seguir5', emoji: '🤝', name: 'Rede de apoio', desc: 'Siga 5 pessoas', group: 'Comunidade', goal: 5, value: c('seguir') },
   { id: 'desafio1', emoji: '⚔️', name: 'Desafio cumprido', desc: 'Cumpra 1 desafio com amigos', group: 'Comunidade', goal: 1, value: (i) => i.challengesDone },
   { id: 'desafio5', emoji: '🛡️', name: 'Parceiro de fé', desc: 'Cumpra 5 desafios com amigos', group: 'Comunidade', goal: 5, value: (i) => i.challengesDone },
+  { id: 'convite1', emoji: '💌', name: 'Inspirou alguém', desc: '1 amigo entrou pelo seu link e está usando', group: 'Comunidade', goal: 1, value: c('convite') },
+  { id: 'convite5', emoji: '🎖️', name: 'Embaixador do Ritmo', desc: '5 amigos entraram pelo seu link e estão usando', group: 'Comunidade', goal: 5, value: c('convite') },
   { id: 'nivel5', emoji: '⭐', name: 'Nível 5', desc: 'Chegue ao nível Focado', group: 'Níveis', goal: 5, value: (i) => i.level },
   { id: 'nivel10', emoji: '👑', name: 'Nível 10', desc: 'Chegue ao Mestre do Ritmo', group: 'Níveis', goal: 10, value: (i) => i.level },
   { id: 'divisao1', emoji: '🥈', name: 'Subiu de divisão', desc: 'Chegue à Prata na temporada', group: 'Temporada', goal: 1, value: (i) => i.seasonMaxTier },
@@ -110,7 +130,7 @@ export function computeMedals(input: MedalInput): Medal[] {
   const d = derive(input);
   return MEDALS.map((m) => {
     const v = Math.max(0, Math.floor(m.value(input, d)));
-    return { id: m.id, emoji: m.emoji, name: m.name, desc: m.desc, group: m.group, goal: m.goal, progress: Math.min(v, m.goal), earned: v >= m.goal };
+    return { id: m.id, emoji: m.emoji, name: m.name, desc: m.desc, group: m.group, goal: m.goal, progress: Math.min(v, m.goal), earned: v >= m.goal, rarity: rarityOf(m.id) };
   });
 }
 

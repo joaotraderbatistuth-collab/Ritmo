@@ -22,12 +22,13 @@ import { pickMissions, missionProgress, chestReward, computeStreak, nextMileston
 import { computeNotices } from '../src/lib/notices.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
 import { nextSteps } from '../src/lib/next-step.js';
-import { computeMedals, monthRecap, MEDALS, PUBLIC_MEDAL_GROUPS } from '../src/lib/medals.js';
+import { computeMedals, monthRecap, MEDALS, PUBLIC_MEDAL_GROUPS, RARITY, rarityOf } from '../src/lib/medals.js';
+import { cardFromAchievement, cardFromMedal, shareMessage, shortLink, sanitizeShare, makeSlug, isSlug, escapeHtml } from '../src/lib/share-card.js';
 import { suggestedTarget, clampTarget, challengeProgress, challengeStatus, challengeNudge, challengeCode, isChallengeCode } from '../src/lib/challenges.js';
 import { canSendAuto, DAILY_PUSH_MAX } from '../src/lib/nudges.js';
 import { starterHabits } from '../src/lib/survey.js';
 import { DIVISIONS, TOP_TIER, zoneSizes, zoneFor, nextDivision, seasonGoals, seasonNudge, seasonPoints, daysLeftIn, prevMonth, lastDayOf, seasonLabel, rankOf } from '../src/lib/season.js';
-import { luckyDrop, LUCKY_START, nextCombo, goalProgress, normalizeGoal, cheerFor, nearNextLevel, gainTone, COMBO_WINDOW_MS } from '../src/lib/rewards.js';
+import { luckyDrop, LUCKY_START, nextCombo, goalProgress, normalizeGoal, cheerFor, nearNextLevel, gainTone, fanfareTones, COMBO_WINDOW_MS } from '../src/lib/rewards.js';
 import { nextDateAfter, normalizeTaskRule } from '../src/lib/recurrence.js';
 import { normalizeFrequency, frequencyLabel } from '../src/lib/chain.js';
 import { stepDaysFor } from '../src/lib/roadmap.js';
@@ -1058,6 +1059,38 @@ export function runTests() {
     assert(ns[0].id === 'conta' && ns[0].title.replace(/\s/g, ' ') === 'Pagar IPVA (R$ 1.250,00)' && ns[0].why.startsWith('Vence amanhã'), `próximo passo da conta: ${JSON.stringify(ns[0])}`);
   }
   console.log('✓ Preenchimento automático ok');
+
+  // ---- Compartilhar conquistas (Stories, WhatsApp, Feed) e cara de jogo
+  {
+    assert(MEDALS.every((m) => RARITY[rarityOf(m.id)]), 'toda conquista tem raridade');
+    assert(rarityOf('ativo1') === 'comum' && rarityOf('ofensiva30') === 'epica' && rarityOf('ativo100') === 'lendaria', 'raridades certas');
+    const ms = computeMedals({ days: {}, counts: { convite: 1 }, activeDays: 0, bestStreak: 0, level: 1, seasonMaxTier: 0, workouts: [], challengesDone: 0 });
+    assert(Boolean(ms.find((m) => m.id === 'convite1')?.earned) && !ms.find((m) => m.id === 'convite5')?.earned && ms.every((m) => m.rarity), 'conquista de convite');
+    const c1 = cardFromMedal({ id: 'ofensiva30', emoji: '☄️', name: 'Ofensiva de 30', desc: '30 dias seguidos' });
+    assert(c1.tag === 'CONQUISTA ÉPICA' && c1.feed?.type === 'medalha' && c1.color === RARITY.epica.color, 'cartão da medalha');
+    const c2 = cardFromAchievement({ type: 'ofensiva', days: 7 });
+    assert(c2.big === '7' && c2.bigLabel === 'dias' && c2.feed?.type === 'ofensiva', 'cartão da ofensiva');
+    const c3 = cardFromAchievement({ type: 'treino', sport: 'bike', distanceM: 20500, durationS: 3600 });
+    assert(c3.emoji === '🚴' && c3.big === '20,50', `cartão do treino: ${JSON.stringify(c3)}`);
+    const msg = shareMessage(c2, 'https://meu-ritmo.netlify.app/c/abcd2345');
+    assert(msg.includes('https://meu-ritmo.netlify.app/c/abcd2345') && msg.includes('7 dias grátis') && !/ganh(e|ar) dinheiro|renda/i.test(msg), 'mensagem com link e sem promessa');
+    assert(shortLink('https://meu-ritmo.netlify.app/c/abcd2345') === 'meu-ritmo.netlify.app/c/abcd2345', 'link curto');
+    assert(sanitizeShare({ kind: 'medalha', emoji: '🔥', title: 'Ofensiva de 7', subtitle: 'ok' })?.title === 'Ofensiva de 7', 'cartão válido');
+    assert(sanitizeShare({ kind: 'medalha', title: 'veja https://golpe.com' }) === null && sanitizeShare({ kind: 'x"><script>', title: 'a' }) === null && sanitizeShare({ kind: 'nivel', title: '' }) === null, 'sem link, HTML ou tipo estranho na página pública');
+    const slugs = new Set(Array.from({ length: 200 }, () => makeSlug()));
+    assert(slugs.size > 190 && [...slugs].every(isSlug) && !isSlug('../etc/pa') && !isSlug('ABCDEFGH'), 'código do link');
+    assert(escapeHtml(`<b>"Zé" & 'Ana'</b>`) === '&lt;b&gt;&quot;Zé&quot; &amp; &#39;Ana&#39;&lt;/b&gt;', 'escapa HTML');
+    const med = sanitizeAchievement({ type: 'medalha', id: 'ofensiva7', name: 'Hackeado', emoji: '💀' });
+    assert(med?.type === 'medalha' && med.name === 'Ofensiva de 7' && med.emoji === '🔥' && sanitizeAchievement({ type: 'medalha', id: 'naoexiste' }) === null, 'medalha no Feed vem da lista oficial');
+    assert(achievementHeadline({ type: 'medalha', id: 'ofensiva7', name: 'Ofensiva de 7', emoji: '🔥' }).includes('Ofensiva de 7'), 'título da medalha no Feed');
+    const f0 = fanfareTones(0), f3 = fanfareTones(3);
+    assert(f3.length > f0.length && Math.max(...f3.map((n) => n.at + n.dur)) > Math.max(...f0.map((n) => n.at + n.dur)), 'fanfarra maior nas raras');
+    // convite: +50 por amigo, até 2 por dia, e fora do limite diário das próprias ações
+    const cv = computeXp({ habitLogs: [], tasks: [], sessions: [], journal: [], transactions: [], posts: [], comments: [], events: [{ src: 'convite', day: '2026-11-09' }, { src: 'convite', day: '2026-11-09' }, { src: 'convite', day: '2026-11-09' }], today: '2026-11-10' });
+    assert(cv.breakdown.convite.xp === 100 && cv.breakdown.convite.count === 2, `convite com limite: ${JSON.stringify(cv.breakdown.convite)}`);
+    assert(XP_RULES.convite.xp === 50 && XP_DAILY_MAX < 700, 'convite não mexe no limite das ações');
+  }
+  console.log('✓ Compartilhar e cara de jogo ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

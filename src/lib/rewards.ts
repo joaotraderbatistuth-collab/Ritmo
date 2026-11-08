@@ -106,3 +106,14 @@ export function gainTone(combo: number, lucky = false): { at: number; freq: numb
   if (lucky) notes.push({ at: 0.22, freq: base * 2, dur: 0.35, gain: 0.35 }, { at: 0.34, freq: base * 2.5, dur: 0.4, gain: 0.25 });
   return notes;
 }
+
+/** Fanfarra da conquista: arpejo que fica mais longo e mais alto quanto mais rara (0 = comum … 3 = lendária). */
+export function fanfareTones(rarity: number): { at: number; freq: number; dur: number; gain: number }[] {
+  const r = Math.max(0, Math.min(3, Math.floor(rarity)));
+  const scale = [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98, 2093]; // Dó5 Mi5 Sol5 Dó6 Mi6 Sol6 Dó7
+  const count = 4 + r; // 4 a 7 notas
+  const notes = scale.slice(0, count).map((freq, i) => ({ at: i * 0.09, freq, dur: 0.18, gain: 0.3 }));
+  const end = (count - 1) * 0.09;
+  notes.push({ at: end + 0.12, freq: scale[count - 1], dur: 0.6 + r * 0.15, gain: 0.35 }, { at: end + 0.12, freq: scale[count - 1] * 1.5, dur: 0.6 + r * 0.15, gain: 0.18 });
+  return notes;
+}

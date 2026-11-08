@@ -3,7 +3,7 @@ import { Flame, Gift, Check, ChevronRight, ChevronDown, Trophy, Lock, Sparkles, 
 import { addDays, localDateStr } from '../lib/chain.js';
 import type { HabitItem, HabitLogItem, TaskItem } from '../lib/types.js';
 import { callApi } from '../lib/client-api.js';
-import { shareToFeed } from '../lib/share-feed.js';
+import { shareAchievement } from '../lib/share-feed.js';
 import { LevelAvatar } from './LevelAvatar.js';
 import { LEAGUES, PROMOTE, DEMOTE } from '../lib/missions.js';
 import type { XpData } from './LevelUp.js';
@@ -371,7 +371,7 @@ export const StreakCard: React.FC<{ data: (XpData & GameData) | null }> = ({ dat
           <p className="text-xs text-[#8b949e]">{s.todayDone ? 'Hoje já conta. ' : 'Faça qualquer atividade hoje para manter. '}Recorde: {s.best} dias.</p>
         </div>
         {canShare && (
-          <button type="button" onClick={() => shareToFeed({ type: 'ofensiva', days: s.days })} className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#30363d] text-xs text-[#c9d1d9] hover:text-white"><Share2 className="w-3.5 h-3.5" /> Compartilhar</button>
+          <button type="button" onClick={() => shareAchievement({ type: 'ofensiva', days: s.days })} className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#30363d] text-xs text-[#c9d1d9] hover:text-white"><Share2 className="w-3.5 h-3.5" /> Compartilhar</button>
         )}
       </div>
       <p className="mt-3 text-xs text-[#8b949e]">
@@ -420,7 +420,7 @@ export const WeekSummaryCard: React.FC<{ week: WeekView | undefined; title: stri
       {week.bestDay && <p className="mt-1 text-xs text-[#8b949e]">Seu melhor dia foi {weekdayOf(week.bestDay.day)}, com {week.bestDay.xp} pontos.</p>}
       {week.xp === 0 && <p className="mt-2 text-sm text-[#8b949e]">Semana tranquila. Tudo bem: recomeçar também é constância.</p>}
       {shareable && week.xp > 0 && (
-        <button type="button" onClick={() => shareToFeed({ type: 'semana', xp: week.xp, activeDays: week.activeDays })} className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"><Share2 className="w-3.5 h-3.5" /> Compartilhar no Feed</button>
+        <button type="button" onClick={() => shareAchievement({ type: 'semana', xp: week.xp, activeDays: week.activeDays })} className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"><Share2 className="w-3.5 h-3.5" /> Compartilhar</button>
       )}
     </section>
   );

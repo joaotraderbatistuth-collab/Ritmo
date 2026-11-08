@@ -76,6 +76,8 @@ import { starterHabits } from '../lib/survey.js';
 import { initials as initialsOf } from '../lib/feed-rules.js';
 import { announceAuto } from '../lib/autofill-client.js';
 import { AutoFillToast } from '../components/AutoFillToast.js';
+import { ShareSheet } from '../components/ShareSheet.js';
+import { MedalUnlock } from '../components/MedalUnlock.js';
 import { fold } from '../lib/assistant-parser.js';
 
 export const Route = createFileRoute('/app')({
@@ -991,6 +993,11 @@ function RitmoApp() {
         />
       )}
       <LevelUpModal info={xp.levelUp} initials={userInitials} avatarUrl={xp.data?.avatarUrl} onClose={xp.closeLevelUp} />
+      <MedalUnlock queue={xp.levelUp ? [] : xp.medalQueue} onNext={xp.nextMedal} />
+      <ShareSheet
+        person={user ? { name: (user.name || '').trim().split(/\s+/)[0] || 'Eu', level: xp.data?.level.level || 1, levelName: xp.data?.level.name || 'Semente', avatarUrl: xp.data?.avatarUrl || null, initials: userInitials } : null}
+        referralCode={user?.referralCode || ''}
+      />
 
       {/* Auth Modal */}
       <AuthModal

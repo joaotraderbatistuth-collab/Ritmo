@@ -26,7 +26,7 @@ import {
   Pencil,
   Share2,
 } from 'lucide-react';
-import { shareToFeed } from '../lib/share-feed.js';
+import { shareAchievement } from '../lib/share-feed.js';
 import { announceAuto } from '../lib/autofill-client.js';
 
 // -----------------------------------------------------------------------------
@@ -849,10 +849,10 @@ const CardDetailModal: React.FC<CardDetailModalProps> = ({
 
         <button
           type="button"
-          onClick={() => { shareToFeed({ type: 'card', title: card.title.slice(0, 100) }); onClose(); }}
+          onClick={() => { shareAchievement({ type: 'card', title: card.title.slice(0, 100) }); onClose(); }}
           className={`mb-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${isDoneList ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400' : 'border border-[#30363d] text-[#c9d1d9] hover:bg-[#21262d]'}`}
         >
-          <Share2 className="w-3.5 h-3.5" /> {isDoneList ? 'Card concluído! Compartilhar no Feed' : 'Compartilhar no Feed'}
+          <Share2 className="w-3.5 h-3.5" /> {isDoneList ? 'Card concluído! Compartilhar' : 'Compartilhar'}
         </button>
 
         {/* Linha de metadados: prioridade / coluna / vencimento */}

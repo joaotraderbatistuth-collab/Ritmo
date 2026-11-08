@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowUp, ArrowDown, Trophy, ChevronDown, ChevronUp, EyeOff, Eye, Share2, X, Sparkles, Users, CalendarClock, Target } from 'lucide-react';
 import { LevelAvatar } from './LevelAvatar.js';
 import { callApi } from '../lib/client-api.js';
-import { openProfile, shareToFeed } from '../lib/share-feed.js';
+import { openProfile, shareAchievement } from '../lib/share-feed.js';
 import { DIVISIONS, TOP_TIER, division } from '../lib/season.js';
 
 // Temporada mensal: divisão, ranking do grupo (visível para todos do grupo), metas da posição,
@@ -254,8 +254,8 @@ export const SeasonResultModal: React.FC<{ season: SeasonView | null | undefined
         </p>
         <div className="mt-5 flex flex-col gap-2">
           {up && (
-            <button type="button" onClick={() => { shareToFeed({ type: 'divisao', tier: season.tier, name: d.name }); close(); }} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">
-              <Share2 className="w-4 h-4" /> Compartilhar no Feed
+            <button type="button" onClick={() => { shareAchievement({ type: 'divisao', tier: season.tier, name: d.name }); close(); }} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">
+              <Share2 className="w-4 h-4" /> Compartilhar
             </button>
           )}
           <button type="button" onClick={close} className="w-full px-4 py-2 rounded-xl text-sm text-[#c9d1d9] hover:text-white">Começar a temporada</button>

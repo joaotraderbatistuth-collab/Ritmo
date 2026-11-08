@@ -11,7 +11,7 @@ import {
   Target,
   Share2,
 } from 'lucide-react';
-import { shareToFeed } from '../lib/share-feed.js';
+import { shareAchievement } from '../lib/share-feed.js';
 import { localDateStr } from '../lib/chain.js';
 
 interface TabFocusProps {
@@ -148,8 +148,8 @@ export const TabFocus: React.FC<TabFocusProps> = ({
             <strong className="text-emerald-300">Sessão concluída: {justDone.minutes} min de foco!</strong> Que tal mostrar para a comunidade?
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => { shareToFeed({ type: 'sessao', minutes: justDone.minutes, ...(justDone.goal ? { goal: justDone.goal.slice(0, 80) } : {}) }); setJustDone(null); }} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm">
-              <Share2 className="w-4 h-4" /> Compartilhar no Feed
+            <button type="button" onClick={() => { shareAchievement({ type: 'sessao', minutes: justDone.minutes, ...(justDone.goal ? { goal: justDone.goal.slice(0, 80) } : {}) }); setJustDone(null); }} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm">
+              <Share2 className="w-4 h-4" /> Compartilhar
             </button>
             <button type="button" onClick={() => setJustDone(null)} className="px-3 py-2 rounded-lg border border-[#30363d] text-sm text-[#c9d1d9]">Agora não</button>
           </div>
@@ -394,7 +394,7 @@ export const TabFocus: React.FC<TabFocusProps> = ({
                     <span className="font-mono font-bold text-emerald-400 px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-800/40">
                       +{s.durationMinutes} min
                     </span>
-                    <button type="button" title="Compartilhar no Feed" aria-label="Compartilhar no Feed" onClick={() => shareToFeed({ type: 'sessao', minutes: Math.max(1, Math.round(s.durationMinutes)), ...(s.focusTopic && s.focusTopic !== 'Sessão de Foco' ? { goal: s.focusTopic.slice(0, 80) } : {}) })} className="p-1 text-[#8b949e] hover:text-emerald-400">
+                    <button type="button" title="Compartilhar" aria-label="Compartilhar" onClick={() => shareAchievement({ type: 'sessao', minutes: Math.max(1, Math.round(s.durationMinutes)), ...(s.focusTopic && s.focusTopic !== 'Sessão de Foco' ? { goal: s.focusTopic.slice(0, 80) } : {}) })} className="p-1 text-[#8b949e] hover:text-emerald-400">
                       <Share2 className="w-3.5 h-3.5" />
                     </button>
                   </span>
