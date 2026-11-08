@@ -38,6 +38,7 @@ import { Route as ApiErrosRouteImport } from './routes/api.erros'
 import { Route as ApiCyclesRouteImport } from './routes/api.cycles'
 import { Route as ApiConsentsRouteImport } from './routes/api.consents'
 import { Route as ApiCheckoutRouteImport } from './routes/api.checkout'
+import { Route as ApiChallengesRouteImport } from './routes/api.challenges'
 import { Route as ApiBoardsRouteImport } from './routes/api.boards'
 import { Route as ApiAuthRouteImport } from './routes/api.auth'
 import { Route as ApiAssistantRouteImport } from './routes/api.assistant'
@@ -195,6 +196,11 @@ const ApiCheckoutRoute = ApiCheckoutRouteImport.update({
   path: '/api/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChallengesRoute = ApiChallengesRouteImport.update({
+  id: '/api/challenges',
+  path: '/api/challenges',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBoardsRoute = ApiBoardsRouteImport.update({
   id: '/api/boards',
   path: '/api/boards',
@@ -269,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/api/assistant': typeof ApiAssistantRoute
   '/api/auth': typeof ApiAuthRoute
   '/api/boards': typeof ApiBoardsRoute
+  '/api/challenges': typeof ApiChallengesRoute
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/consents': typeof ApiConsentsRoute
   '/api/cycles': typeof ApiCyclesRoute
@@ -311,6 +318,7 @@ export interface FileRoutesByTo {
   '/api/assistant': typeof ApiAssistantRoute
   '/api/auth': typeof ApiAuthRoute
   '/api/boards': typeof ApiBoardsRoute
+  '/api/challenges': typeof ApiChallengesRoute
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/consents': typeof ApiConsentsRoute
   '/api/cycles': typeof ApiCyclesRoute
@@ -354,6 +362,7 @@ export interface FileRoutesById {
   '/api/assistant': typeof ApiAssistantRoute
   '/api/auth': typeof ApiAuthRoute
   '/api/boards': typeof ApiBoardsRoute
+  '/api/challenges': typeof ApiChallengesRoute
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/consents': typeof ApiConsentsRoute
   '/api/cycles': typeof ApiCyclesRoute
@@ -398,6 +407,7 @@ export interface FileRouteTypes {
     | '/api/assistant'
     | '/api/auth'
     | '/api/boards'
+    | '/api/challenges'
     | '/api/checkout'
     | '/api/consents'
     | '/api/cycles'
@@ -440,6 +450,7 @@ export interface FileRouteTypes {
     | '/api/assistant'
     | '/api/auth'
     | '/api/boards'
+    | '/api/challenges'
     | '/api/checkout'
     | '/api/consents'
     | '/api/cycles'
@@ -482,6 +493,7 @@ export interface FileRouteTypes {
     | '/api/assistant'
     | '/api/auth'
     | '/api/boards'
+    | '/api/challenges'
     | '/api/checkout'
     | '/api/consents'
     | '/api/cycles'
@@ -525,6 +537,7 @@ export interface RootRouteChildren {
   ApiAssistantRoute: typeof ApiAssistantRoute
   ApiAuthRoute: typeof ApiAuthRoute
   ApiBoardsRoute: typeof ApiBoardsRoute
+  ApiChallengesRoute: typeof ApiChallengesRoute
   ApiCheckoutRoute: typeof ApiCheckoutRoute
   ApiConsentsRoute: typeof ApiConsentsRoute
   ApiCyclesRoute: typeof ApiCyclesRoute
@@ -756,6 +769,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/challenges': {
+      id: '/api/challenges'
+      path: '/api/challenges'
+      fullPath: '/api/challenges'
+      preLoaderRoute: typeof ApiChallengesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/boards': {
       id: '/api/boards'
       path: '/api/boards'
@@ -853,6 +873,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAssistantRoute: ApiAssistantRoute,
   ApiAuthRoute: ApiAuthRoute,
   ApiBoardsRoute: ApiBoardsRoute,
+  ApiChallengesRoute: ApiChallengesRoute,
   ApiCheckoutRoute: ApiCheckoutRoute,
   ApiConsentsRoute: ApiConsentsRoute,
   ApiCyclesRoute: ApiCyclesRoute,

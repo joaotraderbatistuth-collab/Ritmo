@@ -62,6 +62,7 @@ import { XpBurst } from '../components/XpBurst.js';
 import { MissionsCard, LastWeekBanner, StreakCard, WeekSummaryCard } from '../components/Missions.js';
 import { ProgressFab, SeasonCard, SeasonResultModal } from '../components/Season.js';
 import { MedalsCard, RecapCard } from '../components/Medals.js';
+import { ChallengesCard, JoinChallengeModal } from '../components/Challenges.js';
 import { useFxPrefs } from '../components/XpBurst.js';
 import { ProfilePhotoCard } from '../components/ProfilePhotoCard.js';
 import { TabWorkout, WorkoutLiveBar } from '../components/TabWorkout.js';
@@ -85,6 +86,7 @@ function RitmoApp() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [challengeInvite, setChallengeInvite] = useState<string | null>(null);
   // Pesquisa de perfil: 'checking' até o servidor responder; a apresentação só abre depois ('done').
   const [surveyStage, setSurveyStage] = useState<'checking' | 'open' | 'done'>('checking');
   const [teamInvite, setTeamInvite] = useState<string | null>(null);
@@ -181,6 +183,11 @@ function RitmoApp() {
       } catch {}
 
       // Notificação tocada (/app?tab=foco): abre direto na aba certa
+      // convite de desafio (?desafio=CODIGO): guarda até a pessoa entrar
+      const desafio = (urlParams.get('desafio') || '').toUpperCase();
+      if (/^[A-HJ-NP-Z2-9]{7}$/.test(desafio)) {
+        try { localStorage.setItem('ritmo_challenge_invite', desafio); } catch {}
+      }
       const tabParam = urlParams.get('tab');
       if (tabParam && /^[a-z]{3,20}$/.test(tabParam)) setActiveTab(tabParam);
 
@@ -322,6 +329,14 @@ function RitmoApp() {
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, surveyStage]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const c = localStorage.getItem('ritmo_challenge_invite');
+      if (c) setChallengeInvite(c);
+    } catch {}
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -701,6 +716,7 @@ function RitmoApp() {
             <div className="max-w-5xl mx-auto">
               {activeTab === 'feed' && <LastWeekBanner data={xp.data} />}
               {activeTab === 'hoje' && <NextStepCard steps={steps} comeback={Boolean(xp.data?.comebackToday)} onRun={runStep} />}
+              {activeTab === 'hoje' && <ChallengesCard compact refreshKey={xpSignature} onChanged={() => xp.refresh()} />}
               <MissionsCard
                 data={xp.data}
                 onGo={goMission}
@@ -818,6 +834,7 @@ function RitmoApp() {
           {activeTab === 'progresso' && user && (
             <div className="mb-6 max-w-5xl mx-auto space-y-6">
               <SeasonCard season={xp.data?.season} optedOut={Boolean(xp.data?.leagueOptOut)} onChanged={() => xp.refresh()} />
+              <ChallengesCard refreshKey={xpSignature} onChanged={() => xp.refresh()} />
               <div className="grid gap-6 lg:grid-cols-2">
                 <RecapCard recap={xp.data?.recap} name={user.name} history={xp.data?.season?.history || []} medalsEarned={(xp.data?.medals || []).filter((m) => m.earned).length} />
                 <MedalsCard medals={xp.data?.medals} />
@@ -920,6 +937,17 @@ function RitmoApp() {
         />
       )}
       {user && <SeasonResultModal season={xp.data?.season} userId={user.id} />}
+      {user && challengeInvite && (
+        <JoinChallengeModal
+          code={challengeInvite}
+          onDone={() => {
+            try { localStorage.removeItem('ritmo_challenge_invite'); } catch {}
+            setChallengeInvite(null);
+            setActiveTab('progresso');
+            xp.refresh();
+          }}
+        />
+      )}
       <LevelUpModal info={xp.levelUp} initials={userInitials} avatarUrl={xp.data?.avatarUrl} onClose={xp.closeLevelUp} />
 
       {/* Auth Modal */}

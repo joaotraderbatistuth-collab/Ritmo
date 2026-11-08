@@ -321,6 +321,37 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS "season_months_group_idx" ON "season_months" ("month", "tier", "group_no")`,
 
+  // ---- desafios em dupla ou trio
+  `CREATE TABLE IF NOT EXISTS "challenges" (
+    "id" serial PRIMARY KEY,
+    "code" text NOT NULL UNIQUE,
+    "creator_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "kind" text NOT NULL,
+    "target" integer NOT NULL,
+    "days" integer NOT NULL,
+    "start_day" text NOT NULL,
+    "end_day" text NOT NULL,
+    "title" text DEFAULT '' NOT NULL,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS "challenge_members" (
+    "challenge_id" integer NOT NULL REFERENCES "challenges"("id") ON DELETE CASCADE,
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "status" text DEFAULT 'invited' NOT NULL,
+    "joined_at" timestamp DEFAULT now() NOT NULL,
+    PRIMARY KEY ("challenge_id", "user_id")
+  )`,
+  `CREATE INDEX IF NOT EXISTS "challenge_members_user_idx" ON "challenge_members" ("user_id")`,
+
+  // ---- teto de notificações automáticas por dia
+  `CREATE TABLE IF NOT EXISTS "push_log" (
+    "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "day" text NOT NULL,
+    "count" integer DEFAULT 0 NOT NULL,
+    "kinds" text DEFAULT '' NOT NULL,
+    PRIMARY KEY ("user_id", "day")
+  )`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

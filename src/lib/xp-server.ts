@@ -4,6 +4,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { computeXp, levelInfo, XpResult, LevelInfo, XpSource } from './levels.js';
+import { challengeProgress, isChallengeKind } from './challenges.js';
 import {
   checkDb,
   findUserById,
@@ -124,7 +125,7 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     }
   }
 
-  const result = computeXp({
+  const xpInput = {
     habitLogs: logs.map((l) => ({ date: l.date, completed: l.completed })),
     tasks: tasks.map((t) => ({ date: t.date, completed: t.completed, completedAt: t.completedAt ? toDay(t.completedAt) : null, createdAt: t.createdAt ? toDay(t.createdAt) : null })),
     sessions: sessions.map((s) => ({ date: s.date, status: s.status, durationMinutes: s.durationMinutes })),
@@ -138,7 +139,30 @@ export async function getUserXp(userId: number): Promise<UserXp | null> {
     since: (user as any).createdAt ? toDay((user as any).createdAt) : null,
     today,
     seed: userId,
-  });
+  };
+  let result = computeXp(xpInput);
+  // desafios com amigos: quem bate a própria meta ganha pontos no dia em que bateu
+  if (await checkDb()) {
+    try {
+      const mine = await db
+        .select({ kind: schema.challenges.kind, target: schema.challenges.target, startDay: schema.challenges.startDay, endDay: schema.challenges.endDay })
+        .from(schema.challengeMembers)
+        .innerJoin(schema.challenges, eq(schema.challenges.id, schema.challengeMembers.challengeId))
+        .where(and(eq(schema.challengeMembers.userId, userId), eq(schema.challengeMembers.status, 'active')));
+      const extra: { src: XpSource; day: string }[] = [];
+      for (const ch of mine) {
+        if (!isChallengeKind(ch.kind)) continue;
+        // o progresso usa a 1ª conta (sem o bônus do próprio desafio), para não virar bola de neve
+        const p = challengeProgress(ch.kind, result.days as any, ch.startDay, ch.endDay, today, ch.target);
+        if (p.doneDay) extra.push({ src: 'desafio', day: p.doneDay });
+      }
+      challengesDone = extra.length;
+      if (extra.length) result = computeXp({ ...xpInput, events: [...events, ...extra] });
+    } catch {
+      // desafios ainda sendo criados
+    }
+  }
+
   const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 86400_000).toISOString().slice(0, 10);
   const planejar = tasks.filter((t) => t.date === tomorrow && t.createdAt && toDay(t.createdAt) === today).length;
   const info = levelInfo(result.total);

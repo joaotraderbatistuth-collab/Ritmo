@@ -231,8 +231,10 @@ export async function syncSeason(userId: number, xp: UserXp) {
       [mine] = await db.select().from(T).where(and(eq(T.userId, userId), eq(T.month, month)));
       if (!mine) return null;
     } else if (mine.xp !== points) {
+      const before = mine.xp;
       await db.update(T).set({ xp: points, updatedAt: new Date() }).where(and(eq(T.userId, userId), eq(T.month, month)));
       mine = { ...mine, xp: points };
+      if (points > before) warnOvertaken(userId, month, mine.tier, mine.groupNo, before, points).catch(() => null);
     }
 
     const rows = await db
@@ -316,4 +318,28 @@ export async function refreshSeasonPoints(limit = 25, now = new Date()) {
     }
   }
   return { refreshed };
+}
+
+/** Avisa quem acabou de ser ultrapassado no grupo (conta no teto de notificações; 1 aviso desse tipo por dia). */
+async function warnOvertaken(userId: number, month: string, tier: number, groupNo: number, before: number, after: number) {
+  const T = schema.seasonMonths;
+  const rows = await db
+    .select({ userId: T.userId, xp: T.xp, optOut: schema.users.leagueOptOut })
+    .from(T)
+    .innerJoin(schema.users, eq(schema.users.id, T.userId))
+    .where(and(eq(T.month, month), eq(T.tier, tier), eq(T.groupNo, groupNo)));
+  const passed = rows.filter((r) => r.userId !== userId && !r.optOut && r.xp >= before && r.xp < after);
+  if (!passed.length) return;
+  const [me] = await db.select({ name: schema.users.name }).from(schema.users).where(eq(schema.users.id, userId));
+  const who = displayName(me?.name);
+  const { notifyAuto } = await import('./push-server.js');
+  for (const r of passed.slice(0, 5)) {
+    const gap = after - r.xp + 1;
+    await notifyAuto(r.userId, 'ultrapassagem', {
+      title: `${who} passou você na temporada`,
+      body: `Faltam ${gap} ${gap === 1 ? 'ponto' : 'pontos'} para você voltar à frente. Um hábito ou um foco já resolve.`,
+      tab: 'progresso',
+      tag: 'ritmo-ranking',
+    });
+  }
 }

@@ -170,6 +170,7 @@ const SOURCE_HINT: Record<XpSource, string> = {
   curtida: 'Feed',
   seguir: 'Feed',
   perfil: 'Configurações → Seus gostos',
+  desafio: 'Progresso → Desafios',
 };
 
 export const LevelCard: React.FC<{ data: XpData | null; initials: string; onEditPhoto?: () => void }> = ({ data, initials, onEditPhoto }) => {

@@ -21,6 +21,11 @@ import { detectStop, detectResume, personalRecords, newRecords, recordValueLabel
 import { pickMissions, missionProgress, chestReward, computeStreak, nextMilestone, weekSummary, nextTier, rankInGroup, mondayOf, MISSION_POOL } from '../src/lib/missions.js';
 import { computeNotices } from '../src/lib/notices.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
+import { nextSteps } from '../src/lib/next-step.js';
+import { computeMedals, monthRecap, MEDALS, PUBLIC_MEDAL_GROUPS } from '../src/lib/medals.js';
+import { suggestedTarget, clampTarget, challengeProgress, challengeStatus, challengeNudge, challengeCode, isChallengeCode } from '../src/lib/challenges.js';
+import { canSendAuto, DAILY_PUSH_MAX } from '../src/lib/nudges.js';
+import { starterHabits } from '../src/lib/survey.js';
 import { DIVISIONS, TOP_TIER, zoneSizes, zoneFor, nextDivision, seasonGoals, seasonNudge, seasonPoints, daysLeftIn, prevMonth, lastDayOf, seasonLabel, rankOf } from '../src/lib/season.js';
 import { luckyDrop, LUCKY_START, nextCombo, goalProgress, normalizeGoal, cheerFor, nearNextLevel, gainTone, COMBO_WINDOW_MS } from '../src/lib/rewards.js';
 import { nextDateAfter, normalizeTaskRule } from '../src/lib/recurrence.js';
@@ -470,7 +475,7 @@ export function runTests() {
   assert(computeXp({ ...emptyXp, since: '2026-11-01', habitLogs: [{ date: '2025-01-01', completed: true }, { date: '2026-12-01', completed: true }] }).total === 0, 'não conta antes da conta existir nem no futuro');
   const mixed = computeXp({ ...emptyXp, tasks: [{ date: '2026-11-01', completed: true, completedAt: '2026-11-05' }], sessions: [{ date: '2026-11-05', status: 'completed' }, { date: '2026-11-05', status: 'interrupted' }], journal: [{ date: '2026-11-05', entryType: 'daily_checkin' }, { date: '2026-11-05', entryType: 'daily_checkin' }, { date: '2026-11-02', entryType: 'weekly_review' }] });
   assert(mixed.breakdown.tarefa.xp === 5 && mixed.breakdown.foco.count === 1 && mixed.breakdown.diario.count === 1 && mixed.breakdown.revisao.xp === 30 && mixed.todayXp === 5 + 15 + 15, 'tarefa pelo dia de conclusão, foco só concluído, diário 1x por dia');
-  assert(XP_DAILY_MAX < 600, 'limite diário total equilibrado');
+  assert(XP_DAILY_MAX < 700, 'limite diário total equilibrado');
   assert(sanitizeAchievementT({ type: 'nivel', level: 4, name: 'Hacker' })?.type === 'nivel' && (sanitizeAchievementT({ type: 'nivel', level: 4, name: 'Hacker' }) as any).name === 'Constante', 'nome do nível vem da tabela, não do navegador');
   assert(sanitizeAchievementT({ type: 'nivel', level: 1 }) === null && sanitizeAchievementT({ type: 'nivel', level: 99 }) === null, 'nível inválido para compartilhar é recusado');
   assert(achievementHeadline({ type: 'nivel', level: 5, name: 'Focado' }) === 'Subiu para o nível 5: Focado', 'texto da conquista de nível');
@@ -927,6 +932,84 @@ export function runTests() {
     assert(Boolean(sanitizeAchievementT({ type: 'divisao', tier: 3, name: 'Hackeada' })) && (sanitizeAchievementT({ type: 'divisao', tier: 3, name: 'x' }) as any).name === 'Safira' && sanitizeAchievementT({ type: 'divisao', tier: 0 }) === null, 'conquista de divisão usa o nome da tabela');
   }
   console.log('✓ Temporada mensal ok');
+
+  // ---- Próximo passo
+  {
+    const base = { hour: 9, today: '2026-11-09', habits: [{ id: 1, name: 'Beber água' }, { id: 2, name: 'Ler' }], habitsDoneToday: [], tasksToday: [], plannedTomorrow: false, focusToday: 0, diaryToday: false, trainedToday: false, trainingDaysThisWeek: 0, billsDue: [], missions: [], chestReady: false };
+    const s1 = nextSteps(base);
+    assert(s1[0].id === 'planejar-hoje' && s1[1].kind === 'habit' && s1[1].ref === 1, `manhã sem tarefas: planejar primeiro, depois o hábito: ${s1.map((x) => x.id)}`);
+    const s2 = nextSteps({ ...base, tasksToday: [{ id: 9, title: 'Relatório', completed: false, startTime: '14:00' }, { id: 8, title: 'Email', completed: false, startTime: '10:00' }] });
+    assert(s2[0].kind === 'habit' && s2.find((x) => x.kind === 'task')?.ref === 8, 'tarefa mais cedo vem primeiro');
+    assert(nextSteps({ ...base, chestReady: true })[0].kind === 'chest', 'baú pronto é o primeiro');
+    const night = nextSteps({ ...base, hour: 21, tasksToday: [{ id: 1, title: 'x', completed: true }] });
+    assert(night[0].id === 'diario', `à noite, o check-in vem primeiro: ${night[0].id}`);
+    const tr = nextSteps({ ...base, habits: [], tasksToday: [{ id: 1, title: 'x', completed: true }], trainingDaysThisWeek: 2 });
+    assert(tr[0].id === 'treino' && tr[0].xp === 30, 'treino mostra o bônus de constância (3º dia: +20 +10)');
+    const all = nextSteps({ ...base, habits: [], tasksToday: [{ id: 1, title: 'x', completed: true }], plannedTomorrow: true, focusToday: 1, diaryToday: true, trainedToday: true });
+    assert(all.length === 1 && all[0].id === 'feito', 'tudo feito: dia completo');
+  }
+  console.log('✓ Próximo passo ok');
+
+  // ---- Conquistas, retrospectiva e volta
+  {
+    assert(new Set(MEDALS.map((m) => m.id)).size === MEDALS.length && MEDALS.length >= 30, 'mais de 30 conquistas, sem id repetido');
+    const dd: any = { '2026-11-02': { xp: 30, raw: { treino: 1, habito: 2 } }, '2026-11-03': { xp: 20, raw: { treino: 1 } }, '2026-11-05': { xp: 40, raw: { treino: 2, foco: 1 } }, '2026-10-30': { xp: 10, raw: { habito: 1 } } };
+    const md = computeMedals({ days: dd, counts: { habito: 12, foco: 3 }, activeDays: 4, bestStreak: 3, level: 2, seasonMaxTier: 1, workouts: [{ day: '2026-11-02', distanceM: 5200 }, { day: '2026-11-05', distanceM: 3000 }], challengesDone: 0 });
+    const by = Object.fromEntries(md.map((m) => [m.id, m]));
+    assert(by.ativo1.earned && !by.ativo7.earned && by.ativo7.progress === 4, 'dias ativos');
+    assert(by.habito10.earned && by.treino1.earned && by.semana3.earned && by.km5.earned && !by.km42.earned && by.km42.progress === 8, 'treino: semana constante, 5 km e soma de km');
+    assert(by.divisao1.earned && !by.divisao3.earned, 'temporada');
+    assert(!PUBLIC_MEDAL_GROUPS.includes('Hábitos') && !PUBLIC_MEDAL_GROUPS.includes('Finanças') && !PUBLIC_MEDAL_GROUPS.includes('Diário'), 'perfil público não mostra hábitos, finanças nem diário');
+    const rc = monthRecap(dd, [{ day: '2026-11-02', distanceM: 5200 }, { day: '2026-10-01', distanceM: 1000 }], '2026-11');
+    assert(rc.points === 90 && rc.activeDays === 3 && rc.trainDays === 3 && rc.km === 5.2 && rc.bestDay?.day === '2026-11-05', `retrospectiva: ${JSON.stringify(rc)}`);
+    // volta depois de 3 dias parado: pontos em dobro (até 50)
+    const cb = computeXp({ ...emptyXp, today: '2026-11-10', habitLogs: [{ date: '2026-11-01', completed: true }, { date: '2026-11-05', completed: true }, { date: '2026-11-06', completed: true }] });
+    assert(cb.comebackXp === 10 && cb.total === 40, `volta em dobro: ${cb.comebackXp}/${cb.total}`);
+    assert(cb.comebackToday === true, 'hoje (4 dias depois) também é dia de volta');
+    const big = computeXp({ ...emptyXp, today: '2026-11-06', sessions: [{ date: '2026-11-01', status: 'completed' }, ...Array.from({ length: 6 }, () => ({ date: '2026-11-06', status: 'completed', durationMinutes: 50 }))] });
+    assert(big.comebackXp === 50, 'dobro limitado a +50');
+    assert(computeXp({ ...emptyXp, today: '2026-11-03', habitLogs: [{ date: '2026-11-01', completed: true }] }).comebackToday === false, '2 dias parado ainda não é volta');
+  }
+  console.log('✓ Conquistas, retrospectiva e volta ok');
+
+  // ---- Desafios
+  {
+    assert(suggestedTarget('treino', 7) === 4 && suggestedTarget('treino', 3) === 2 && suggestedTarget('habito', 14) === 28 && suggestedTarget('pontos', 7) === 300, 'metas sugeridas');
+    assert(clampTarget('treino', 7, 30) === 7 && clampTarget('foco', 7, 0) === 7, 'meta dentro do possível');
+    const dd: any = { '2026-11-02': { xp: 30, raw: { treino: 1 } }, '2026-11-03': { xp: 10, raw: { treino: 2 } }, '2026-11-05': { xp: 50, raw: { treino: 1 } }, '2026-11-12': { xp: 99, raw: { treino: 1 } } };
+    const p = challengeProgress('treino', dd, '2026-11-02', '2026-11-08', '2026-11-10', 3);
+    assert(p.value === 3 && p.doneDay === '2026-11-05', 'conta dias de treino (não treinos) e o dia em que bateu');
+    assert(challengeProgress('pontos', dd, '2026-11-02', '2026-11-08', '2026-11-04', 100).value === 40, 'não conta além de hoje');
+    assert(challengeStatus('2026-11-02', '2026-11-08', '2026-11-09') === 'ended' && challengeStatus('2026-11-02', '2026-11-08', '2026-11-02') === 'active', 'situação do desafio');
+    assert(challengeNudge('treino', 4, { value: 1 }, [{ name: 'Ana', value: 3 }], 3).startsWith('Ana está na frente'), 'incentivo quando alguém está na frente');
+    assert(challengeNudge('treino', 4, { value: 4 }, [{ name: 'Ana', value: 3 }], 3).includes('Dê uma força para Ana'), 'quem já cumpriu ajuda o outro');
+    let seed = 1;
+    const code = challengeCode(() => ((seed = (seed * 9301 + 49297) % 233280) / 233280));
+    assert(isChallengeCode(code) && !isChallengeCode('abc') && !isChallengeCode('ABCDEF0'), `código do convite: ${code}`);
+    const dz = computeXp({ ...emptyXp, events: [{ src: 'desafio', day: '2026-11-05' }, { src: 'desafio', day: '2026-11-05' }, { src: 'desafio', day: '2026-11-05' }] });
+    assert(dz.total === 100, 'desafio cumprido vale +50 (até 2 por dia)');
+  }
+  console.log('✓ Desafios ok');
+
+  // ---- Notificações: no máximo 4 por dia
+  {
+    assert(DAILY_PUSH_MAX === 4, 'teto de 4 por dia');
+    assert(canSendAuto(null, 'lembrete') && canSendAuto({ count: 3, kinds: ['lembrete', 'lembrete', 'lembrete'] }, 'ultrapassagem'), 'cabe mais uma até 4');
+    assert(!canSendAuto({ count: 4, kinds: ['lembrete', 'lembrete', 'ultrapassagem', 'desafio'] }, 'lembrete'), 'quinta notificação não sai');
+    assert(!canSendAuto({ count: 1, kinds: ['ultrapassagem'] }, 'ultrapassagem'), 'cada aviso de evento 1 vez por dia');
+    assert(!canSendAuto({ count: 2, kinds: ['ultrapassagem', 'desafio'] }, 'seguidor'), 'no máximo 2 avisos de evento por dia');
+    const pool = NUDGES.filter((n) => n.slot === 'tarde');
+    assert(pool.length >= 24 && new Set([1, 2, 3, 4, 5].map((d) => pickNudge('tarde', `2026-11-0${d}`, 7).id)).size === 5, 'lembretes revezam todo dia');
+  }
+  console.log('✓ Notificações com teto ok');
+
+  // ---- Cadastro em 1 minuto: hábitos iniciais
+  {
+    const sh = starterHabits({ objetivos: ['saude', 'financas'] });
+    assert(sh.length === 2 && sh[0].name === 'Caminhar 20 minutos' && sh[1].name === 'Anotar os gastos do dia', `hábitos pelos objetivos: ${JSON.stringify(sh)}`);
+    assert(starterHabits({}).length === 2 && starterHabits({ objetivos: ['saude'] }).map((h) => h.category).join() === 'movimento,alimentacao', 'sempre 2 hábitos');
+  }
+  console.log('✓ Hábitos iniciais ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

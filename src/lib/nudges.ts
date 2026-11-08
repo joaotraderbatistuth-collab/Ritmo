@@ -89,6 +89,19 @@ export const NUDGES: Nudge[] = [
   N('n19', 'noite', 'feed', 'Poste a foto do treino ou da janta', 'Uma foto vale mais que mil intenções. Mostre no Feed o que você fez hoje.'),
   N('n20', 'noite', 'rotina', 'Amanhã começa agora', 'Três tarefas para amanhã, separadas por manhã, tarde e noite. Pronto.'),
   N('n21', 'noite', 'foco', 'Quanto você focou hoje?', 'Veja os minutos de foco do dia. Amanhã tente um bloco a mais.'),
+  // temporada, conquistas, desafios e próximo passo (as que mais trazem a pessoa de volta)
+  N('m30', 'manha', 'hoje', 'Seu próximo passo já está pronto', 'Abra o Ritmo: um toque e você já começa o dia com pontos.'),
+  N('m31', 'manha', 'progresso', 'A temporada está rolando', 'Veja sua posição no grupo e quanto falta para a zona de subida.'),
+  N('m32', 'manha', 'treino', 'Constância vale mais que intensidade', 'Um treino leve hoje conta como dia de treino e soma bônus na semana.'),
+  N('m33', 'manha', 'progresso', 'Tem conquista quase saindo', 'Confira em Progresso qual medalha está mais perto. Às vezes falta 1 passo.'),
+  N('t30', 'tarde', 'progresso', 'Como está o seu grupo?', 'Alguém pode ter passado você no ranking. Dá tempo de virar hoje.'),
+  N('t31', 'tarde', 'hoje', 'Meta do dia pela metade?', 'Uma ação rápida agora enche o anel da sua meta de pontos.'),
+  N('t32', 'tarde', 'progresso', 'Chame alguém para um desafio', 'Você e um amigo, 5 treinos na semana. Junto fica bem mais fácil.'),
+  N('t33', 'tarde', 'hoje', 'Combo de pontos', 'Faça duas coisas seguidas (um hábito e uma tarefa) e veja o combo subir.'),
+  N('n30', 'noite', 'hoje', 'Feche o dia com chave de ouro', 'Falta pouco para o baú? Confira as missões antes de dormir.'),
+  N('n31', 'noite', 'progresso', 'Seu mês em números', 'Veja a retrospectiva do mês: pontos, dias ativos e conquistas.'),
+  N('n32', 'noite', 'progresso', 'Mais perto da próxima divisão', 'Cada ponto de hoje conta para a temporada. Veja quanto falta.'),
+  N('n33', 'noite', 'diario', 'Um minuto para você', 'Check-in do dia: energia, humor e o que funcionou. Vale 15 pontos.'),
 ];
 
 /** Período do dia a partir da hora local (0–23). Madrugada não recebe lembrete. */
@@ -97,6 +110,27 @@ export function slotForHour(hour: number): NudgeSlot | null {
   if (hour >= 12 && hour < 18) return 'tarde';
   if (hour >= 18 && hour < 23) return 'noite';
   return null;
+}
+
+/** Teto de notificações AUTOMÁTICAS por pessoa por dia (lembretes do dia + avisos de ranking, desafio, seguidor).
+ *  Os lembretes que a própria pessoa pede ao secretário não entram nessa conta. */
+export const DAILY_PUSH_MAX = 4;
+/** Avisos de evento (não os do horário escolhido) que podem sair por dia, no máximo. */
+export const DAILY_EVENT_MAX = 2;
+
+export interface PushLog {
+  count: number;
+  kinds: string[];
+}
+
+/** Pode mandar mais uma? Teto do dia, no máximo 2 de evento e cada tipo de evento 1 vez por dia. */
+export function canSendAuto(log: PushLog | null, kind: string): boolean {
+  const l = log || { count: 0, kinds: [] };
+  if (l.count >= DAILY_PUSH_MAX) return false;
+  if (kind === 'lembrete') return true;
+  const events = l.kinds.filter((k) => k !== 'lembrete');
+  if (events.length >= DAILY_EVENT_MAX) return false;
+  return !events.includes(kind);
 }
 
 /** Horários (locais) em que a notificação no celular é enviada, conforme quantas por dia a pessoa quer. */

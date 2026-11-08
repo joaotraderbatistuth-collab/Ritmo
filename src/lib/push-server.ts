@@ -8,7 +8,7 @@ import { and, eq, inArray, isNull, lt, lte, or } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { checkDb } from './server-db.js';
-import { normalizePushHours, personalize, pickNudge, slotForAnyHour } from './nudges.js';
+import { canSendAuto, normalizePushHours, personalize, pickNudge, slotForAnyHour, PushLog } from './nudges.js';
 
 let cachedKeys: { publicKey: string; privateKey: string } | null = null;
 
@@ -157,15 +157,22 @@ export async function sendDueNudges(now: Date = new Date()) {
   let sent = 0;
   let removed = 0;
   const done: number[] = [];
+  const sentTo = new Set<number>();
   for (const s of subs) {
     if (s.status === 'suspended') continue;
     const { ymd, hour } = localParts(now, s.timezone || 'America/Sao_Paulo');
     if (!normalizePushHours(s.hours, s.perDay).includes(hour)) continue;
+    // teto do dia (avisos de ranking/desafio também contam); um envio por pessoa, mesmo com 2 aparelhos
+    if (!sentTo.has(s.userId) && !canSendAuto(await readPushLog(s.userId, ymd), 'lembrete')) continue;
     const slot = slotForAnyHour(hour);
     const n = pickNudge(slot, ymd, s.userId);
     try {
       await sendOne(s, { title: personalize(n.title, s.name), body: personalize(n.body, s.name), tab: n.tab, tag: `ritmo-${slot}` }, keys, { urgency: 'normal' });
       sent++;
+      if (!sentTo.has(s.userId)) {
+        sentTo.add(s.userId);
+        await addPushLog(s.userId, ymd, 'lembrete');
+      }
       done.push(s.id);
     } catch (e: any) {
       if (e?.statusCode === 404 || e?.statusCode === 410) {
@@ -182,6 +189,45 @@ export async function sendDueNudges(now: Date = new Date()) {
  * Lembretes do secretário: chamado a cada 5 minutos pelo agendador.
  * Envia os lembretes que já venceram (até 3 horas de atraso) para os aparelhos da pessoa.
  */
+/* ---------------- Teto diário de notificações automáticas ---------------- */
+
+async function readPushLog(userId: number, day: string): Promise<PushLog | null> {
+  try {
+    const [r] = await db.select().from(schema.pushLog).where(and(eq(schema.pushLog.userId, userId), eq(schema.pushLog.day, day)));
+    return r ? { count: r.count, kinds: r.kinds ? r.kinds.split(',').filter(Boolean) : [] } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function addPushLog(userId: number, day: string, kind: string) {
+  try {
+    const cur = await readPushLog(userId, day);
+    const kinds = [...(cur?.kinds || []), kind].join(',');
+    await db
+      .insert(schema.pushLog)
+      .values({ userId, day, count: 1, kinds: kind })
+      .onConflictDoUpdate({ target: [schema.pushLog.userId, schema.pushLog.day], set: { count: (cur?.count || 0) + 1, kinds } });
+  } catch (e) {
+    console.error('[push] registrar envio', e);
+  }
+}
+
+/**
+ * Aviso automático (ranking, desafio, seguidor...): respeita o teto de 4 por dia, no máximo 2 de evento
+ * e cada tipo 1 vez por dia. Devolve quantos aparelhos receberam (0 se ficou de fora do teto).
+ */
+export async function notifyAuto(userId: number, kind: string, payload: { title: string; body: string; tab?: string; tag?: string }) {
+  if (!(await checkDb())) return 0;
+  const [u] = await db.select({ tz: schema.users.timezone, optOut: schema.users.pushOptOut }).from(schema.users).where(eq(schema.users.id, userId));
+  if (!u || u.optOut) return 0;
+  const { ymd } = localParts(new Date(), u.tz || 'America/Sao_Paulo');
+  if (!canSendAuto(await readPushLog(userId, ymd), kind)) return 0;
+  const sent = await notifyUser(userId, payload);
+  if (sent > 0) await addPushLog(userId, ymd, kind);
+  return sent;
+}
+
 /** Manda uma notificação para todos os aparelhos de uma pessoa (se ela ligou as notificações). */
 export async function notifyUser(userId: number, payload: { title: string; body: string; tab?: string; tag?: string }) {
   if (!(await checkDb())) return 0;

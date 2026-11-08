@@ -633,7 +633,7 @@ export async function toggleFollow(viewerId: number, targetId: number) {
     if (ins.length) {
       const [me] = await db.select({ name: schema.users.name }).from(schema.users).where(eq(schema.users.id, viewerId));
       import('./push-server.js')
-        .then((m) => m.notifyUser(targetId, { title: 'Novo seguidor no Ritmo', body: `${displayName(me?.name)} começou a seguir você.`, tab: 'feed', tag: `ritmo-follow-${viewerId}` }))
+        .then((m) => m.notifyAuto(targetId, 'seguidor', { title: 'Novo seguidor no Ritmo', body: `${displayName(me?.name)} começou a seguir você.`, tab: 'feed', tag: `ritmo-follow-${viewerId}` }))
         .catch(() => null);
     }
   }

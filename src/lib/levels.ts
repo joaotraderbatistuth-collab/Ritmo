@@ -27,7 +27,8 @@ export type XpSource =
   | 'comentario'
   | 'curtida'
   | 'seguir'
-  | 'perfil';
+  | 'perfil'
+  | 'desafio';
 
 /**
  * Tudo no Ritmo vale ponto: coisas simples valem pouco, coisas que pedem mais esforço valem mais.
@@ -54,6 +55,7 @@ export const XP_RULES: Record<XpSource, { xp: number; dailyCap: number; label: s
   curtida: { xp: 1, dailyCap: 10, label: 'Curtida no Feed' },
   seguir: { xp: 2, dailyCap: 5, label: 'Pessoa seguida' },
   perfil: { xp: 30, dailyCap: 1, label: 'Pesquisa de gostos respondida (uma vez)' },
+  desafio: { xp: 50, dailyCap: 2, label: 'Meta de desafio com amigos cumprida' },
 };
 
 export const XP_SOURCES = Object.keys(XP_RULES) as XpSource[];

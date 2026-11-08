@@ -42,6 +42,9 @@ const OWN: [string, AnyTable, string][] = [
   ['pessoas_que_voce_segue', schema.follows, 'followerId'],
   ['pesquisa_de_gostos', schema.profileSurveys, 'userId'],
   ['temporadas_mensais', schema.seasonMonths, 'userId'],
+  ['desafios_criados', schema.challenges, 'creatorId'],
+  ['desafios_que_participa', schema.challengeMembers, 'userId'],
+  ['notificacoes_por_dia', schema.pushLog, 'userId'],
 ];
 
 /** Campos que nunca saem na exportação. */

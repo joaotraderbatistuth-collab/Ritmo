@@ -604,3 +604,32 @@ export const seasonMonths = pgTable("season_months", {
   prevRank: integer("prev_rank"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Desafios em dupla ou trio (ver src/lib/challenges.ts).
+export const challenges = pgTable("challenges", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  creatorId: integer("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // treino | habito | foco | tarefa | diario | pontos
+  target: integer("target").notNull(),
+  days: integer("days").notNull(),
+  startDay: text("start_day").notNull(), // YYYY-MM-DD
+  endDay: text("end_day").notNull(),
+  title: text("title").notNull().default(""),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const challengeMembers = pgTable("challenge_members", {
+  challengeId: integer("challenge_id").notNull().references(() => challenges.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("invited"), // invited | active | declined | left
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+// Quantas notificações automáticas cada pessoa recebeu no dia (teto de 4; ver canSendAuto em nudges.ts).
+export const pushLog = pgTable("push_log", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  day: text("day").notNull(), // YYYY-MM-DD no fuso da pessoa
+  count: integer("count").notNull().default(0),
+  kinds: text("kinds").notNull().default(""), // tipos enviados no dia, separados por vírgula
+});
