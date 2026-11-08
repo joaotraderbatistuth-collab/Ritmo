@@ -38,14 +38,27 @@ export function isRoadmapDuration(n: number): n is RoadmapDuration {
   return n === 7 || n === 21 || n === 40 || n === 90;
 }
 
+/** Dias dos marcos para QUALQUER duração (escolhida livremente): os padrões para 7/21/40/90 e,
+ *  para os outros, marcos espalhados de forma uniforme (de 3 a 7, conforme o tamanho). */
+export function stepDaysFor(total: number): number[] {
+  const n = Math.max(1, Math.min(365, Math.round(total) || 7));
+  if (isRoadmapDuration(n)) return STEP_DAYS[n];
+  if (n <= 3) return [...new Set([1, n])];
+  const count = n <= 10 ? 4 : n <= 30 ? 5 : n <= 60 ? 6 : 7;
+  const out = new Set<number>([1]);
+  for (let i = 1; i < count; i++) out.add(Math.max(1, Math.round((n * i) / (count - 1))));
+  out.add(n);
+  return [...out].sort((a, b) => a - b);
+}
+
 export function generateRoadmap(params: {
   mainGoal: string;
   secondaryGoals?: string[];
   durationDays: number;
   routineLevel?: RoadmapLevel;
 }): RoadmapStepDraft[] {
-  const total = isRoadmapDuration(params.durationDays) ? params.durationDays : (7 as RoadmapDuration);
-  const days = STEP_DAYS[isRoadmapDuration(params.durationDays) ? params.durationDays : 7];
+  const total = Math.max(1, Math.min(365, Math.round(params.durationDays) || 7));
+  const days = stepDaysFor(total);
   const goal = (params.mainGoal || 'sua meta').trim();
   const level = params.routineLevel || 'equilibrado';
   const secondary = (params.secondaryGoals || []).map((g) => g.trim()).filter(Boolean);

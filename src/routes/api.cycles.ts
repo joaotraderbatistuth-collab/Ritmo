@@ -32,17 +32,19 @@ export const Route = createFileRoute('/api/cycles')({
           return Response.json({ error: 'Meta principal, duração e data de início são obrigatórios.' }, { status: 400 });
         }
 
-        // Calculate end date
-        const start = new Date(startDate);
-        const end = new Date(start);
-        end.setDate(end.getDate() + Number(durationDays));
-        const endDate = end.toISOString().split('T')[0];
+        // Duração livre (1 a 365 dias) e data de início livre (YYYY-MM-DD)
+        const days = Math.max(1, Math.min(365, Math.round(Number(durationDays)) || 0));
+        if (!days || !/^\d{4}-\d{2}-\d{2}$/.test(String(startDate))) {
+          return Response.json({ error: 'Escolha uma duração entre 1 e 365 dias e uma data de início válida.' }, { status: 400 });
+        }
+        // fim = início + (duração - 1) dias, contado em datas (sem fuso)
+        const endDate = new Date(Date.UTC(Number(startDate.slice(0, 4)), Number(startDate.slice(5, 7)) - 1, Number(startDate.slice(8, 10)) + days - 1)).toISOString().slice(0, 10);
 
         const newCycle = await createFocusCycle(payload.userId, {
-          title: title || `Ciclo de ${durationDays} Dias — Foco Total`,
+          title: title || `Ciclo de ${days} Dias — Foco Total`,
           mainGoal,
           secondaryGoals: Array.isArray(secondaryGoals) ? secondaryGoals : [],
-          durationDays: Number(durationDays) as any,
+          durationDays: days,
           startDate,
           endDate,
           routineLevel: routineLevel || 'equilibrado',

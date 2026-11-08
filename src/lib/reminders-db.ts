@@ -72,6 +72,40 @@ export async function finishReminder(userId: number, id: number): Promise<boolea
   return true;
 }
 
+/** Edita texto, data/hora e repetição. Se a hora mudar, o lembrete volta a poder tocar. */
+export async function updateReminder(userId: number, id: number, input: { text?: string; remindAt?: Date; repeat?: string | null }): Promise<ReminderItem | null> {
+  const patch: Record<string, unknown> = {};
+  if (input.text) patch.text = input.text;
+  if (input.remindAt) {
+    patch.remindAt = input.remindAt;
+    patch.sentAt = null;
+  }
+  if ('repeat' in input) patch.repeat = input.repeat ?? null;
+  if (!Object.keys(patch).length) return null;
+  if (await checkDb()) {
+    try {
+      const [r] = await db
+        .update(schema.reminders)
+        .set(patch)
+        .where(and(eq(schema.reminders.id, id), eq(schema.reminders.userId, userId), isNull(schema.reminders.doneAt)))
+        .returning();
+      return r ? { id: r.id, text: r.text, remindAt: iso(r.remindAt)!, taskId: r.taskId ?? null, sentAt: iso(r.sentAt), repeat: r.repeat ?? null } : null;
+    } catch (e) {
+      console.error('[lembretes] editar', e);
+    }
+  }
+  const r = mem.find((x) => x.id === id && x.userId === userId && !x.doneAt);
+  if (!r) return null;
+  if (input.text) r.text = input.text;
+  if (input.remindAt) {
+    r.remindAt = input.remindAt.toISOString();
+    r.sentAt = null;
+  }
+  if ('repeat' in input) r.repeat = input.repeat ?? null;
+  const { userId: _u, doneAt: _d, ...out } = r;
+  return out;
+}
+
 export async function countRecentReminders(userId: number): Promise<number> {
   const list = await listReminders(userId);
   return list.length;

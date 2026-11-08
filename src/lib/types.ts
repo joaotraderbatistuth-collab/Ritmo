@@ -18,7 +18,7 @@ export interface User {
   updatedAt?: string;
 }
 
-export type FocusCycleDuration = 7 | 21 | 40 | 90;
+export type FocusCycleDuration = number; // dias, escolhidos livremente (1 a 365)
 export type RoutineLevel = 'leve' | 'equilibrado' | 'intensivo';
 
 export interface FocusCycle {
@@ -83,7 +83,7 @@ export interface HabitItem {
   cycleId?: number | null;
   name: string;
   category: HabitCategory;
-  targetFrequency: 'diario' | '5x_semana' | '3x_semana';
+  targetFrequency: string; // 'diario' ou 'Nx_semana' (1 a 6), ver normalizeFrequency em chain.ts
   notes?: string | null;
   isActive: boolean;
   createdAt?: string;

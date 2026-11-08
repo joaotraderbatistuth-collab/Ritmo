@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Check, Info } from 'lucide-react';
 import { FocusCycle, FocusCycleDuration, RoutineLevel } from '../lib/types.js';
+import { localDateStr } from '../lib/chain.js';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -37,7 +38,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     existingCycle?.secondaryGoals || ['Ler 2 livros técnicos', 'Organizar finanças mensais']
   );
   const [startDate, setStartDate] = useState(
-    existingCycle?.startDate || new Date().toISOString().split('T')[0]
+    existingCycle?.startDate || localDateStr()
   );
   const [routineLevel, setRoutineLevel] = useState<RoutineLevel>(
     existingCycle?.routineLevel || 'equilibrado'
@@ -194,11 +195,24 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   </button>
                 ))}
               </div>
+              <label className="mt-3 flex items-center gap-2 text-xs text-[#8b949e]">
+                Ou escolha outra duração:
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={durationDays}
+                  onChange={(e) => setDurationDays(Math.max(1, Math.min(365, Math.round(Number(e.target.value) || 1))))}
+                  className="w-20 bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-1.5 text-center text-sm text-[#f0f6fc] focus:outline-none focus:border-emerald-500"
+                />
+                dias
+              </label>
               <p className="text-[11px] text-[#6e7681] mt-2">
                 {durationDays === 7 && 'Ideal para reiniciar o foco semanal e destravar tarefas represadas.'}
                 {durationDays === 21 && 'Excelente para fixar ou eliminar um padrão de hábito específico.'}
                 {durationDays === 40 && 'O ciclo clássico de reinvenção e conclusão de grandes projetos.'}
                 {durationDays === 90 && 'Transformação profunda e execução de metas trimestrais complexas.'}
+                {![7, 21, 40, 90].includes(durationDays) && `Ciclo de ${durationDays} dias, do seu jeito. O roteiro de metas se ajusta a essa duração.`}
               </p>
             </div>
 

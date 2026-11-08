@@ -135,3 +135,26 @@ export function nextOccurrence(r: Repeat, prev: Date, tz: string, now: Date): Da
   }
   return null;
 }
+
+/** Regras antigas das tarefas ('weekdays', 'weekly' sem dias) no formato atual. */
+export function normalizeTaskRule(rule: string | null | undefined, date: string): Repeat | null {
+  if (!rule) return null;
+  if (rule === 'weekdays') return 'weekly:1,2,3,4,5';
+  if (rule === 'weekly') return `weekly:${new Date(`${date}T12:00:00Z`).getUTCDay()}`;
+  if (rule === 'monthly') return `monthly:${Number(date.slice(8, 10))}`;
+  return isValidRepeat(rule) ? rule : null;
+}
+
+/** Próxima data (YYYY-MM-DD) DEPOIS de `date` que bate com a regra. Usada ao concluir uma tarefa que se repete. */
+export function nextDateAfter(rule: string | null | undefined, date: string): string | null {
+  const r = normalizeTaskRule(rule, date);
+  if (!r) return null;
+  const y = Number(date.slice(0, 4));
+  const m0 = Number(date.slice(5, 7)) - 1;
+  const d = Number(date.slice(8, 10));
+  for (let i = 1; i < 800; i++) {
+    const c = new Date(Date.UTC(y, m0, d + i));
+    if (matches(r, c.getUTCFullYear(), c.getUTCMonth(), c.getUTCDate(), c.getUTCDay())) return c.toISOString().slice(0, 10);
+  }
+  return null;
+}

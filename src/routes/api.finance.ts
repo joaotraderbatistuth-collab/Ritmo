@@ -4,6 +4,7 @@ import { extractTokenFromRequest } from '../lib/auth.js';
 import {
   createFinanceTransaction,
   deleteFinanceTransaction,
+  updateFinanceTransaction,
   getFinanceTransactions,
   getIntegrationsConfig,
 } from '../lib/server-db.js';
@@ -96,6 +97,16 @@ export const Route = createFileRoute('/api/finance')({
         }
 
         return Response.json({ transaction: tx, syncStatus }, { status: 201 });
+      },
+
+      PATCH: async ({ request }) => {
+        const token = extractTokenFromRequest(request);
+        if (!token) return Response.json({ error: 'Não autorizado.' }, { status: 401 });
+        const auth = await authorizeData(token);
+        if ('response' in auth) return auth.response;
+        const body = await request.json().catch(() => ({}));
+        const tx = await updateFinanceTransaction(Number(body.id), auth.payload.userId, body);
+        return tx ? Response.json({ transaction: tx }) : Response.json({ error: 'Lançamento não encontrado.' }, { status: 404 });
       },
 
       DELETE: async ({ request }) => {

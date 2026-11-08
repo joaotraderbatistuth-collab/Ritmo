@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { addDays, localDateStr } from '../lib/chain.js';
+import { normalizeTaskRule, repeatLabel } from '../lib/recurrence.js';
+import { RepeatPicker } from './RepeatPicker.js';
 import {
   TaskItem,
   TaskCategory,
@@ -59,8 +61,9 @@ export const TabTasks: React.FC<TabTasksProps> = ({
   const [timeBlock, setTimeBlock] = useState<TimeBlock>('Manhã');
   const [startTime, setStartTime] = useState('');
   const [estimatedMinutes, setEstimatedMinutes] = useState(30);
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceRule, setRecurrenceRule] = useState('daily');
+  const [taskDate, setTaskDate] = useState<string>(localDateStr());
+  // '' = não repete; 'daily' | 'weekly:1,3' | 'monthly:10' (escolha livre)
+  const [repeatRule, setRepeatRule] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -73,7 +76,8 @@ export const TabTasks: React.FC<TabTasksProps> = ({
     setTimeBlock('Manhã');
     setStartTime('');
     setEstimatedMinutes(30);
-    setIsRecurring(false);
+    setTaskDate(selectedDate);
+    setRepeatRule('');
     setNotes('');
     setIsModalOpen(true);
   };
@@ -87,8 +91,8 @@ export const TabTasks: React.FC<TabTasksProps> = ({
     setTimeBlock(t.timeBlock);
     setStartTime(t.startTime || '');
     setEstimatedMinutes(t.estimatedMinutes);
-    setIsRecurring(t.isRecurring);
-    setRecurrenceRule(t.recurrenceRule || 'daily');
+    setTaskDate(t.date);
+    setRepeatRule(t.isRecurring ? normalizeTaskRule(t.recurrenceRule || 'daily', t.date) || '' : '');
     setNotes(t.notes || '');
     setIsModalOpen(true);
   };
@@ -108,10 +112,10 @@ export const TabTasks: React.FC<TabTasksProps> = ({
           timeBlock,
           startTime,
           estimatedMinutes,
-          isRecurring,
-          recurrenceRule: isRecurring ? recurrenceRule : '',
+          isRecurring: Boolean(repeatRule),
+          recurrenceRule: repeatRule,
           notes,
-          date: selectedDate,
+          date: taskDate || selectedDate,
         });
       } else {
         await onAddTask({
@@ -122,10 +126,10 @@ export const TabTasks: React.FC<TabTasksProps> = ({
           timeBlock,
           startTime,
           estimatedMinutes,
-          isRecurring,
-          recurrenceRule: isRecurring ? recurrenceRule : '',
+          isRecurring: Boolean(repeatRule),
+          recurrenceRule: repeatRule,
           notes,
-          date: selectedDate,
+          date: taskDate || selectedDate,
         });
       }
       setIsModalOpen(false);
@@ -310,6 +314,18 @@ export const TabTasks: React.FC<TabTasksProps> = ({
                                 {t.estimatedMinutes}m
                               </span>
 
+                              {viewMode === 'week' && (
+                                <span className="text-[10px] text-[#8b949e]">
+                                  {new Date(`${t.date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                                </span>
+                              )}
+
+                              {t.isRecurring && t.recurrenceRule && (
+                                <span className="text-[10px] text-emerald-300/80" title="Tarefa que se repete">
+                                  🔁 {repeatLabel(normalizeTaskRule(t.recurrenceRule, t.date)) || 'repete'}
+                                </span>
+                              )}
+
                               {t.priority === 'alta' && (
                                 <span className="text-[10px] font-semibold text-rose-400 px-1 py-0.2 rounded bg-rose-950/40 border border-rose-800/40">
                                   Alta
@@ -473,38 +489,19 @@ export const TabTasks: React.FC<TabTasksProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-[#8b949e] mb-1">
-                    Horário (24h — hora e minuto)
+                    Horário (opcional)
                   </label>
                   <div className="flex items-center gap-1.5">
-                    <select
-                      aria-label="Hora"
-                      value={startTime ? startTime.split(':')[0] : ''}
-                      onChange={(e) => {
-                        const mm = startTime ? startTime.split(':')[1] : '00';
-                        setStartTime(e.target.value ? `${e.target.value}:${mm}` : '');
-                      }}
-                      className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-[#f0f6fc]"
-                    >
-                      <option value="">--</option>
-                      {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map((h) => (
-                        <option key={h} value={h}>{h}</option>
-                      ))}
-                    </select>
-                    <span className="text-[#8b949e] text-xs font-bold">:</span>
-                    <select
-                      aria-label="Minuto"
-                      value={startTime ? startTime.split(':')[1] : ''}
-                      disabled={!startTime}
-                      onChange={(e) => {
-                        const hh = startTime ? startTime.split(':')[0] : '00';
-                        setStartTime(`${hh}:${e.target.value}`);
-                      }}
-                      className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-[#f0f6fc] disabled:opacity-50"
-                    >
-                      {Array.from(new Set([...Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0')), ...(startTime ? [startTime.split(':')[1]] : [])])).sort().map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
+                    <input
+                      type="time"
+                      aria-label="Horário"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="flex-1 min-w-0 bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-2 text-xs text-[#f0f6fc] [color-scheme:dark]"
+                    />
+                    {startTime && (
+                      <button type="button" onClick={() => setStartTime('')} aria-label="Tirar horário" className="text-[#6e7681] hover:text-rose-400 text-sm px-1">×</button>
+                    )}
                   </div>
                 </div>
 
@@ -514,8 +511,8 @@ export const TabTasks: React.FC<TabTasksProps> = ({
                   </label>
                   <input
                     type="number"
-                    min="5"
-                    step="5"
+                    min="1"
+                    step="1"
                     value={estimatedMinutes}
                     onChange={(e) => setEstimatedMinutes(Number(e.target.value))}
                     className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-[#f0f6fc]"
@@ -523,18 +520,23 @@ export const TabTasks: React.FC<TabTasksProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="chk-rec"
-                  checked={isRecurring}
-                  onChange={(e) => setIsRecurring(e.target.checked)}
-                  className="rounded border-[#30363d] bg-[#0d1117] text-emerald-500 focus:ring-0"
-                />
-                <label htmlFor="chk-rec" className="text-xs text-[#8b949e] cursor-pointer">
-                  Repetir diariamente ou em dias úteis
-                </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#8b949e] mb-1">Data</label>
+                  <input
+                    type="date"
+                    required
+                    value={taskDate}
+                    onChange={(e) => setTaskDate(e.target.value)}
+                    className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-[#f0f6fc] [color-scheme:dark]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#8b949e] mb-1">Repetir</label>
+                  <RepeatPicker value={repeatRule} onChange={setRepeatRule} baseDate={taskDate} />
+                </div>
               </div>
+              {repeatRule && <p className="text-[11px] text-[#6e7681] -mt-1.5">Ao concluir, a próxima vez já aparece no dia certo.</p>}
 
               <div className="flex justify-end gap-2 pt-4 border-t border-[#30363d]">
                 <button

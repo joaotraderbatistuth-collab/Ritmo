@@ -303,6 +303,9 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
     "updated_at" timestamp DEFAULT now() NOT NULL
   )`,
 
+  // ---- horários das notificações escolhidos pela pessoa
+  `ALTER TABLE "push_subscriptions" ADD COLUMN IF NOT EXISTS "hours" text`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

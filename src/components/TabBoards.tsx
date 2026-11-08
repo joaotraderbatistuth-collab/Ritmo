@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { localDateStr } from '../lib/chain.js';
 import {
   BoardItem,
   BoardListItem,
@@ -602,7 +603,7 @@ export const TabBoards: React.FC = () => {
                       {listCards.map((card, cardIdx) => {
                         const checklistForCard = boardData.checklistItems.filter((i) => i.cardId === card.id);
                         const doneCount = checklistForCard.filter((i) => i.done).length;
-                        const isOverdue = card.dueDate && card.dueDate < new Date().toISOString().split('T')[0];
+                        const isOverdue = card.dueDate && card.dueDate < localDateStr();
 
                         return (
                           <div

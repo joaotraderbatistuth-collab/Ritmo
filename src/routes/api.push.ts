@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { requireMember, communityError } from '../lib/community-auth.js';
 import { CommunityError } from '../lib/community-db.js';
-import { getVapidKeys, removeSubscription, saveSubscription, sendTest, setPerDay, setPushOptOut, subscriptionStatus } from '../lib/push-server.js';
+import { getVapidKeys, removeSubscription, saveSubscription, sendTest, setPerDay, setPushHours, setPushOptOut, subscriptionStatus } from '../lib/push-server.js';
 
 // GET  → chave pública + quantos aparelhos a pessoa tem inscritos
 // POST { action: 'subscribe' | 'unsubscribe' | 'per_day' | 'test' }
@@ -24,7 +24,7 @@ export const Route = createFileRoute('/api/push')({
           const body = await request.json().catch(() => ({}));
           switch (body.action) {
             case 'subscribe':
-              await saveSubscription(user.id, body.subscription, Number(body.perDay) || 3);
+              await saveSubscription(user.id, body.subscription, Number(body.perDay) || 3, Array.isArray(body.hours) ? body.hours : undefined);
               if ((user as any).pushOptOut) await setPushOptOut(user.id, false);
               // ativação automática (permissão já dada antes) não manda a notificação de boas-vindas
               if (!body.auto) await sendTest(user.id, user.name).catch(() => 0);
@@ -33,6 +33,10 @@ export const Route = createFileRoute('/api/push')({
               await removeSubscription(user.id, String(body.endpoint || ''));
               await setPushOptOut(user.id, true);
               return Response.json({ success: true, message: 'Notificações desligadas neste aparelho.' });
+            case 'hours': {
+              const hours = await setPushHours(user.id, body.hours);
+              return Response.json({ success: true, hours, message: 'Horários salvos.' });
+            }
             case 'per_day':
               await setPerDay(user.id, Number(body.perDay));
               return Response.json({ success: true, message: 'Preferência salva.' });

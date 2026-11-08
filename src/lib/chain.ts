@@ -2,15 +2,26 @@
 // A corrente não conta dias seguidos: conta SEMANAS seguidas em que a pessoa cumpriu
 // a frequência que ela mesma escolheu para o hábito (3x, 5x ou todos os dias).
 
-export type ChainFrequency = 'diario' | '5x_semana' | '3x_semana';
+export type ChainFrequency = string; // 'diario' ou 'Nx_semana' (1 a 6)
 
 /** Dia em que a semana começa: 1 = segunda-feira, 0 = domingo. Troque aqui se preferir. */
 export const WEEK_STARTS_ON = 1;
 
 export function targetPerWeek(freq: string): number {
-  if (freq === '3x_semana') return 3;
-  if (freq === '5x_semana') return 5;
-  return 7;
+  const m = /^([1-7])x_semana$/.exec(freq || '');
+  return m ? Number(m[1]) : 7;
+}
+
+/** Frequência escolhida livremente: 'diario' ou 'Nx_semana' (N de 1 a 7; 7 vira 'diario'). */
+export function normalizeFrequency(v: unknown): string {
+  const m = /^([1-7])x_semana$/.exec(String(v || ''));
+  if (!m || m[1] === '7') return 'diario';
+  return `${m[1]}x_semana`;
+}
+
+export function frequencyLabel(freq: string): string {
+  const n = targetPerWeek(freq);
+  return n >= 7 ? 'Todos os dias' : `${n}x por semana`;
 }
 
 /** Data local (fuso do aparelho) no formato YYYY-MM-DD. Evita o erro do toISOString (UTC). */

@@ -34,6 +34,12 @@ export const TabFocus: React.FC<TabFocusProps> = ({
   const [justDone, setJustDone] = useState<{ minutes: number; goal: string } | null>(null);
   const [focusTopic, setFocusTopic] = useState<string>(initialTopic);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  // sessão feita fora do app: data, minutos e assunto escolhidos livremente
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualDate, setManualDate] = useState(localDateStr());
+  const [manualMinutes, setManualMinutes] = useState(25);
+  const [manualTopic, setManualTopic] = useState('');
+  const [manualMsg, setManualMsg] = useState('');
   const timerRef = useRef<any>(null);
 
   // Sync initial values
@@ -179,16 +185,34 @@ export const TabFocus: React.FC<TabFocusProps> = ({
             50 min (Imersão)
           </button>
           <button
-            onClick={() => selectDuration('custom', 15)}
+            onClick={() => selectDuration('custom', sessionType === 'custom' ? totalMinutes : 15)}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
               sessionType === 'custom'
                 ? 'bg-emerald-600 text-white shadow-md'
                 : 'text-[#8b949e] hover:text-[#f0f6fc]'
             }`}
           >
-            15 min (Sprint)
+            Livre
           </button>
         </div>
+        {sessionType === 'custom' && (
+          <label className="flex items-center justify-center gap-2 -mt-4 mb-6 text-xs text-[#8b949e]">
+            Quantos minutos?
+            <input
+              type="number"
+              min={1}
+              max={240}
+              value={totalMinutes}
+              disabled={isRunning}
+              onChange={(e) => {
+                const n = Math.max(1, Math.min(240, Math.round(Number(e.target.value) || 1)));
+                setTotalMinutes(n);
+                setSecondsLeft(n * 60);
+              }}
+              className="w-20 bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-1.5 text-center text-sm text-[#f0f6fc] disabled:opacity-50"
+            />
+          </label>
+        )}
 
         {/* Focus Topic Input */}
         <div className="max-w-md mx-auto mb-8">
@@ -314,7 +338,40 @@ export const TabFocus: React.FC<TabFocusProps> = ({
           <div className="flex items-center gap-2 pb-3 border-b border-[#30363d] mb-4">
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             <h3 className="text-sm font-bold text-[#f0f6fc]">Sessões Concluídas Recentes</h3>
+            <button type="button" onClick={() => { setManualOpen((v) => !v); setManualMsg(''); }} className="ml-auto text-[11px] font-semibold text-emerald-400 hover:underline">
+              {manualOpen ? 'Fechar' : '+ Registrar sessão feita'}
+            </button>
           </div>
+
+          {manualOpen && (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                await onRecordSession({
+                  durationMinutes: manualMinutes,
+                  sessionType: 'custom',
+                  status: 'completed',
+                  focusTopic: manualTopic.trim() || 'Sessão de Foco',
+                  date: manualDate,
+                });
+                setManualMsg(`Registrada: ${manualMinutes} min em ${new Date(`${manualDate}T12:00:00`).toLocaleDateString('pt-BR')}.`);
+                setManualTopic('');
+              }}
+              className="mb-4 p-3 rounded-xl bg-[#0d1117] border border-[#30363d] space-y-2"
+            >
+              <p className="text-[11px] text-[#8b949e]">Focou sem o cronômetro? Registre aqui, em qualquer dia.</p>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" required value={manualDate} max={localDateStr()} onChange={(e) => setManualDate(e.target.value)} aria-label="Dia da sessão" className="bg-[#161b22] border border-[#30363d] rounded-lg px-2 py-1.5 text-xs text-[#f0f6fc] [color-scheme:dark]" />
+                <label className="flex items-center gap-1.5 text-xs text-[#8b949e]">
+                  <input type="number" required min={1} max={600} value={manualMinutes} onChange={(e) => setManualMinutes(Math.max(1, Math.min(600, Math.round(Number(e.target.value) || 1))))} aria-label="Minutos" className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-2 py-1.5 text-xs text-[#f0f6fc]" />
+                  min
+                </label>
+              </div>
+              <input value={manualTopic} onChange={(e) => setManualTopic(e.target.value)} maxLength={120} placeholder="Em que você focou? (opcional)" className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-2 py-1.5 text-xs text-[#f0f6fc]" />
+              <button type="submit" className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold">Registrar</button>
+              {manualMsg && <p role="status" className="text-[11px] text-emerald-300">{manualMsg}</p>}
+            </form>
+          )}
 
           {sessions.length === 0 ? (
             <p className="text-xs text-[#6e7681] py-4 text-center">

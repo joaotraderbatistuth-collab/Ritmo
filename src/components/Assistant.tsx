@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Send, X, Settings2, Volume2, VolumeX, Bell, Check, Undo2, Sparkles, MessageSquareText } from 'lucide-react';
 import { PushToggle } from './PushToggle.js';
+import { RemindersEditor } from './RemindersEditor.js';
 import { ConsentPrompt, hasConsent, loadConsents } from './Consents.js';
 import { callApi } from '../lib/client-api.js';
 import {
@@ -859,22 +860,8 @@ export const Assistant: React.FC<{
                 <p className="text-xs text-[#8b949e] mb-1.5">Notificações: ligue para eu te avisar dos lembretes mesmo com o app fechado.</p>
                 <PushToggle compact />
               </div>
-              {settings && reminders.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-[#8b949e] mb-1.5">Lembretes ativos</p>
-                  <ul className="space-y-1 max-h-36 overflow-y-auto">
-                    {reminders.map((r) => {
-                      const d = new Date(r.remindAt);
-                      return (
-                        <li key={r.id} className="flex items-center gap-2 text-sm">
-                          <span className="flex-1 min-w-0 truncate text-[#c9d1d9]">{r.text}</span>
-                          <span className="text-[11px] text-[#8b949e] whitespace-nowrap">{r.repeat ? `🔁 ${repeatLabel(r.repeat)}, ` : ''}{dayLabel(ymd(d))} {timeLabel(d.toTimeString().slice(0, 5))}</span>
-                          <button type="button" onClick={() => doneReminder(r.id)} aria-label="Apagar lembrete" className="p-1 text-[#6e7681] hover:text-rose-400"><X className="w-3.5 h-3.5" /></button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
+              {settings && (
+                <RemindersEditor reminders={reminders} onChange={setReminders} onDone={doneReminder} />
               )}
             </div>
           )}

@@ -476,6 +476,7 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   p256dh: text("p256dh").notNull(),
   auth: text("auth").notNull(),
   perDay: integer("per_day").notNull().default(3), // 1, 2 ou 3 notificações por dia
+  hours: text("hours"), // horários escolhidos pela pessoa, ex.: "7,12,21" (vazio = 8h, 13h, 19h)
   lastSentAt: timestamp("last_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

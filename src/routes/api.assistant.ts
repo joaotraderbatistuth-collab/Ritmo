@@ -4,11 +4,12 @@ import { authorizeData } from '../lib/session.js';
 import { findUserById, updateUserRecord } from '../lib/server-db.js';
 import { cleanAssistantName } from '../lib/assistant-parser.js';
 import { isValidRepeat } from '../lib/recurrence.js';
-import { REMINDER_LIMITS, countRecentReminders, createReminder, finishReminder, listReminders } from '../lib/reminders-db.js';
+import { REMINDER_LIMITS, countRecentReminders, createReminder, finishReminder, listReminders, updateReminder } from '../lib/reminders-db.js';
 
 // GET  /api/assistant                                   → nome do secretário + lembretes ativos
 // POST /api/assistant { action: 'set_name', name }
 // POST /api/assistant { action: 'add_reminder', text, remindAt, taskId?, repeat? }
+// POST /api/assistant { action: 'update_reminder', id, text?, remindAt?, repeat? }
 // POST /api/assistant { action: 'done_reminder', id }
 export const Route = createFileRoute('/api/assistant')({
   server: {
@@ -46,6 +47,24 @@ export const Route = createFileRoute('/api/assistant')({
           return Response.json({ success: true, reminder: await createReminder(userId, { text, remindAt: at, taskId, repeat }) });
         }
 
+        if (body.action === 'update_reminder') {
+          const input: { text?: string; remindAt?: Date; repeat?: string | null } = {};
+          if (body.text !== undefined) {
+            const text = String(body.text ?? '').replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, REMINDER_LIMITS.textMax);
+            if (!text) return Response.json({ error: 'O lembrete precisa de um texto.' }, { status: 400 });
+            input.text = text;
+          }
+          if (body.remindAt !== undefined) {
+            const at = new Date(String(body.remindAt || ''));
+            if (Number.isNaN(at.getTime()) || at.getTime() < Date.now() - 5 * 60_000 || at.getTime() > Date.now() + 400 * 86400_000) {
+              return Response.json({ error: 'Escolha uma data e hora daqui para frente.' }, { status: 400 });
+            }
+            input.remindAt = at;
+          }
+          if (body.repeat !== undefined) input.repeat = isValidRepeat(body.repeat) ? body.repeat : null;
+          const reminder = await updateReminder(userId, Number(body.id), input);
+          return reminder ? Response.json({ success: true, reminder }) : Response.json({ error: 'Lembrete não encontrado.' }, { status: 404 });
+        }
         if (body.action === 'done_reminder') {
           const ok = await finishReminder(userId, Number(body.id));
           return ok ? Response.json({ success: true }) : Response.json({ error: 'Lembrete não encontrado.' }, { status: 404 });

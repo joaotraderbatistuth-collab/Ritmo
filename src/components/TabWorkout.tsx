@@ -281,8 +281,12 @@ const SummaryView: React.FC<{ track: FinishedTrack; onSaved: (w: SavedWorkout, r
 /* Detalhe de um treino salvo                                          */
 /* ------------------------------------------------------------------ */
 
-const WorkoutDetail: React.FC<{ id: number; onClose: () => void; onDeleted: () => void }> = ({ id, onClose, onDeleted }) => {
+const WorkoutDetail: React.FC<{ id: number; onClose: () => void; onDeleted: () => void; onUpdated?: () => void }> = ({ id, onClose, onDeleted, onUpdated }) => {
   const [w, setW] = useState<SavedWorkout | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [eTitle, setETitle] = useState('');
+  const [eWhen, setEWhen] = useState('');
+  const [eNotes, setENotes] = useState('');
   const [error, setError] = useState('');
   const [hideEnds, setHideEnds] = useState(true);
   const [msg, setMsg] = useState('');
@@ -324,6 +328,29 @@ const WorkoutDetail: React.FC<{ id: number; onClose: () => void; onDeleted: () =
     }
   };
 
+  const startEdit = () => {
+    if (!w) return;
+    const d = new Date(w.startedAt);
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    setETitle(w.title);
+    setEWhen(`${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`);
+    setENotes(w.notes || '');
+    setEditing(true);
+    setMsg('');
+  };
+
+  const saveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const at = new Date(eWhen);
+    if (Number.isNaN(at.getTime())) return setMsg('Escolha a data e a hora.');
+    const r = await callApi<{ workout?: SavedWorkout; error?: string }>('/api/workouts', { action: 'update', id, title: eTitle, notes: eNotes, startedAt: at.toISOString() });
+    if (!r.ok || !r.data.workout) return setMsg(r.data.error || 'Não foi possível salvar.');
+    setW((cur) => (cur ? { ...cur, title: r.data.workout!.title, notes: r.data.workout!.notes, startedAt: r.data.workout!.startedAt } : cur));
+    setEditing(false);
+    setMsg('Treino atualizado.');
+    onUpdated?.();
+  };
+
   const del = async () => {
     if (!confirm('Apagar este treino? Não dá para desfazer.')) return;
     const r = await callApi('/api/workouts', { action: 'delete', id });
@@ -341,12 +368,28 @@ const WorkoutDetail: React.FC<{ id: number; onClose: () => void; onDeleted: () =
           <div>
             {w && <p className="text-xs font-bold text-emerald-400 inline-flex items-center gap-1.5"><Icon className="w-4 h-4" /> {SPORTS[w.sport].label}</p>}
             <h3 className="text-xl font-extrabold text-[#f0f6fc]">{w?.title || 'Treino'}</h3>
-            {w && <p className="text-xs text-[#8b949e]">{dateLabel(w.startedAt)}</p>}
+            {w && (
+              <p className="text-xs text-[#8b949e]">
+                {dateLabel(w.startedAt)}
+                {!editing && <button type="button" onClick={startEdit} className="ml-2 text-emerald-400 hover:underline">Editar</button>}
+              </p>
+            )}
           </div>
           <button type="button" onClick={onClose} aria-label="Fechar" className="p-2 rounded-full text-[#8b949e] hover:text-white hover:bg-[#21262d]"><X className="w-5 h-5" /></button>
         </div>
         {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
         {!w && !error && <p className="text-sm text-[#8b949e]">Carregando...</p>}
+        {w && editing && (
+          <form onSubmit={saveEdit} className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4 space-y-2">
+            <label className="block text-xs text-[#8b949e]">Título<input value={eTitle} onChange={(e) => setETitle(e.target.value)} maxLength={80} required className="mt-1 w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#f0f6fc]" /></label>
+            <label className="block text-xs text-[#8b949e]">Data e hora de início<input type="datetime-local" value={eWhen} onChange={(e) => setEWhen(e.target.value)} required className="mt-1 w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#f0f6fc] [color-scheme:dark]" /></label>
+            <label className="block text-xs text-[#8b949e]">Notas<textarea value={eNotes} onChange={(e) => setENotes(e.target.value)} rows={2} maxLength={1000} className="mt-1 w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#f0f6fc]" /></label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setEditing(false)} className="flex-1 py-2 rounded-lg border border-[#30363d] text-sm text-[#c9d1d9]">Cancelar</button>
+              <button type="submit" className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Salvar</button>
+            </div>
+          </form>
+        )}
         {w && avg && (
           <>
             {points.length > 1 ? <RouteMap segments={[points]} className="h-64" /> : <div className="rounded-2xl border border-dashed border-[#30363d] p-6 text-center text-sm text-[#6e7681]">Treino registrado sem GPS.</div>}
@@ -632,7 +675,7 @@ export const TabWorkout: React.FC<{ onSaved?: () => void }> = ({ onSaved }) => {
         })}
       </section>
 
-      {openId !== null && <WorkoutDetail id={openId} onClose={() => setOpenId(null)} onDeleted={() => { setOpenId(null); load(); onSaved?.(); }} />}
+      {openId !== null && <WorkoutDetail id={openId} onClose={() => setOpenId(null)} onDeleted={() => { setOpenId(null); load(); onSaved?.(); }} onUpdated={() => { load(); onSaved?.(); }} />}
       {manual && <ManualForm onClose={() => setManual(false)} onSaved={afterSave} />}
       {askGps && <ConsentPrompt kind="gps" onCancel={() => setAskGps(false)} onAccept={() => setAskGps(false)} />}
     </div>

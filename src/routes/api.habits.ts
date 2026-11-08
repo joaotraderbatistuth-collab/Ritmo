@@ -1,7 +1,8 @@
 import { authorizeData } from '../lib/session.js';
 import { createFileRoute } from '@tanstack/react-router';
 import { extractTokenFromRequest } from '../lib/auth.js';
-import { createHabit, getHabits, toggleHabitLog } from '../lib/server-db.js';
+import { createHabit, getHabits, toggleHabitLog, updateHabit } from '../lib/server-db.js';
+import { normalizeFrequency } from '../lib/chain.js';
 
 export const Route = createFileRoute('/api/habits')({
   server: {
@@ -36,12 +37,22 @@ export const Route = createFileRoute('/api/habits')({
           return Response.json({ log });
         }
 
-        // 2. Create Habit
+        // 2. Editar hábito (nome, frequência, notas)
+        if (body.action === 'update_habit') {
+          const habit = await updateHabit(payload.userId, Number(body.habitId), {
+            ...(typeof body.name === 'string' && body.name.trim() ? { name: body.name.trim().slice(0, 120) } : {}),
+            ...(body.targetFrequency !== undefined ? { targetFrequency: normalizeFrequency(body.targetFrequency) } : {}),
+            ...(typeof body.notes === 'string' ? { notes: body.notes.slice(0, 500) } : {}),
+          });
+          return habit ? Response.json({ habit }) : Response.json({ error: 'Hábito não encontrado.' }, { status: 404 });
+        }
+
+        // 3. Create Habit
         if (!body.name) {
           return Response.json({ error: 'Nome do hábito é obrigatório.' }, { status: 400 });
         }
 
-        const habit = await createHabit(payload.userId, body);
+        const habit = await createHabit(payload.userId, { ...body, targetFrequency: normalizeFrequency(body.targetFrequency) });
         return Response.json({ habit }, { status: 201 });
       },
     },

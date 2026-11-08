@@ -17,12 +17,14 @@ import {
   Info,
   ArrowUpRight,
   ArrowDownLeft,
+  Pencil,
 } from 'lucide-react';
 
 interface TabFinanceProps {
   transactions: FinanceTransactionItem[];
   onAddTransaction: (tx: Partial<FinanceTransactionItem>) => Promise<void>;
   onDeleteTransaction: (id: number) => Promise<void>;
+  onUpdateTransaction?: (id: number, updates: Partial<FinanceTransactionItem>) => Promise<void>;
 }
 
 const CATEGORIES: { id: FinanceCategory; label: string }[] = [
@@ -51,13 +53,15 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
   transactions,
   onAddTransaction,
   onDeleteTransaction,
+  onUpdateTransaction,
 }) => {
-  const currentMonth = new Date().toISOString().substring(0, 7);
+  const currentMonth = localDateStr().slice(0, 7); // mês no fuso do aparelho
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
   const [categoryFilter, setCategoryFilter] = useState<string>('todas');
   const [typeFilter, setTypeFilter] = useState<string>('todos');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTx, setEditingTx] = useState<FinanceTransactionItem | null>(null);
 
   // Form states
   const [type, setType] = useState<TransactionType>('expense');
@@ -106,6 +110,39 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
     return true;
   });
 
+  const openNew = () => {
+    setEditingTx(null);
+    setType('expense');
+    setDescription('');
+    setAmountInput('');
+    setDate(localDateStr());
+    setCategory('alimentacao');
+    setStatus('paid');
+    setDueDate('');
+    setIsRecurring(false);
+    setIsInstallment(false);
+    setTotalInstallments(1);
+    setNotes('');
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (tx: FinanceTransactionItem) => {
+    setEditingTx(tx);
+    setType(tx.type);
+    setDescription(tx.description);
+    setAmountInput((tx.amountCents / 100).toFixed(2).replace('.', ','));
+    setDate(tx.date);
+    setCategory(tx.category as FinanceCategory);
+    setPaymentMethod(tx.paymentMethod as PaymentMethod);
+    setAccountWallet(tx.accountWallet || 'Conta Principal');
+    setStatus(tx.status);
+    setDueDate(tx.dueDate || '');
+    setIsRecurring(Boolean(tx.isRecurring));
+    setIsInstallment(false);
+    setNotes(tx.notes || '');
+    setIsModalOpen(true);
+  };
+
   const handleCreateTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim() || !amountInput) return;
@@ -123,6 +160,25 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
         amountCents = whole * 100 + parseInt(dec, 10);
       } else {
         amountCents = Math.round(parseFloat(cleanAmount) * 100) || 0;
+      }
+
+      if (editingTx && onUpdateTransaction) {
+        await onUpdateTransaction(editingTx.id, {
+          type,
+          description,
+          amountCents,
+          date,
+          category,
+          paymentMethod,
+          accountWallet,
+          isRecurring,
+          status,
+          dueDate: dueDate || null,
+          notes,
+        } as Partial<FinanceTransactionItem>);
+        setEditingTx(null);
+        setIsModalOpen(false);
+        return;
       }
 
       await onAddTransaction({
@@ -325,7 +381,7 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
             JSON
           </button>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={openNew}
             className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all"
           >
             <Plus className="w-4 h-4" />
@@ -426,6 +482,16 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
                     </td>
 
                     <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                      {onUpdateTransaction && (
+                        <button
+                          onClick={() => openEdit(tx)}
+                          className="p-1 mr-1 rounded text-[#6e7681] hover:text-emerald-400 transition-colors"
+                          title="Editar lançamento (data, valor, vencimento...)"
+                          aria-label="Editar lançamento"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => onDeleteTransaction(tx.id)}
                         className="p-1 rounded text-[#6e7681] hover:text-rose-400 transition-colors"
@@ -453,7 +519,7 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
               ×
             </button>
 
-            <h3 className="text-base font-bold text-[#f0f6fc] mb-4">Novo Lançamento Financeiro</h3>
+            <h3 className="text-base font-bold text-[#f0f6fc] mb-4">{editingTx ? 'Editar lançamento' : 'Novo Lançamento Financeiro'}</h3>
 
             <form onSubmit={handleCreateTransaction} className="space-y-4">
               {/* Type Switcher */}
@@ -597,7 +663,7 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
                   <span>Recorrente</span>
                 </label>
 
-                <label className="flex items-center gap-1.5 text-xs text-[#8b949e] cursor-pointer">
+                {!editingTx && <label className="flex items-center gap-1.5 text-xs text-[#8b949e] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={isInstallment}
@@ -605,9 +671,9 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
                     className="rounded border-[#30363d] bg-[#0d1117] text-emerald-500 focus:ring-0"
                   />
                   <span>Compra Parcelada</span>
-                </label>
+                </label>}
 
-                {isInstallment && (
+                {isInstallment && !editingTx && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-[#8b949e]">Total parcelas:</span>
                     <input
@@ -621,14 +687,14 @@ export const TabFinance: React.FC<TabFinanceProps> = ({
                   </div>
                 )}
 
-                {status === 'pending' && (
+                {(status === 'pending' || dueDate) && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-[#8b949e]">Vencimento:</span>
                     <input
                       type="date"
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
-                      className="bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-1 text-xs text-[#f0f6fc]"
+                      className="[color-scheme:dark] bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-1 text-xs text-[#f0f6fc]"
                     />
                   </div>
                 )}

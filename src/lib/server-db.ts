@@ -823,6 +823,28 @@ export async function createHabit(userId: number, data: Partial<HabitItem>): Pro
   return newHabit;
 }
 
+/** Edita nome, frequência ou notas de um hábito da própria pessoa. */
+export async function updateHabit(userId: number, habitId: number, data: { name?: string; targetFrequency?: string; notes?: string }): Promise<HabitItem | null> {
+  if (!Object.keys(data).length) return null;
+  if (await checkDb()) {
+    try {
+      const [h] = await db
+        .update(schema.habits)
+        .set(data)
+        .where(and(eq(schema.habits.id, habitId), eq(schema.habits.userId, userId)))
+        .returning();
+      if (!h) return null;
+      return { ...h, category: h.category as any, targetFrequency: h.targetFrequency, createdAt: h.createdAt.toISOString() } as HabitItem;
+    } catch (e) {
+      console.error('[hábitos] editar', e);
+    }
+  }
+  const h = memStore.habits.find((x) => x.id === habitId && x.userId === userId);
+  if (!h) return null;
+  Object.assign(h, data);
+  return h;
+}
+
 export async function toggleHabitLog(userId: number, habitId: number, date: string, completed: boolean): Promise<HabitLogItem> {
   const isDb = await checkDb();
   if (isDb) {
@@ -1249,6 +1271,41 @@ export async function createFinanceTransaction(
   };
   memStore.financeTransactions.push(newTx);
   return newTx;
+}
+
+/** Edita um lançamento da própria pessoa (datas, valores e situação livres). Só os campos permitidos. */
+export async function updateFinanceTransaction(txId: number, userId: number, raw: Partial<FinanceTransactionItem>): Promise<FinanceTransactionItem | null> {
+  const ymd = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  const patch: Record<string, unknown> = {};
+  if (raw.type === 'income' || raw.type === 'expense') patch.type = raw.type;
+  if (typeof raw.description === 'string' && raw.description.trim()) patch.description = raw.description.trim().slice(0, 200);
+  if (Number.isFinite(raw.amountCents) && Number(raw.amountCents) >= 0) patch.amountCents = Math.round(Number(raw.amountCents));
+  if (ymd(raw.date)) patch.date = raw.date;
+  if ('dueDate' in raw) patch.dueDate = ymd(raw.dueDate) || null;
+  if (typeof raw.category === 'string' && raw.category) patch.category = raw.category;
+  if (typeof raw.paymentMethod === 'string' && raw.paymentMethod) patch.paymentMethod = raw.paymentMethod;
+  if (typeof raw.accountWallet === 'string') patch.accountWallet = raw.accountWallet.slice(0, 60);
+  if (['paid', 'pending', 'overdue', 'received'].includes(String(raw.status))) patch.status = raw.status;
+  if (typeof raw.isRecurring === 'boolean') patch.isRecurring = raw.isRecurring;
+  if (typeof raw.notes === 'string') patch.notes = raw.notes.slice(0, 500);
+  if (!Object.keys(patch).length) return null;
+  if (await checkDb()) {
+    try {
+      const [tx] = await db
+        .update(schema.financeTransactions)
+        .set(patch)
+        .where(and(eq(schema.financeTransactions.id, txId), eq(schema.financeTransactions.userId, userId)))
+        .returning();
+      if (!tx) return null;
+      return { ...tx, type: tx.type as any, status: tx.status as any, source: tx.source as any, createdAt: tx.createdAt.toISOString() } as FinanceTransactionItem;
+    } catch (e) {
+      console.error('[finanças] editar', e);
+    }
+  }
+  const tx = memStore.financeTransactions.find((t) => t.id === txId && t.userId === userId);
+  if (!tx) return null;
+  Object.assign(tx, patch);
+  return tx;
 }
 
 export async function deleteFinanceTransaction(txId: number, userId: number): Promise<boolean> {

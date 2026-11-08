@@ -8,7 +8,7 @@ import { and, eq, inArray, isNull, lt, lte, or } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { checkDb } from './server-db.js';
-import { PUSH_HOURS, personalize, pickNudge, slotForHour } from './nudges.js';
+import { normalizePushHours, personalize, pickNudge, slotForAnyHour } from './nudges.js';
 
 let cachedKeys: { publicKey: string; privateKey: string } | null = null;
 
@@ -28,16 +28,21 @@ export async function getVapidKeys() {
   return cachedKeys;
 }
 
-export async function saveSubscription(userId: number, sub: any, perDay: number) {
+export async function saveSubscription(userId: number, sub: any, perDay: number, hoursRaw?: unknown) {
   const endpoint = String(sub?.endpoint || '');
   const p256dh = String(sub?.keys?.p256dh || '');
   const auth = String(sub?.keys?.auth || '');
   if (!/^https:\/\//.test(endpoint) || !p256dh || !auth || endpoint.length > 1000) throw new Error('Inscrição de notificação inválida.');
-  const n = [1, 2, 3].includes(perDay) ? perDay : 3;
+  // mantém os horários que a pessoa já escolheu em outro aparelho
+  const [prev] = hoursRaw === undefined ? await db.select({ hours: schema.pushSubscriptions.hours }).from(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.userId, userId)).limit(1) : [];
+  const chosen = hoursRaw !== undefined ? hoursRaw : prev?.hours;
+  const hours = normalizePushHours(chosen, [1, 2, 3].includes(perDay) ? perDay : 3);
+  const n = chosen ? hours.length : [1, 2, 3].includes(perDay) ? perDay : 3;
+  const h = chosen ? hours.join(',') : null;
   await db
     .insert(schema.pushSubscriptions)
-    .values({ userId, endpoint, p256dh, auth, perDay: n })
-    .onConflictDoUpdate({ target: schema.pushSubscriptions.endpoint, set: { userId, p256dh, auth, perDay: n } });
+    .values({ userId, endpoint, p256dh, auth, perDay: n, hours: h })
+    .onConflictDoUpdate({ target: schema.pushSubscriptions.endpoint, set: { userId, p256dh, auth, perDay: n, hours: h } });
 }
 
 export async function removeSubscription(userId: number, endpoint: string) {
@@ -52,12 +57,20 @@ export async function setPushOptOut(userId: number, optOut: boolean) {
 
 export async function setPerDay(userId: number, perDay: number) {
   const n = [1, 2, 3].includes(perDay) ? perDay : 3;
-  await db.update(schema.pushSubscriptions).set({ perDay: n }).where(eq(schema.pushSubscriptions.userId, userId));
+  await db.update(schema.pushSubscriptions).set({ perDay: n, hours: null }).where(eq(schema.pushSubscriptions.userId, userId));
+}
+
+/** Horários livres (0–23, até 3) para todos os aparelhos da pessoa. */
+export async function setPushHours(userId: number, raw: unknown) {
+  const hours = normalizePushHours(raw);
+  await db.update(schema.pushSubscriptions).set({ hours: hours.join(','), perDay: hours.length }).where(eq(schema.pushSubscriptions.userId, userId));
+  return hours;
 }
 
 export async function subscriptionStatus(userId: number) {
-  const rows = await db.select({ perDay: schema.pushSubscriptions.perDay }).from(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.userId, userId));
-  return { devices: rows.length, perDay: rows[0]?.perDay ?? 3 };
+  const rows = await db.select({ perDay: schema.pushSubscriptions.perDay, hours: schema.pushSubscriptions.hours }).from(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.userId, userId));
+  const perDay = rows[0]?.perDay ?? 3;
+  return { devices: rows.length, perDay, hours: normalizePushHours(rows[0]?.hours, perDay) };
 }
 
 /** Token do agendador: derivado do CRON_SECRET (ou do JWT_SECRET, que é obrigatório em produção). */
@@ -132,6 +145,7 @@ export async function sendDueNudges(now: Date = new Date()) {
       p256dh: schema.pushSubscriptions.p256dh,
       auth: schema.pushSubscriptions.auth,
       perDay: schema.pushSubscriptions.perDay,
+      hours: schema.pushSubscriptions.hours,
       name: schema.users.name,
       timezone: schema.users.timezone,
       status: schema.users.subscriptionStatus,
@@ -146,9 +160,8 @@ export async function sendDueNudges(now: Date = new Date()) {
   for (const s of subs) {
     if (s.status === 'suspended') continue;
     const { ymd, hour } = localParts(now, s.timezone || 'America/Sao_Paulo');
-    if (!(PUSH_HOURS[s.perDay] || PUSH_HOURS[3]).includes(hour)) continue;
-    const slot = slotForHour(hour);
-    if (!slot) continue;
+    if (!normalizePushHours(s.hours, s.perDay).includes(hour)) continue;
+    const slot = slotForAnyHour(hour);
     const n = pickNudge(slot, ymd, s.userId);
     try {
       await sendOne(s, { title: personalize(n.title, s.name), body: personalize(n.body, s.name), tab: n.tab, tag: `ritmo-${slot}` }, keys, { urgency: 'normal' });

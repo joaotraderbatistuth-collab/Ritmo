@@ -21,6 +21,10 @@ import { detectStop, detectResume, personalRecords, newRecords, recordValueLabel
 import { pickMissions, missionProgress, chestReward, computeStreak, nextMilestone, weekSummary, nextTier, rankInGroup, mondayOf, MISSION_POOL } from '../src/lib/missions.js';
 import { computeNotices } from '../src/lib/notices.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
+import { nextDateAfter, normalizeTaskRule } from '../src/lib/recurrence.js';
+import { normalizeFrequency, frequencyLabel } from '../src/lib/chain.js';
+import { stepDaysFor } from '../src/lib/roadmap.js';
+import { normalizePushHours, slotForAnyHour } from '../src/lib/nudges.js';
 import { SURVEY_QUESTIONS, normalizeAnswers, answeredCount, shouldAskSurvey, summarizeSurveys, surveyCsvCells, surveyCsvHeader, optionLabel } from '../src/lib/survey.js';
 
 /**
@@ -809,6 +813,29 @@ export function runTests() {
     assert(optionLabel('renda', 'r3') === 'R$ 4 mil a R$ 7 mil', 'rótulo em português');
   }
   console.log('✓ Pesquisa de gostos ok');
+
+  // ---- Datas, horários e repetições livres
+  {
+    assert(nextDateAfter('daily', '2026-11-08') === '2026-11-09', 'todo dia: amanhã');
+    assert(nextDateAfter('weekly:1,3', '2026-11-09') === '2026-11-11', 'segunda e quarta: de segunda vai para quarta');
+    assert(nextDateAfter('weekly:1,3', '2026-11-11') === '2026-11-16', 'de quarta volta para a segunda seguinte');
+    assert(nextDateAfter('monthly:31', '2026-11-08') === '2026-11-30', 'dia 31 em novembro cai no dia 30');
+    assert(nextDateAfter('monthly:10', '2026-12-10') === '2027-01-10', 'vira o ano');
+    assert(nextDateAfter('weekdays', '2026-11-13') === '2026-11-16', 'regra antiga "dias úteis": sexta vai para segunda');
+    assert(normalizeTaskRule('weekly', '2026-11-08') === 'weekly:0', 'regra antiga "semanal" usa o dia da tarefa');
+    assert(nextDateAfter('', '2026-11-08') === null && nextDateAfter('lixo', '2026-11-08') === null, 'sem regra, sem próxima');
+    assert(targetPerWeek('4x_semana') === 4 && targetPerWeek('diario') === 7 && targetPerWeek('3x_semana') === 3, 'frequência livre de hábitos');
+    assert(normalizeFrequency('2x_semana') === '2x_semana' && normalizeFrequency('7x_semana') === 'diario' && normalizeFrequency('9x') === 'diario', 'normaliza frequência');
+    assert(frequencyLabel('1x_semana') === '1x por semana' && frequencyLabel('diario') === 'Todos os dias', 'rótulo da frequência');
+    assert(JSON.stringify(stepDaysFor(40)) === '[1,8,15,24,32,40]', 'duração padrão mantém os marcos');
+    const s30 = stepDaysFor(30);
+    assert(s30[0] === 1 && s30.at(-1) === 30 && s30.length === 5, `duração livre de 30 dias: ${s30}`);
+    assert(JSON.stringify(stepDaysFor(1)) === '[1]' && stepDaysFor(365).at(-1) === 365, 'extremos da duração');
+    assert(JSON.stringify(normalizePushHours('21,7,7,30')) === '[7,21]', 'horários livres: ordena, tira repetidos e inválidos');
+    assert(JSON.stringify(normalizePushHours(null, 2)) === '[8,19]' && normalizePushHours([1, 2, 3, 4]).length === 3, 'padrão e máximo de 3 horários');
+    assert(slotForAnyHour(6) === 'manha' && slotForAnyHour(15) === 'tarde' && slotForAnyHour(2) === 'noite', 'período para qualquer hora');
+  }
+  console.log('✓ Datas e horários livres ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

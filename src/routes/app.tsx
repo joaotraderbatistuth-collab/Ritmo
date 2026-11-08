@@ -59,6 +59,7 @@ import {
 } from 'lucide-react';
 
 import { localDateStr } from '../lib/chain.js';
+import { nextDateAfter, normalizeTaskRule } from '../lib/recurrence.js';
 import { ScrollableNav } from '../components/ScrollableNav.js';
 import { LevelCard, LevelUpModal, XpToast, useXp } from '../components/LevelUp.js';
 import { MissionsCard, LastWeekBanner, LeagueCard, StreakCard, WeekSummaryCard } from '../components/Missions.js';
@@ -369,12 +370,33 @@ function RitmoApp() {
 
   // Handlers for Tasks
   const handleToggleTask = async (taskId: number, completed: boolean) => {
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, completed } : t)));
-    await fetch('/api/tasks', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: taskId, completed }),
-    });
+    await handleUpdateTask(taskId, { completed });
+  };
+
+  // Tarefa que se repete: ao concluir, cria a próxima no dia certo (pela regra escolhida pela pessoa).
+  // A concluída deixa de "puxar" a série, então desmarcar e marcar de novo não duplica.
+  const spawnNextOccurrence = async (task: TaskItem) => {
+    if (!task.isRecurring || !task.recurrenceRule) return false;
+    const next = nextDateAfter(task.recurrenceRule, task.date);
+    if (!next) return false;
+    const rule = normalizeTaskRule(task.recurrenceRule, task.date) || task.recurrenceRule;
+    const exists = tasks.some((t) => t.id !== task.id && t.date === next && t.title === task.title && !t.completed);
+    if (!exists) {
+      await handleAddTask({
+        title: task.title,
+        description: task.description,
+        category: task.category,
+        priority: task.priority,
+        timeBlock: task.timeBlock,
+        startTime: task.startTime,
+        estimatedMinutes: task.estimatedMinutes,
+        isRecurring: true,
+        recurrenceRule: rule,
+        notes: task.notes,
+        date: next,
+      });
+    }
+    return true;
   };
 
   const handleAddTask = async (newTask: Partial<TaskItem>) => {
@@ -390,6 +412,10 @@ function RitmoApp() {
   };
 
   const handleUpdateTask = async (id: number, updates: Partial<TaskItem>) => {
+    const current = tasks.find((t) => t.id === id);
+    if (updates.completed === true && current && !current.completed && current.isRecurring) {
+      if (await spawnNextOccurrence(current)) updates = { ...updates, isRecurring: false };
+    }
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
     await fetch('/api/tasks', {
       method: 'PUT',
@@ -440,12 +466,19 @@ function RitmoApp() {
     }
   };
 
+  const handleUpdateHabit = async (habitId: number, updates: Partial<HabitItem>) => {
+    setHabits((prev) => prev.map((h) => (h.id === habitId ? { ...h, ...updates } : h)));
+    const r = await callApi<{ habit?: HabitItem }>('/api/habits', { action: 'update_habit', habitId, ...updates });
+    if (r.ok && r.data.habit) setHabits((prev) => prev.map((h) => (h.id === habitId ? r.data.habit! : h)));
+  };
+
   // Handlers for Focus Sessions
   const handleRecordSession = async (session: Partial<FocusSessionItem>) => {
     const res = await fetch('/api/focus', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(session),
+      // data no fuso do aparelho (o servidor usava UTC e jogava as sessões da noite para o dia seguinte)
+      body: JSON.stringify({ date: localDateStr(), ...session }),
     });
     const data = await res.json();
     if (data.session) {
@@ -492,6 +525,17 @@ function RitmoApp() {
     if (data.transaction) {
       setTransactions((prev) => [data.transaction, ...prev]);
     }
+  };
+
+  const handleUpdateTransaction = async (id: number, updates: Partial<FinanceTransactionItem>) => {
+    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+    const res = await fetch('/api/finance', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...updates }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data.transaction) setTransactions((prev) => prev.map((t) => (t.id === id ? data.transaction : t)));
   };
 
   const handleDeleteTransaction = async (id: number) => {
@@ -712,6 +756,7 @@ function RitmoApp() {
               habitLogs={habitLogs}
               onToggleHabit={handleToggleHabit}
               onAddHabit={handleAddHabit}
+              onUpdateHabit={handleUpdateHabit}
             />
           )}
 
@@ -738,6 +783,7 @@ function RitmoApp() {
               transactions={transactions}
               onAddTransaction={handleAddTransaction}
               onDeleteTransaction={handleDeleteTransaction}
+              onUpdateTransaction={handleUpdateTransaction}
             />
           )}
 

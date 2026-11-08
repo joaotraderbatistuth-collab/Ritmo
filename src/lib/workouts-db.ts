@@ -111,6 +111,25 @@ export async function createWorkout(userId: number, w: WorkoutInput): Promise<Wo
   return item;
 }
 
+/** Edita título, notas e data/hora de início de um treino da própria pessoa. */
+export async function updateWorkout(userId: number, id: number, patch: { title?: string; notes?: string; startedAt?: Date }): Promise<WorkoutItem | null> {
+  if (!Object.keys(patch).length) return null;
+  if (await checkDb()) {
+    try {
+      const [row] = await db.update(schema.workouts).set(patch).where(and(eq(schema.workouts.id, id), eq(schema.workouts.userId, userId))).returning();
+      return row ? fromRow(row) : null;
+    } catch (e) {
+      console.error('[treinos] editar', e);
+    }
+  }
+  const w = mem.find((x) => x.id === id && x.userId === userId);
+  if (!w) return null;
+  if (patch.title !== undefined) w.title = patch.title;
+  if (patch.notes !== undefined) w.notes = patch.notes;
+  if (patch.startedAt) w.startedAt = patch.startedAt.toISOString();
+  return w;
+}
+
 export async function deleteWorkout(userId: number, id: number): Promise<boolean> {
   if (await checkDb()) {
     try {

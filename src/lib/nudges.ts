@@ -102,6 +102,22 @@ export function slotForHour(hour: number): NudgeSlot | null {
 /** Horários (locais) em que a notificação no celular é enviada, conforme quantas por dia a pessoa quer. */
 export const PUSH_HOURS: Record<number, number[]> = { 1: [8], 2: [8, 19], 3: [8, 13, 19] };
 
+/** Horários escolhidos pela pessoa (0 a 23, até 3, sem repetir). Vazio/ inválido → o padrão para `perDay`. */
+export function normalizePushHours(raw: unknown, perDay = 3): number[] {
+  const list = (Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split(',') : [])
+    .map((v) => Number(String(v).trim()))
+    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 23);
+  const uniq = [...new Set(list)].sort((a, b) => a - b).slice(0, 3);
+  return uniq.length ? uniq : PUSH_HOURS[[1, 2, 3].includes(perDay) ? perDay : 3];
+}
+
+/** Período do lembrete para QUALQUER hora escolhida (madrugada usa os da noite). */
+export function slotForAnyHour(hour: number): NudgeSlot {
+  if (hour >= 5 && hour < 12) return 'manha';
+  if (hour >= 12 && hour < 18) return 'tarde';
+  return 'noite';
+}
+
 const dayNumber = (ymd: string) => Math.floor(new Date(`${ymd}T12:00:00Z`).getTime() / 86400000);
 
 /** Escolhe o lembrete do período: gira por dia e varia por pessoa (seed = id do usuário). */

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { HabitItem, HabitLogItem, HabitCategory } from '../lib/types.js';
-import { localDateStr } from '../lib/chain.js';
+import { addDays, frequencyLabel, localDateStr, normalizeFrequency } from '../lib/chain.js';
 import {
   Sparkles,
   Plus,
@@ -14,6 +14,9 @@ import {
   Info,
   Flame,
   Share2,
+  Pencil,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { shareToFeed } from '../lib/share-feed.js';
 
@@ -22,6 +25,7 @@ interface TabHabitsProps {
   habitLogs: HabitLogItem[];
   onToggleHabit: (habitId: number, completed: boolean, date?: string) => Promise<void>;
   onAddHabit: (habit: Partial<HabitItem>) => Promise<void>;
+  onUpdateHabit?: (habitId: number, updates: Partial<HabitItem>) => Promise<void>;
 }
 
 const CATEGORY_META: Record<
@@ -42,29 +46,28 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
   habitLogs,
   onToggleHabit,
   onAddHabit,
+  onUpdateHabit,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [category, setCategory] = useState<HabitCategory>('movimento');
-  const [targetFrequency, setTargetFrequency] = useState<'diario' | '5x_semana' | '3x_semana'>('diario');
+  const [targetFrequency, setTargetFrequency] = useState<string>('diario');
+  const [editing, setEditing] = useState<HabitItem | null>(null);
+  // último dia mostrado na matriz (a pessoa navega para qualquer semana passada)
+  const todayStr = localDateStr();
+  const [endDate, setEndDate] = useState<string>(todayStr);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Generate last 7 days dates array
-  const today = new Date();
+  // 7 dias que terminam no dia escolhido (hoje por padrão)
   const past7Days: { dateStr: string; dayName: string; dayNum: number }[] = [];
   const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const dateStr = localDateStr(d);
-    past7Days.push({
-      dateStr,
-      dayName: dayNames[d.getDay()],
-      dayNum: d.getDate(),
-    });
+    const dateStr = addDays(endDate, -i);
+    const d = new Date(`${dateStr}T12:00:00`);
+    past7Days.push({ dateStr, dayName: dayNames[d.getDay()], dayNum: d.getDate() });
   }
+  const goTo = (date: string) => setEndDate(date > todayStr ? todayStr : date);
 
   // Create log lookup: `${habitId}_${date}` => boolean
   const logLookup = new Map<string, boolean>();
@@ -72,12 +75,35 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
     logLookup.set(`${l.habitId}_${l.date}`, l.completed);
   }
 
+  const openNew = () => {
+    setEditing(null);
+    setName('');
+    setCategory('movimento');
+    setTargetFrequency('diario');
+    setNotes('');
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (h: HabitItem) => {
+    setEditing(h);
+    setName(h.name);
+    setCategory(h.category);
+    setTargetFrequency(normalizeFrequency(h.targetFrequency));
+    setNotes(h.notes || '');
+    setIsModalOpen(true);
+  };
+
   const handleCreateHabit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setLoading(true);
 
     try {
+      if (editing && onUpdateHabit) {
+        await onUpdateHabit(editing.id, { name, targetFrequency, notes });
+        setIsModalOpen(false);
+        return;
+      }
       await onAddHabit({
         name,
         category,
@@ -118,12 +144,18 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
             Matriz Semanal de Hábitos
           </h2>
           <p className="text-xs text-[#8b949e]">
-            Acompanhe seus últimos 7 dias de consistência com um clique simples.
+            Toque num dia para marcar ou desmarcar. Volte para qualquer semana para corrigir o que faltou.
           </p>
+          <div className="mt-2 flex items-center gap-1 bg-[#0d1117] border border-[#30363d] rounded-xl p-1 w-fit">
+            <button type="button" onClick={() => goTo(addDays(endDate, -7))} aria-label="Semana anterior" className="p-1.5 rounded-lg text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]"><ChevronLeft className="w-4 h-4" /></button>
+            <input type="date" value={endDate} max={todayStr} onChange={(e) => e.target.value && goTo(e.target.value)} aria-label="Ver semana que termina em" className="bg-transparent text-xs font-semibold text-[#f0f6fc] px-1 py-1 focus:outline-none [color-scheme:dark]" />
+            <button type="button" onClick={() => goTo(addDays(endDate, 7))} disabled={endDate >= todayStr} aria-label="Próxima semana" className="p-1.5 rounded-lg text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
+            {endDate !== todayStr && <button type="button" onClick={() => setEndDate(todayStr)} className="px-2 text-[11px] text-emerald-400 hover:underline">Hoje</button>}
+          </div>
         </div>
 
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openNew}
           className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all shrink-0"
         >
           <Plus className="w-4 h-4" />
@@ -140,8 +172,8 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
                 <th className="py-3 px-4 text-xs font-semibold text-[#8b949e] min-w-[200px]">
                   Hábito & Categoria
                 </th>
-                {past7Days.map((d, idx) => {
-                  const isToday = idx === past7Days.length - 1;
+                {past7Days.map((d) => {
+                  const isToday = d.dateStr === todayStr;
                   return (
                     <th
                       key={d.dateStr}
@@ -174,12 +206,18 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
                             {meta.icon}
                           </span>
                           <span>{habit.name}</span>
+                          {onUpdateHabit && (
+                            <button type="button" title="Editar hábito" aria-label={`Editar ${habit.name}`} onClick={() => openEdit(habit)} className="p-1 rounded-md text-[#6e7681] hover:text-emerald-400">
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          )}
                           {logLookup.get(`${habit.id}_${localDateStr()}`) && (
                             <button type="button" title="Compartilhar no Feed" aria-label={`Compartilhar ${habit.name} no Feed`} onClick={() => shareToFeed({ type: 'habito', habit: habit.name.slice(0, 60) })} className="ml-1 p-1 rounded-md text-[#8b949e] hover:text-emerald-400 hover:bg-emerald-500/10">
                               <Share2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
+                        <p className="text-[10px] text-[#6e7681] ml-7 mt-0.5">{frequencyLabel(habit.targetFrequency)}</p>
                         {habit.notes && (
                           <p className="text-[11px] text-[#8b949e] ml-7 mt-0.5">
                             {habit.notes}
@@ -225,7 +263,7 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
               ×
             </button>
 
-            <h3 className="text-base font-bold text-[#f0f6fc] mb-4">Novo Hábito Saudável</h3>
+            <h3 className="text-base font-bold text-[#f0f6fc] mb-4">{editing ? 'Editar hábito' : 'Novo Hábito Saudável'}</h3>
 
             <form onSubmit={handleCreateHabit} className="space-y-4">
               <div>
@@ -249,6 +287,7 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value as HabitCategory)}
+                  disabled={Boolean(editing)}
                   className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-[#f0f6fc]"
                 >
                   <option value="movimento">Movimento ou Exercício</option>
@@ -271,8 +310,9 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
                   className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-xs text-[#f0f6fc]"
                 >
                   <option value="diario">Todos os dias</option>
-                  <option value="5x_semana">5x por semana (dias úteis)</option>
-                  <option value="3x_semana">3x por semana (flexível)</option>
+                  {[6, 5, 4, 3, 2, 1].map((n) => (
+                    <option key={n} value={`${n}x_semana`}>{n}x por semana (nos dias que você quiser)</option>
+                  ))}
                 </select>
               </div>
 
@@ -302,7 +342,7 @@ export const TabHabits: React.FC<TabHabitsProps> = ({
                   disabled={loading}
                   className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shadow-emerald-600/20"
                 >
-                  {loading ? 'Salvando...' : 'Criar Hábito'}
+                  {loading ? 'Salvando...' : editing ? 'Salvar' : 'Criar Hábito'}
                 </button>
               </div>
             </form>

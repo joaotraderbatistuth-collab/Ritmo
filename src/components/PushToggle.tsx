@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BellRing, BellOff } from 'lucide-react';
+import { PUSH_HOURS, normalizePushHours } from '../lib/nudges.js';
 import { callApi } from '../lib/client-api.js';
 
 function b64ToUint8(base64: string) {
@@ -18,6 +19,8 @@ type State = 'loading' | 'unsupported' | 'ios-install' | 'denied' | 'off' | 'on'
 export const PushToggle: React.FC<{ compact?: boolean }> = ({ compact }) => {
   const [state, setState] = useState<State>('loading');
   const [perDay, setPerDay] = useState(3);
+  // horários livres (hora cheia, 0–23); o envio acontece no começo da hora escolhida
+  const [hours, setHours] = useState<number[]>(PUSH_HOURS[3]);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -33,7 +36,10 @@ export const PushToggle: React.FC<{ compact?: boolean }> = ({ compact }) => {
         const reg = await navigator.serviceWorker.getRegistration();
         const sub = await reg?.pushManager.getSubscription();
         const r = await callApi('/api/push');
-        if (r.ok) setPerDay((r.data as any).perDay || 3);
+        if (r.ok) {
+          setPerDay((r.data as any).perDay || 3);
+          if (Array.isArray((r.data as any).hours)) setHours((r.data as any).hours);
+        }
         setState(sub ? 'on' : 'off');
       } catch {
         setState('off');
@@ -55,7 +61,7 @@ export const PushToggle: React.FC<{ compact?: boolean }> = ({ compact }) => {
       const reg = (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.register('/sw.js'));
       await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8((keyRes.data as any).publicKey) });
-      const r = await callApi('/api/push', { action: 'subscribe', subscription: sub.toJSON(), perDay });
+      const r = await callApi('/api/push', { action: 'subscribe', subscription: sub.toJSON(), perDay: hours.length, hours });
       if (!r.ok) throw new Error((r.data as any).error || 'Não foi possível ligar agora.');
       setState('on');
       setMsg((r.data as any).message || 'Notificações ligadas!');
@@ -82,9 +88,30 @@ export const PushToggle: React.FC<{ compact?: boolean }> = ({ compact }) => {
     }
   };
 
+  const saveHours = async (next: number[]) => {
+    const clean = normalizePushHours(next, next.length || 1);
+    setHours(clean);
+    setPerDay(clean.length);
+    if (state === 'on') await callApi('/api/push', { action: 'hours', hours: clean });
+  };
+
   const changePerDay = async (n: number) => {
-    setPerDay(n);
-    if (state === 'on') await callApi('/api/push', { action: 'per_day', perDay: n });
+    // mantém os horários já escolhidos e completa/corta até a quantidade nova
+    let next = hours.slice(0, n);
+    for (const h of PUSH_HOURS[n]) if (next.length < n && !next.includes(h)) next.push(h);
+    for (let h = 8; next.length < n && h < 24; h++) if (!next.includes(h)) next.push(h);
+    await saveHours(next);
+  };
+
+  const changeHour = async (i: number, h: number) => {
+    const next = [...hours];
+    next[i] = h;
+    if (new Set(next).size !== next.length) {
+      setMsg('Esse horário já está escolhido.');
+      return;
+    }
+    setMsg('');
+    await saveHours(next);
   };
 
   if (state === 'loading') return null;
@@ -106,6 +133,24 @@ export const PushToggle: React.FC<{ compact?: boolean }> = ({ compact }) => {
               <label className="text-xs text-[#8b949e]">Quantos por dia:</label>
               {[1, 2, 3].map((n) => (
                 <button key={n} type="button" onClick={() => changePerDay(n)} className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${perDay === n ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'border-[#30363d] text-[#c9d1d9]'}`}>{n}</button>
+              ))}
+            </div>
+          )}
+          {(state === 'on' || state === 'off') && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <label className="text-xs text-[#8b949e]">Em quais horários:</label>
+              {hours.map((h, i) => (
+                <select
+                  key={i}
+                  value={h}
+                  onChange={(e) => changeHour(i, Number(e.target.value))}
+                  aria-label={`Horário ${i + 1}`}
+                  className="bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-1 text-xs text-[#f0f6fc]"
+                >
+                  {Array.from({ length: 24 }, (_, x) => x).map((x) => (
+                    <option key={x} value={x}>{String(x).padStart(2, '0')}:00</option>
+                  ))}
+                </select>
               ))}
             </div>
           )}
