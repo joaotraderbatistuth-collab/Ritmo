@@ -252,7 +252,7 @@ export const MissionsCard: React.FC<{ data: (XpData & GameData) | null; onGo: (t
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   if (!data?.missions || !data.chest || !data.streak) {
-    return <div className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4 text-sm text-[#8b949e] mb-5">Carregando suas missões de hoje...</div>;
+    return <div className="rounded-2xl border border-[#30363d] bg-[#161b22] p-4 text-sm text-[#8b949e]">Carregando suas missões de hoje...</div>;
   }
   const { missions, chest, streak } = data;
   const state: 'locked' | 'ready' | 'open' = chest.opened ? 'open' : chest.ready ? 'ready' : 'locked';
@@ -278,7 +278,7 @@ export const MissionsCard: React.FC<{ data: (XpData & GameData) | null; onGo: (t
   };
 
   return (
-    <section id="ritmo-missoes" className={`scroll-mt-4 rounded-2xl border ${state === 'ready' ? 'border-amber-400/60 shadow-lg shadow-amber-500/10' : 'border-[#30363d]'} bg-gradient-to-br from-[#161b22] to-[#0d1117] p-4 sm:p-5 mb-5`} aria-label="Missões de hoje">
+    <section id="ritmo-missoes" className={`scroll-mt-4 rounded-2xl border ${state === 'ready' ? 'border-amber-400/60 shadow-lg shadow-amber-500/10' : 'border-[#30363d]'} bg-gradient-to-br from-[#161b22] to-[#0d1117] p-4 sm:p-5`} aria-label="Missões de hoje">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-extrabold text-[#f0f6fc]">Missões de hoje</h2>

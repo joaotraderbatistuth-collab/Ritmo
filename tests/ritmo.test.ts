@@ -24,6 +24,7 @@ import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap
 import { nextSteps } from '../src/lib/next-step.js';
 import { computeMedals, monthRecap, MEDALS, PUBLIC_MEDAL_GROUPS, RARITY, rarityOf } from '../src/lib/medals.js';
 import { eventOfWeek, eventBonus, EVENT_DAILY_MAX, WEEK_EVENTS, passReached, passView, SEASON_PASS, chestDaysInWeek, weekChestReward, mascotState, friendsRanking } from '../src/lib/game-extras.js';
+import { HELP } from '../src/lib/help-texts.js';
 import { cardFromAchievement, cardFromMedal, shareMessage, shortLink, sanitizeShare, makeSlug, isSlug, escapeHtml } from '../src/lib/share-card.js';
 import { suggestedTarget, clampTarget, challengeProgress, challengeStatus, challengeNudge, challengeCode, isChallengeCode } from '../src/lib/challenges.js';
 import { canSendAuto, DAILY_PUSH_MAX } from '../src/lib/nudges.js';
@@ -1125,6 +1126,19 @@ export function runTests() {
     assert(fr.map((r) => r.userId).join() === '2,3,1' && fr[0].rank === 1, 'ranking de amigos');
   }
   console.log('✓ Evento, passe, baú semanal, mascote e amigos ok');
+
+  // ---- "Saber mais" em todas as partes
+  {
+    const tabs = ['hoje', 'feed', 'treino', 'habitos', 'rotina', 'foco', 'financas', 'roteiro', 'diario', 'quadros', 'afiliados', 'configuracoes', 'progresso_tab'];
+    const cards = ['pontos', 'temporada', 'passe', 'evento', 'amigos', 'bau_semana', 'mascote', 'desafios', 'retrospectiva', 'conquistas', 'ofensiva', 'semana', 'ciclos', 'stories', 'proximo_passo', 'missoes', 'compartilhar'];
+    for (const k of [...tabs, ...cards]) {
+      const h = HELP[k];
+      assert(Boolean(h) && h.title.length > 2 && h.what.length > 20 && h.how.length >= 1 && h.todo.length >= 1, `Saber mais completo: ${k}`);
+      assert(!/garantid|fique rico|renda extra|ganhe dinheiro/i.test(JSON.stringify(h)), `sem promessa: ${k}`);
+    }
+    assert(HELP.passe.how.join(' ').includes('2.800') && HELP.evento.how.join(' ').includes('+60') && HELP.bau_semana.how.join(' ').includes('+150'), 'textos batem com as regras do jogo');
+  }
+  console.log('✓ Saber mais ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

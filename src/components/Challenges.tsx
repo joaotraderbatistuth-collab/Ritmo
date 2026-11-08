@@ -76,7 +76,7 @@ export const ChallengesCard: React.FC<{ refreshKey?: string; compact?: boolean; 
   if (compact && !visible.length) return null;
 
   return (
-    <section className={`rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-500/10 via-[#161b22] to-[#0d1117] p-5 ${compact ? 'mb-5' : ''}`}>
+    <section className={`rounded-3xl border border-orange-500/30 bg-gradient-to-br from-orange-500/10 via-[#161b22] to-[#0d1117] p-5`}>
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-base font-bold text-[#f0f6fc] flex items-center gap-2"><Swords className="w-5 h-5 text-orange-300" /> Desafios com amigos</h3>
         {!compact && (

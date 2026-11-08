@@ -80,6 +80,7 @@ import { ShareSheet } from '../components/ShareSheet.js';
 import { MedalUnlock } from '../components/MedalUnlock.js';
 import { EventBanner, FriendsRankCard, MascotCard, PassCard, WeekChestCard } from '../components/GameExtras.js';
 import { StoriesBar } from '../components/Stories.js';
+import { LearnMore } from '../components/LearnMore.js';
 import { setStoryAutoFlag } from '../lib/stories-client.js';
 import { cardFromAchievement, cardFromMedal, type ShareCard } from '../lib/share-card.js';
 import { fold } from '../lib/assistant-parser.js';
@@ -777,17 +778,50 @@ function RitmoApp() {
 
         {/* Tab Content Display */}
         <main>
+          {/* "Saber mais" no topo de cada aba (Hoje, Feed e Progresso têm o seu junto dos cartões) */}
+          {user && !['hoje', 'feed', 'progresso'].includes(activeTab) && (
+            <div className="max-w-5xl mx-auto mb-3">
+              <LearnMore id={activeTab} variant="chip" />
+            </div>
+          )}
           {(activeTab === 'feed' || activeTab === 'hoje') && user && (
             <div className="max-w-5xl mx-auto">
-              <div className="mb-4">
+              <LearnMore id={activeTab} variant="chip" className="mb-3" />
+              <div className="mb-5">
                 <StoriesBar me={{ initials: userInitials, avatarUrl: xp.data?.avatarUrl || null, level: xp.data?.level.level || 1 }} quick={storyQuick} />
+                <LearnMore id="stories" align="left" variant="chip" className="mt-1" />
               </div>
               {activeTab === 'feed' && <LastWeekBanner data={xp.data} />}
-              {activeTab === 'hoje' && <EventBanner event={xp.data?.event} today={xp.data?.today} onGo={(tab) => setActiveTab(tab)} />}
-              {activeTab === 'hoje' && <NextStepCard steps={steps} comeback={Boolean(xp.data?.comebackToday)} onRun={runStep} />}
-              {activeTab === 'hoje' && <WeekChestCard chest={xp.data?.weekChest} onChanged={() => xp.refresh()} compact />}
-              {activeTab === 'hoje' && <MascotCard mascot={xp.data?.mascot} compact />}
-              {activeTab === 'hoje' && <ChallengesCard compact refreshKey={xpSignature} onChanged={() => xp.refresh()} />}
+              {activeTab === 'hoje' && xp.data?.event && (
+                <div className="mb-5">
+                  <EventBanner event={xp.data.event} today={xp.data.today} onGo={(tab) => setActiveTab(tab)} />
+                  <LearnMore id="evento" />
+                </div>
+              )}
+              {activeTab === 'hoje' && steps.length > 0 && (
+                <div className="mb-5">
+                  <NextStepCard steps={steps} comeback={Boolean(xp.data?.comebackToday)} onRun={runStep} />
+                  <LearnMore id="proximo_passo" />
+                </div>
+              )}
+              {activeTab === 'hoje' && xp.data?.weekChest?.ready && (
+                <div className="mb-5">
+                  <WeekChestCard chest={xp.data.weekChest} onChanged={() => xp.refresh()} compact />
+                  <LearnMore id="bau_semana" />
+                </div>
+              )}
+              {activeTab === 'hoje' && xp.data?.mascot && (
+                <div className="mb-5">
+                  <MascotCard mascot={xp.data.mascot} compact />
+                  <LearnMore id="mascote" />
+                </div>
+              )}
+              {activeTab === 'hoje' && (
+                <div className="[&>section]:mb-5">
+                  <ChallengesCard compact refreshKey={xpSignature} onChanged={() => xp.refresh()} />
+                </div>
+              )}
+              <div className="mb-5">
               <MissionsCard
                 data={xp.data}
                 onGo={goMission}
@@ -805,6 +839,8 @@ function RitmoApp() {
                   },
                 }}
               />
+              <LearnMore id="missoes" />
+              </div>
             </div>
           )}
 
@@ -904,32 +940,88 @@ function RitmoApp() {
 
           {activeTab === 'progresso' && user && (
             <div className="mb-6 max-w-5xl mx-auto space-y-6">
-              <EventBanner event={xp.data?.event} today={xp.data?.today} onGo={(tab) => setActiveTab(tab)} />
-              <SeasonCard season={xp.data?.season} optedOut={Boolean(xp.data?.leagueOptOut)} onChanged={() => xp.refresh()} />
-              <div className="grid gap-6 lg:grid-cols-2">
-                <PassCard pass={xp.data?.pass} />
-                <FriendsRankCard friends={xp.data?.friends} onFind={() => setActiveTab('feed')} />
+              <LearnMore id="progresso_tab" variant="chip" />
+              {xp.data?.event && (
+                <div>
+                  <EventBanner event={xp.data.event} today={xp.data.today} onGo={(tab) => setActiveTab(tab)} />
+                  <LearnMore id="evento" />
+                </div>
+              )}
+              <div>
+                <SeasonCard season={xp.data?.season} optedOut={Boolean(xp.data?.leagueOptOut)} onChanged={() => xp.refresh()} />
+                <LearnMore id="temporada" />
               </div>
               <div className="grid gap-6 lg:grid-cols-2">
-                <WeekChestCard chest={xp.data?.weekChest} onChanged={() => xp.refresh()} />
-                <MascotCard mascot={xp.data?.mascot} />
+                {xp.data?.pass && (
+                  <div>
+                    <PassCard pass={xp.data.pass} />
+                    <LearnMore id="passe" />
+                  </div>
+                )}
+                {xp.data?.friends && (
+                  <div>
+                    <FriendsRankCard friends={xp.data.friends} onFind={() => setActiveTab('feed')} />
+                    <LearnMore id="amigos" />
+                  </div>
+                )}
               </div>
-              <ChallengesCard refreshKey={xpSignature} onChanged={() => xp.refresh()} />
               <div className="grid gap-6 lg:grid-cols-2">
-                <RecapCard recap={xp.data?.recap} name={user.name} history={xp.data?.season?.history || []} medalsEarned={(xp.data?.medals || []).filter((m) => m.earned).length} />
-                <MedalsCard medals={xp.data?.medals} />
+                {xp.data?.weekChest && (
+                  <div>
+                    <WeekChestCard chest={xp.data.weekChest} onChanged={() => xp.refresh()} />
+                    <LearnMore id="bau_semana" />
+                  </div>
+                )}
+                {xp.data?.mascot && (
+                  <div>
+                    <MascotCard mascot={xp.data.mascot} />
+                    <LearnMore id="mascote" />
+                  </div>
+                )}
               </div>
-              <LevelCard data={xp.data} initials={userInitials} onEditPhoto={() => setActiveTab('configuracoes')} />
+              <div>
+                <ChallengesCard refreshKey={xpSignature} onChanged={() => xp.refresh()} />
+                <LearnMore id="desafios" />
+              </div>
               <div className="grid gap-6 lg:grid-cols-2">
-                <StreakCard data={xp.data} />
+                {xp.data?.recap && (
+                  <div>
+                    <RecapCard recap={xp.data.recap} name={user.name} history={xp.data?.season?.history || []} medalsEarned={(xp.data?.medals || []).filter((m) => m.earned).length} />
+                    <LearnMore id="retrospectiva" />
+                  </div>
+                )}
+                {(xp.data?.medals || []).length > 0 && (
+                  <div>
+                    <MedalsCard medals={xp.data?.medals} />
+                    <LearnMore id="conquistas" />
+                  </div>
+                )}
+              </div>
+              <div>
+                <LevelCard data={xp.data} initials={userInitials} onEditPhoto={() => setActiveTab('configuracoes')} />
+                <LearnMore id="pontos" />
+              </div>
+              <div className="grid gap-6 lg:grid-cols-2">
+                {xp.data?.streak && (
+                  <div>
+                    <StreakCard data={xp.data} />
+                    <LearnMore id="ofensiva" />
+                  </div>
+                )}
                 <div className="space-y-6">
-                  <WeekSummaryCard week={xp.data?.week} title="Esta semana" />
+                  {xp.data?.week && (
+                    <div>
+                      <WeekSummaryCard week={xp.data.week} title="Esta semana" />
+                      <LearnMore id="semana" />
+                    </div>
+                  )}
                   {xp.data?.lastWeek && xp.data.lastWeek.xp > 0 && <WeekSummaryCard week={xp.data.lastWeek} title="Semana passada" shareable />}
                 </div>
               </div>
             </div>
           )}
 
+          {activeTab === 'progresso' && user && <div className="max-w-5xl mx-auto mb-3"><LearnMore id="ciclos" variant="chip" align="left" /></div>}
           {activeTab === 'progresso' && (
             <TabProgress
               cycles={allCycles.length > 0 ? allCycles : activeCycle ? [activeCycle] : []}

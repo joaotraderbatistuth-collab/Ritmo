@@ -5,6 +5,7 @@ import { shareMessage, type ShareCard } from '../lib/share-card.js';
 import { canvasBlob, previewDataUrl, renderStory, type StoryPerson } from '../lib/story-image.js';
 import { callApi } from '../lib/client-api.js';
 import { postStory } from '../lib/stories-client.js';
+import { LearnMore } from './LearnMore.js';
 
 // "Compartilhar em redes sociais": story pronto (1080×1920) com QR code e o link da pessoa.
 // WhatsApp e Instagram recebem a imagem + o link; o Feed do Ritmo recebe a conquista.
@@ -216,6 +217,7 @@ export const ShareSheet: React.FC<{ person: StoryPerson | null; referralCode: st
             </p>
           )}
         </div>
+        <LearnMore id="compartilhar" variant="chip" align="left" className="mt-3" />
         <p className="mt-2 text-[11px] text-[#6e7681] text-center">A imagem e o link mostram seu primeiro nome, sua foto de perfil, seu nível e esta conquista.</p>
       </div>
     </div>

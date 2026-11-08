@@ -27,7 +27,7 @@ export const NextStepCard: React.FC<{
   };
   const quick = main.kind === 'habit' || main.kind === 'task';
   return (
-    <section className="mb-5 rounded-3xl border border-emerald-500/40 bg-gradient-to-br from-emerald-500/15 via-[#161b22] to-[#0d1117] p-5 shadow-lg shadow-emerald-500/10" aria-label="Próximo passo">
+    <section className="rounded-3xl border border-emerald-500/40 bg-gradient-to-br from-emerald-500/15 via-[#161b22] to-[#0d1117] p-5 shadow-lg shadow-emerald-500/10" aria-label="Próximo passo">
       {comeback && (
         <p className="mb-3 rounded-xl bg-amber-500/15 border border-amber-500/40 px-3 py-2 text-xs font-bold text-amber-200 inline-flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5" /> Que bom te ver de volta! Hoje seus pontos valem em dobro (até +50).

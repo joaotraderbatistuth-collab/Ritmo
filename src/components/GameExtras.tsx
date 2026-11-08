@@ -68,7 +68,7 @@ export const EventBanner: React.FC<{ event: EventView | null | undefined; today?
   if (!event) return null;
   const left = daysTo(event.endsAt, today);
   return (
-    <section className="relative overflow-hidden rounded-3xl border p-4 mb-4" style={{ borderColor: `${event.color}66`, background: `linear-gradient(120deg, ${event.color}26, #161b22 60%)` }}>
+    <section className="relative overflow-hidden rounded-3xl border p-4" style={{ borderColor: `${event.color}66`, background: `linear-gradient(120deg, ${event.color}26, #161b22 60%)` }}>
       <span className="absolute -right-4 -top-6 text-8xl opacity-15 select-none" aria-hidden="true">{event.emoji}</span>
       <div className="relative flex items-center gap-3">
         <span className="text-3xl" aria-hidden="true">{event.emoji}</span>
@@ -166,7 +166,7 @@ export const WeekChestCard: React.FC<{ chest: WeekChestView | null | undefined; 
   };
   const canStill = chest.need - chest.days <= chest.daysLeft;
   return (
-    <section className={`relative overflow-hidden rounded-3xl border p-5 ${chest.ready ? 'border-violet-400/60 bg-gradient-to-br from-violet-500/20 via-[#161b22] to-[#0d1117]' : 'border-[#30363d] bg-[#161b22]'} ${compact ? 'mb-4' : ''}`}>
+    <section className={`relative overflow-hidden rounded-3xl border p-5 ${chest.ready ? 'border-violet-400/60 bg-gradient-to-br from-violet-500/20 via-[#161b22] to-[#0d1117]' : 'border-[#30363d] bg-[#161b22]'}`}>
       <div className="flex items-center gap-3">
         <span className={`text-4xl ${chest.ready ? 'ritmo-pop-pulse' : ''}`} aria-hidden="true">{chest.opened || won ? '🎉' : '🧰'}</span>
         <div className="min-w-0 flex-1">
@@ -214,7 +214,7 @@ export const MascotCard: React.FC<{ mascot: MascotView | null | undefined; compa
   if (!mascot) return null;
   const m = MOOD[mascot.mood];
   return (
-    <section className={`rounded-3xl border border-[#30363d] bg-gradient-to-br ${m.bg} via-[#161b22] to-[#0d1117] ${compact ? 'p-4 mb-4' : 'p-5'}`}>
+    <section className={`rounded-3xl border border-[#30363d] bg-gradient-to-br ${m.bg} via-[#161b22] to-[#0d1117] ${compact ? 'p-4' : 'p-5'}`}>
       <div className="flex items-center gap-4">
         <div className="relative shrink-0">
           <span className={`block ${compact ? 'text-5xl' : 'text-6xl'} ${m.anim}`} style={{ animationDuration: '2.4s' }} aria-hidden="true">{mascot.emoji}</span>
