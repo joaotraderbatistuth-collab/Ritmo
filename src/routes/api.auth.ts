@@ -13,6 +13,7 @@ import {
   listAdminInvites,
 } from '../lib/server-db.js';
 import { signupStatus } from '../lib/waitlist-db.js';
+import { refreshWakePlan } from '../lib/wake-plan-server.js';
 import { SIGNUP_CLOSED_MESSAGE, SIGNUP_CLOSED_TITLE } from '../lib/signup-limit.js';
 import { createToken, extractTokenFromRequest, hashPassword, verifyPassword, verifyToken } from '../lib/auth.js';
 import { verifyActiveToken } from '../lib/session.js';
@@ -352,6 +353,8 @@ export const Route = createFileRoute('/api/auth')({
         } as any);
 
         if (!updated) return Response.json({ error: 'Usuário não encontrado.' }, { status: 404 });
+        // fuso mudou: os horários das notificações mudam em UTC
+        if (body.timezone) await refreshWakePlan().catch(() => null);
         const { passwordHash: _, ...safeUser } = updated;
         return Response.json({ user: safeUser });
       },

@@ -1,3 +1,4 @@
+import { parsePlan, nudgeUtcHours, shouldRunNudges, shouldRunReminders, isSeasonHour, withReminder, localHour, SEASON_UTC_HOURS } from '../src/lib/wake-plan.js';
 import { parseMaxAccounts, signupOpen, spotsLeft, cleanWaitlistEntry, DEFAULT_MAX_ACCOUNTS } from '../src/lib/signup-limit.js';
 import { validateAdminNotification, broadcastWaitMinutes } from '../src/lib/admin-notify.js';
 import { RITMO_TONE, toneLength, RITMO_VIBRATE } from '../src/lib/notify-sound.js';
@@ -1152,6 +1153,25 @@ export function runTests() {
     assert(cleanWaitlistEntry({ email: 'sem-arroba' }) === null && cleanWaitlistEntry({}) === null, 'e-mail inválido recusado');
   }
   console.log('✓ Limite de contas ok');
+
+  // ---- Agenda de acordar (economia de créditos do banco)
+  {
+    const now = new Date('2026-11-09T15:20:00Z'); // 12:20 em Brasília
+    assert(localHour(now, 'America/Sao_Paulo') === 12 && localHour(now, 'Europe/Lisbon') === 15, 'hora local por fuso');
+    const hrs = nudgeUtcHours([{ hours: [8, 13, 19], timezone: 'America/Sao_Paulo' }, { hours: [8], timezone: 'Europe/Lisbon' }, { hours: [13], timezone: null }], now);
+    assert(JSON.stringify(hrs) === JSON.stringify([8, 11, 16, 22]), 'horas UTC das notificações: ' + JSON.stringify(hrs));
+    const plan = { v: 1 as const, nudgeUtcHours: [11, 16, 22], nextReminderAt: null, updatedAt: now.toISOString() };
+    assert(shouldRunNudges(null, now), 'sem agenda: roda sempre');
+    assert(!shouldRunNudges(plan, new Date('2026-11-09T15:00:00Z')) && shouldRunNudges(plan, new Date('2026-11-09T16:00:00Z')), 'só nas horas com gente');
+    assert(SEASON_UTC_HOURS.length === 2 && shouldRunNudges(plan, new Date('2026-11-09T12:00:00Z')) && isSeasonHour(new Date('2026-11-10T00:00:00Z')) && !isSeasonHour(now), 'temporada 2x por dia');
+    assert(!shouldRunReminders(plan, now), 'sem lembrete pendente: banco dorme');
+    assert(shouldRunReminders(null, new Date('2026-11-09T16:00:00Z')) && !shouldRunReminders(null, new Date('2026-11-09T15:00:00Z')), 'sem agenda: 4 em 4 h');
+    const p2 = withReminder(plan, new Date('2026-11-09T17:30:00Z'));
+    assert(p2.nextReminderAt === '2026-11-09T17:30:00.000Z' && !shouldRunReminders(p2, new Date('2026-11-09T17:00:00Z')) && shouldRunReminders(p2, new Date('2026-11-09T18:00:00Z')), 'lembrete novo acorda na hora certa');
+    assert(withReminder(p2, new Date('2026-11-10T10:00:00Z')) === p2, 'lembrete mais tarde não muda a agenda');
+    assert(parsePlan(JSON.stringify(plan), now) !== null && parsePlan('{bad', now) === null && parsePlan({ ...plan, updatedAt: '2026-11-07T00:00:00Z' }, now) === null, 'agenda velha ou quebrada é ignorada');
+  }
+  console.log('✓ Agenda de acordar ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

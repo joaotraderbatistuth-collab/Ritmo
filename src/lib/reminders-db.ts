@@ -3,6 +3,7 @@ import { and, asc, eq, gte, isNull } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { checkDb } from './server-db.js';
+import { noteReminderAt } from './wake-plan-server.js';
 
 export interface ReminderItem {
   id: number;
@@ -46,6 +47,7 @@ export async function createReminder(userId: number, input: { text: string; remi
   if (await checkDb()) {
     try {
       const [r] = await db.insert(schema.reminders).values({ userId, text: input.text, remindAt: input.remindAt, taskId: input.taskId ?? null, repeat: input.repeat ?? null }).returning();
+      await noteReminderAt(input.remindAt).catch(() => null);
       return { id: r.id, text: r.text, remindAt: iso(r.remindAt)!, taskId: r.taskId ?? null, sentAt: null, repeat: r.repeat ?? null };
     } catch (e) {
       console.error('[lembretes] criar', e);
@@ -89,6 +91,7 @@ export async function updateReminder(userId: number, id: number, input: { text?:
         .set(patch)
         .where(and(eq(schema.reminders.id, id), eq(schema.reminders.userId, userId), isNull(schema.reminders.doneAt)))
         .returning();
+      if (r && input.remindAt) await noteReminderAt(input.remindAt).catch(() => null);
       return r ? { id: r.id, text: r.text, remindAt: iso(r.remindAt)!, taskId: r.taskId ?? null, sentAt: iso(r.sentAt), repeat: r.repeat ?? null } : null;
     } catch (e) {
       console.error('[lembretes] editar', e);

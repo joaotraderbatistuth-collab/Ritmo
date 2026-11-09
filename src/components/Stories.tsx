@@ -84,12 +84,16 @@ export const StoryCard: React.FC<{ s: Pick<StoryItem, 'emoji' | 'tag' | 'title' 
 /* Faixa de stories                                                    */
 /* ------------------------------------------------------------------ */
 
+const STORIES_REFRESH_MS = 5 * 60_000;
+
 export const StoriesBar: React.FC<{ me: { initials: string; avatarUrl: string | null; level: number }; quick: ShareCard[] }> = ({ me, quick }) => {
   const [rail, setRail] = useState<RailItem[]>([]);
   const [viewer, setViewer] = useState<{ order: number[]; index: number } | null>(null);
   const [picker, setPicker] = useState(false);
 
+  const lastLoad = useRef(0);
   const load = useCallback(() => {
+    lastLoad.current = Date.now();
     fetch('/api/stories')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && Array.isArray(d.rail) && setRail(d.rail))
@@ -98,7 +102,16 @@ export const StoriesBar: React.FC<{ me: { initials: string; avatarUrl: string | 
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 60_000); // o "ao vivo" aparece sem precisar recarregar
+    // Atualiza a cada 5 min, e só com o app na tela: cada consulta mantém o banco acordado
+    // (e o banco acordado é o que mais gasta créditos da Netlify). Ao voltar para o app, atualiza se passou 2 min.
+    const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+    const t = setInterval(() => {
+      if (visible()) load();
+    }, STORIES_REFRESH_MS);
+    const onVis = () => {
+      if (visible() && Date.now() - lastLoad.current > 2 * 60_000) load();
+    };
+    document.addEventListener('visibilitychange', onVis);
     const h = () => load();
     const open = (e: Event) => {
       const id = (e as CustomEvent<number>).detail;
@@ -108,6 +121,7 @@ export const StoriesBar: React.FC<{ me: { initials: string; avatarUrl: string | 
     window.addEventListener(OPEN_STORY, open);
     return () => {
       clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener(STORIES_CHANGED, h);
       window.removeEventListener(OPEN_STORY, open);
     };

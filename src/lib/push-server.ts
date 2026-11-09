@@ -8,6 +8,7 @@ import { and, eq, inArray, isNull, lt, lte, or } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import * as schema from '../../db/schema.js';
 import { checkDb } from './server-db.js';
+import { refreshWakePlan } from './wake-plan-server.js';
 import { canSendAuto, normalizePushHours, personalize, pickNudge, slotForAnyHour, PushLog } from './nudges.js';
 
 let cachedKeys: { publicKey: string; privateKey: string } | null = null;
@@ -43,10 +44,12 @@ export async function saveSubscription(userId: number, sub: any, perDay: number,
     .insert(schema.pushSubscriptions)
     .values({ userId, endpoint, p256dh, auth, perDay: n, hours: h })
     .onConflictDoUpdate({ target: schema.pushSubscriptions.endpoint, set: { userId, p256dh, auth, perDay: n, hours: h } });
+  await refreshWakePlan().catch(() => null);
 }
 
 export async function removeSubscription(userId: number, endpoint: string) {
   await db.delete(schema.pushSubscriptions).where(and(eq(schema.pushSubscriptions.userId, userId), eq(schema.pushSubscriptions.endpoint, endpoint)));
+  await refreshWakePlan().catch(() => null);
 }
 
 /** Notificações são ligadas por padrão; isto marca quando a pessoa desliga (ou religa) de propósito. */
@@ -58,12 +61,14 @@ export async function setPushOptOut(userId: number, optOut: boolean) {
 export async function setPerDay(userId: number, perDay: number) {
   const n = [1, 2, 3].includes(perDay) ? perDay : 3;
   await db.update(schema.pushSubscriptions).set({ perDay: n, hours: null }).where(eq(schema.pushSubscriptions.userId, userId));
+  await refreshWakePlan().catch(() => null);
 }
 
 /** Horários livres (0–23, até 3) para todos os aparelhos da pessoa. */
 export async function setPushHours(userId: number, raw: unknown) {
   const hours = normalizePushHours(raw);
   await db.update(schema.pushSubscriptions).set({ hours: hours.join(','), perDay: hours.length }).where(eq(schema.pushSubscriptions.userId, userId));
+  await refreshWakePlan().catch(() => null);
   return hours;
 }
 
@@ -300,7 +305,7 @@ export async function sendDueReminders(now: Date = new Date()) {
     .where(and(isNull(schema.reminders.sentAt), isNull(schema.reminders.doneAt), lte(schema.reminders.remindAt, now)))
     .limit(500);
   if (!rows.length) return { due: 0, sent: 0 };
-  const fresh = (r: (typeof rows)[number]) => now.getTime() - new Date(r.remindAt).getTime() < 5 * 3600_000; // a função roda a cada 4 h: aceita até 5 h de atraso
+  const fresh = (r: (typeof rows)[number]) => now.getTime() - new Date(r.remindAt).getTime() < 5 * 3600_000; // a função roda de hora em hora (ou de 4 em 4 h sem a agenda): aceita até 5 h de atraso
   // marca antes de enviar: se duas execuções se cruzarem, ninguém recebe o lembrete duas vezes.
   // Uma vez só → sent_at. Repetido → pula para a próxima vez (no fuso da pessoa).
   const once = rows.filter((r) => !r.repeat).map((r) => r.id);
