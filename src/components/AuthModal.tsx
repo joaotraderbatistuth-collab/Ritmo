@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Lock, Mail, User as UserIcon, Key, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Lock, Mail, User as UserIcon, Key, ArrowRight, CheckCircle2, AlertCircle, Hammer } from 'lucide-react';
 import { User } from '../lib/types.js';
 
 interface AuthModalProps {
@@ -31,8 +31,53 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Fase de lançamento: quando as vagas acabam, o cadastro vira a lista de espera.
+  const [closed, setClosed] = useState<{ title: string; message: string } | null>(null);
+  const [waitDone, setWaitDone] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let alive = true;
+    fetch('/api/vagas')
+      .then((r) => r.json())
+      .then((d) => {
+        if (alive && d && d.open === false) setClosed({ title: d.title, message: d.message });
+      })
+      .catch(() => null);
+    return () => {
+      alive = false;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const sourceTag = () => {
+    try {
+      return JSON.parse(localStorage.getItem('ritmo_source') || 'null')?.src || undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const joinWaitlist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/vagas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'join', name, email, source: sourceTag() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Não foi possível entrar na lista agora.');
+      setWaitDone(data.message || 'Pronto! Você está na lista de espera.');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const post = async (payload: Record<string, unknown>) => {
     const res = await fetch('/api/auth', {
@@ -41,7 +86,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Não foi possível concluir a ação. Tente novamente.');
+    if (!res.ok) {
+      if (data.code === 'signup_closed') setClosed({ title: data.title || 'Ritmo em construção', message: data.error });
+      throw Object.assign(new Error(data.error || 'Não foi possível concluir a ação. Tente novamente.'), { code: data.code });
+    }
     return data;
   };
 
@@ -71,13 +119,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           password,
           referralCode: referralCode.trim() || undefined,
           acceptedTerms,
-          source: (() => {
-            try {
-              return JSON.parse(localStorage.getItem('ritmo_source') || 'null')?.src || undefined;
-            } catch {
-              return undefined;
-            }
-          })(),
+          source: sourceTag(),
         });
         onLoginSuccess(data.user);
       } else if (resetStep === 'request') {
@@ -97,7 +139,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setSuccessMessage(data.message || 'Senha atualizada! Você já pode entrar.');
       }
     } catch (err: any) {
-      setError(err.message);
+      if (err.code !== 'signup_closed') setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -136,7 +178,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               Entrar
             </button>
             <button onClick={() => switchTab('register')} className={tabClass(tab === 'register')}>
-              Criar conta grátis
+              {closed ? 'Lista de espera' : 'Criar conta grátis'}
             </button>
           </div>
         ) : (
@@ -150,6 +192,58 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         )}
 
+        {tab === 'register' && closed ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-4">
+              <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+                <Hammer className="w-4 h-4" /> {closed.title}
+              </div>
+              <p className="text-xs text-amber-100/90 mt-2 leading-relaxed">{closed.message}</p>
+            </div>
+            {error && (
+              <div role="alert" className="flex items-start gap-2 text-xs text-rose-300 bg-rose-950/40 border border-rose-800/60 rounded-lg p-3">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /> <span>{error}</span>
+              </div>
+            )}
+            {waitDone ? (
+              <div className="flex items-start gap-2 text-sm text-emerald-300 bg-emerald-950/40 border border-emerald-800/60 rounded-lg p-4">
+                <CheckCircle2 className="w-5 h-5 shrink-0" /> <span>{waitDone}</span>
+              </div>
+            ) : (
+              <form onSubmit={joinWaitlist} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-[#8b949e] mb-1">Seu nome</label>
+                  <div className="relative">
+                    <UserIcon className="w-4 h-4 text-[#6e7681] absolute left-3 top-3" />
+                    <input type="text" placeholder="Ex: Maria Souza" value={name} onChange={(e) => setName(e.target.value)} className={inputClass} maxLength={80} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#8b949e] mb-1">E-mail</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-[#6e7681] absolute left-3 top-3" />
+                    <input type="email" required placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} autoComplete="email" />
+                  </div>
+                </div>
+                <p className="text-[11px] text-[#6e7681]">Usamos seu e-mail só para avisar quando abrirem novas vagas. Para sair da lista, é só pedir.</p>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {loading ? 'Enviando...' : (<>Entrar na lista de espera <ArrowRight className="w-4 h-4" /></>)}
+                </button>
+              </form>
+            )}
+            <p className="text-[11px] text-center text-[#6e7681]">
+              Já tem conta?{' '}
+              <button type="button" onClick={() => switchTab('login')} className="text-emerald-400 hover:underline">
+                Entrar
+              </button>
+            </p>
+          </div>
+        ) : (
+        <>
         {error && (
           <div role="alert" className="mb-4 flex items-start gap-2 text-xs text-rose-300 bg-rose-950/40 border border-rose-800/60 rounded-lg p-3">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /> <span>{error}</span>
@@ -274,6 +368,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <p className="text-[11px] text-[#6e7681]">Sem cartão de crédito para começar. Cancele quando quiser.</p>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );

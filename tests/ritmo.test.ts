@@ -1,3 +1,4 @@
+import { parseMaxAccounts, signupOpen, spotsLeft, cleanWaitlistEntry, DEFAULT_MAX_ACCOUNTS } from '../src/lib/signup-limit.js';
 import { validateAdminNotification, broadcastWaitMinutes } from '../src/lib/admin-notify.js';
 import { RITMO_TONE, toneLength, RITMO_VIBRATE } from '../src/lib/notify-sound.js';
 import { parseWhatsAppMessage } from '../src/lib/whatsapp-parser.js';
@@ -1139,6 +1140,18 @@ export function runTests() {
     assert(HELP.passe.how.join(' ').includes('2.800') && HELP.evento.how.join(' ').includes('+60') && HELP.bau_semana.how.join(' ').includes('+150'), 'textos batem com as regras do jogo');
   }
   console.log('✓ Saber mais ok');
+
+  // ---- Limite de contas (fase de lançamento) e lista de espera
+  {
+    assert(DEFAULT_MAX_ACCOUNTS === 50 && parseMaxAccounts(null) === 50 && parseMaxAccounts('') === 50 && parseMaxAccounts('abc') === 50 && parseMaxAccounts('-3') === 50, 'limite padrão 50');
+    assert(parseMaxAccounts('120') === 120 && parseMaxAccounts('0') === 0, 'limite salvo');
+    assert(signupOpen(50, 49) && !signupOpen(50, 50) && !signupOpen(50, 61) && signupOpen(0, 9999), 'abre/fecha nas 50 contas; 0 = sem limite');
+    assert(spotsLeft(50, 47) === 3 && spotsLeft(50, 80) === 0 && spotsLeft(0, 5) === null, 'vagas restantes');
+    const w = cleanWaitlistEntry({ name: '  Maria   Souza ', email: ' MARIA@Email.com ', source: 'Insta<script>' });
+    assert(w !== null && w.email === 'maria@email.com' && w.name === 'Maria Souza' && w.source === 'instascript', 'lista de espera limpa os dados');
+    assert(cleanWaitlistEntry({ email: 'sem-arroba' }) === null && cleanWaitlistEntry({}) === null, 'e-mail inválido recusado');
+  }
+  console.log('✓ Limite de contas ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

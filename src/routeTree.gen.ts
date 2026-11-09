@@ -21,6 +21,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as ApiXpRouteImport } from './routes/api.xp'
 import { Route as ApiWorkoutsRouteImport } from './routes/api.workouts'
+import { Route as ApiVagasRouteImport } from './routes/api.vagas'
 import { Route as ApiTeamsRouteImport } from './routes/api.teams'
 import { Route as ApiTasksRouteImport } from './routes/api.tasks'
 import { Route as ApiSurveyRouteImport } from './routes/api.survey'
@@ -112,6 +113,11 @@ const ApiXpRoute = ApiXpRouteImport.update({
 const ApiWorkoutsRoute = ApiWorkoutsRouteImport.update({
   id: '/api/workouts',
   path: '/api/workouts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVagasRoute = ApiVagasRouteImport.update({
+  id: '/api/vagas',
+  path: '/api/vagas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTeamsRoute = ApiTeamsRouteImport.update({
@@ -314,6 +320,7 @@ export interface FileRoutesByFullPath {
   '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
+  '/api/vagas': typeof ApiVagasRoute
   '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
   '/c/$slug': typeof CSlugRoute
@@ -360,6 +367,7 @@ export interface FileRoutesByTo {
   '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
+  '/api/vagas': typeof ApiVagasRoute
   '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
   '/c/$slug': typeof CSlugRoute
@@ -407,6 +415,7 @@ export interface FileRoutesById {
   '/api/survey': typeof ApiSurveyRoute
   '/api/tasks': typeof ApiTasksRoute
   '/api/teams': typeof ApiTeamsRoute
+  '/api/vagas': typeof ApiVagasRoute
   '/api/workouts': typeof ApiWorkoutsRoute
   '/api/xp': typeof ApiXpRoute
   '/c/$slug': typeof CSlugRoute
@@ -455,6 +464,7 @@ export interface FileRouteTypes {
     | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
+    | '/api/vagas'
     | '/api/workouts'
     | '/api/xp'
     | '/c/$slug'
@@ -501,6 +511,7 @@ export interface FileRouteTypes {
     | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
+    | '/api/vagas'
     | '/api/workouts'
     | '/api/xp'
     | '/c/$slug'
@@ -547,6 +558,7 @@ export interface FileRouteTypes {
     | '/api/survey'
     | '/api/tasks'
     | '/api/teams'
+    | '/api/vagas'
     | '/api/workouts'
     | '/api/xp'
     | '/c/$slug'
@@ -594,6 +606,7 @@ export interface RootRouteChildren {
   ApiSurveyRoute: typeof ApiSurveyRoute
   ApiTasksRoute: typeof ApiTasksRoute
   ApiTeamsRoute: typeof ApiTeamsRoute
+  ApiVagasRoute: typeof ApiVagasRoute
   ApiWorkoutsRoute: typeof ApiWorkoutsRoute
   ApiXpRoute: typeof ApiXpRoute
   CSlugRoute: typeof CSlugRoute
@@ -687,6 +700,13 @@ declare module '@tanstack/react-router' {
       path: '/api/workouts'
       fullPath: '/api/workouts'
       preLoaderRoute: typeof ApiWorkoutsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/vagas': {
+      id: '/api/vagas'
+      path: '/api/vagas'
+      fullPath: '/api/vagas'
+      preLoaderRoute: typeof ApiVagasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/teams': {
@@ -954,6 +974,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSurveyRoute: ApiSurveyRoute,
   ApiTasksRoute: ApiTasksRoute,
   ApiTeamsRoute: ApiTeamsRoute,
+  ApiVagasRoute: ApiVagasRoute,
   ApiWorkoutsRoute: ApiWorkoutsRoute,
   ApiXpRoute: ApiXpRoute,
   CSlugRoute: CSlugRoute,

@@ -10,7 +10,10 @@ import {
   createPasswordResetRequest,
   resetPasswordWithToken,
   updateUserPixKey,
+  listAdminInvites,
 } from '../lib/server-db.js';
+import { signupStatus } from '../lib/waitlist-db.js';
+import { SIGNUP_CLOSED_MESSAGE, SIGNUP_CLOSED_TITLE } from '../lib/signup-limit.js';
 import { createToken, extractTokenFromRequest, hashPassword, verifyPassword, verifyToken } from '../lib/auth.js';
 import { verifyActiveToken } from '../lib/session.js';
 import { grantConsent } from '../lib/consents-db.js';
@@ -128,6 +131,24 @@ export const Route = createFileRoute('/api/auth')({
             const existing = await findUserByEmail(email);
             if (existing) {
               return Response.json({ error: 'Já existe uma conta com este e-mail.' }, { status: 409 });
+            }
+
+            // Fase de lançamento: número de contas limitado (padrão 50, ajustável pelo master no painel).
+            // O master, os e-mails de ADMIN_EMAILS e os administradores convidados sempre conseguem entrar.
+            const lowerEmail = String(email).trim().toLowerCase();
+            const adminList = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+            const isAdminEmail =
+              isMasterEmail(lowerEmail, process.env.MASTER_ADMIN_EMAIL) ||
+              adminList.includes(lowerEmail) ||
+              (await listAdminInvites()).some((i) => i.email.toLowerCase() === lowerEmail);
+            if (!isAdminEmail) {
+              const status = await signupStatus();
+              if (!status.open) {
+                return Response.json(
+                  { error: SIGNUP_CLOSED_MESSAGE, code: 'signup_closed', title: SIGNUP_CLOSED_TITLE },
+                  { status: 403 }
+                );
+              }
             }
 
             const pHash = await hashPassword(password);

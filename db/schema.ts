@@ -701,3 +701,13 @@ export const storyViews = pgTable("story_views", {
   clapped: boolean("clapped").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Lista de espera: quem chegou depois que as vagas da fase de lançamento acabaram.
+export const waitlist = pgTable("waitlist", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().default(""),
+  email: text("email").notNull().unique(),
+  source: text("source"),
+  notifiedAt: timestamp("notified_at"), // marcado pelo admin quando avisou a pessoa
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
