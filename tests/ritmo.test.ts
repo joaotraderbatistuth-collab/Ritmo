@@ -1,3 +1,4 @@
+import { burn, estimateBalance, daysLeft, creditLevel, hourKey, parseAnchor, CREDIT_PRICES } from '../src/lib/credits.js';
 import { parsePlan, nudgeUtcHours, shouldRunNudges, shouldRunReminders, isSeasonHour, withReminder, localHour, SEASON_UTC_HOURS } from '../src/lib/wake-plan.js';
 import { parseMaxAccounts, signupOpen, spotsLeft, cleanWaitlistEntry, DEFAULT_MAX_ACCOUNTS } from '../src/lib/signup-limit.js';
 import { validateAdminNotification, broadcastWaitMinutes } from '../src/lib/admin-notify.js';
@@ -1172,6 +1173,23 @@ export function runTests() {
     assert(parsePlan(JSON.stringify(plan), now) !== null && parsePlan('{bad', now) === null && parsePlan({ ...plan, updatedAt: '2026-11-07T00:00:00Z' }, now) === null, 'agenda velha ou quebrada é ignorada');
   }
   console.log('✓ Agenda de acordar ok');
+
+  // ---- Créditos da Netlify (aba Créditos do painel)
+  {
+    assert(CREDIT_PRICES.deploy === 15 && CREDIT_PRICES.dbHour === 10 && CREDIT_PRICES.bandwidthGB === 20, 'preços dos créditos');
+    const b = burn({ deploys: 2, bandwidthGB: 1.5, dbHours: 40 });
+    assert(b.deploys === 30 && b.bandwidth === 30 && b.database === 400 && b.total === 460, 'gasto por tipo: ' + JSON.stringify(b));
+    const plan = estimateBalance({ planCredits: 1000, deploys: 2, bandwidthGB: 1.5, dbHours: 40 }, null);
+    assert(plan.basis === 'plan' && plan.remaining === 540, 'saldo pelo plano');
+    const anc = estimateBalance({ planCredits: 1000, deploys: 2, bandwidthGB: 1.5, dbHours: 40 }, { balance: 700, at: '2026-11-10T12:00:00Z' }, { deploys: 1, bandwidthGB: 0, dbHours: 5 });
+    assert(anc.basis === 'anchor' && anc.remaining === 635, 'saldo a partir do anotado');
+    assert(estimateBalance({ planCredits: null, deploys: 0, bandwidthGB: 0, dbHours: 3 }, null).remaining === null, 'sem plano nem anotação: sem saldo');
+    assert(daysLeft(300, 25) === 12 && daysLeft(-5, 10) === 0 && daysLeft(100, 0) === null, 'dias restantes');
+    assert(creditLevel(900, 1000) === 'ok' && creditLevel(400, 1000) === 'warn' && creditLevel(100, 1000) === 'danger' && creditLevel(null, 1000) === 'unknown', 'cor do saldo');
+    assert(hourKey(new Date('2026-11-10T14:59:00Z')) === '2026-11-10T14', 'chave da hora');
+    assert(parseAnchor('{"balance":820,"at":"2026-11-10T12:00:00Z"}')?.balance === 820 && parseAnchor({ balance: -1, at: 'x' }) === null && parseAnchor('lixo') === null, 'saldo anotado');
+  }
+  console.log('✓ Créditos ok');
 
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

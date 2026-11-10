@@ -40,6 +40,7 @@ import { Route as ApiFinanceRouteImport } from './routes/api.finance'
 import { Route as ApiFeedRouteImport } from './routes/api.feed'
 import { Route as ApiErrosRouteImport } from './routes/api.erros'
 import { Route as ApiCyclesRouteImport } from './routes/api.cycles'
+import { Route as ApiCreditosRouteImport } from './routes/api.creditos'
 import { Route as ApiConsentsRouteImport } from './routes/api.consents'
 import { Route as ApiCheckoutRouteImport } from './routes/api.checkout'
 import { Route as ApiChallengesRouteImport } from './routes/api.challenges'
@@ -210,6 +211,11 @@ const ApiCyclesRoute = ApiCyclesRouteImport.update({
   path: '/api/cycles',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCreditosRoute = ApiCreditosRouteImport.update({
+  id: '/api/creditos',
+  path: '/api/creditos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiConsentsRoute = ApiConsentsRouteImport.update({
   id: '/api/consents',
   path: '/api/consents',
@@ -302,6 +308,7 @@ export interface FileRoutesByFullPath {
   '/api/challenges': typeof ApiChallengesRoute
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/consents': typeof ApiConsentsRoute
+  '/api/creditos': typeof ApiCreditosRoute
   '/api/cycles': typeof ApiCyclesRoute
   '/api/erros': typeof ApiErrosRoute
   '/api/feed': typeof ApiFeedRoute
@@ -349,6 +356,7 @@ export interface FileRoutesByTo {
   '/api/challenges': typeof ApiChallengesRoute
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/consents': typeof ApiConsentsRoute
+  '/api/creditos': typeof ApiCreditosRoute
   '/api/cycles': typeof ApiCyclesRoute
   '/api/erros': typeof ApiErrosRoute
   '/api/feed': typeof ApiFeedRoute
@@ -397,6 +405,7 @@ export interface FileRoutesById {
   '/api/challenges': typeof ApiChallengesRoute
   '/api/checkout': typeof ApiCheckoutRoute
   '/api/consents': typeof ApiConsentsRoute
+  '/api/creditos': typeof ApiCreditosRoute
   '/api/cycles': typeof ApiCyclesRoute
   '/api/erros': typeof ApiErrosRoute
   '/api/feed': typeof ApiFeedRoute
@@ -446,6 +455,7 @@ export interface FileRouteTypes {
     | '/api/challenges'
     | '/api/checkout'
     | '/api/consents'
+    | '/api/creditos'
     | '/api/cycles'
     | '/api/erros'
     | '/api/feed'
@@ -493,6 +503,7 @@ export interface FileRouteTypes {
     | '/api/challenges'
     | '/api/checkout'
     | '/api/consents'
+    | '/api/creditos'
     | '/api/cycles'
     | '/api/erros'
     | '/api/feed'
@@ -540,6 +551,7 @@ export interface FileRouteTypes {
     | '/api/challenges'
     | '/api/checkout'
     | '/api/consents'
+    | '/api/creditos'
     | '/api/cycles'
     | '/api/erros'
     | '/api/feed'
@@ -588,6 +600,7 @@ export interface RootRouteChildren {
   ApiChallengesRoute: typeof ApiChallengesRoute
   ApiCheckoutRoute: typeof ApiCheckoutRoute
   ApiConsentsRoute: typeof ApiConsentsRoute
+  ApiCreditosRoute: typeof ApiCreditosRoute
   ApiCyclesRoute: typeof ApiCyclesRoute
   ApiErrosRoute: typeof ApiErrosRoute
   ApiFeedRoute: typeof ApiFeedRoute
@@ -835,6 +848,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCyclesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/creditos': {
+      id: '/api/creditos'
+      path: '/api/creditos'
+      fullPath: '/api/creditos'
+      preLoaderRoute: typeof ApiCreditosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/consents': {
       id: '/api/consents'
       path: '/api/consents'
@@ -956,6 +976,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChallengesRoute: ApiChallengesRoute,
   ApiCheckoutRoute: ApiCheckoutRoute,
   ApiConsentsRoute: ApiConsentsRoute,
+  ApiCreditosRoute: ApiCreditosRoute,
   ApiCyclesRoute: ApiCyclesRoute,
   ApiErrosRoute: ApiErrosRoute,
   ApiFeedRoute: ApiFeedRoute,

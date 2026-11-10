@@ -433,6 +433,12 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
     "created_at" timestamp DEFAULT now() NOT NULL
   )`,
 
+  // ---- horas em que o banco foi usado (aba "Créditos" do painel; 1 linha por hora UTC, ex.: 2026-11-10T14)
+  `CREATE TABLE IF NOT EXISTS "db_hours" (
+    "hour" text PRIMARY KEY,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  )`,
+
   // ---- administrador master: batistuth@live.com
   // Cria a conta se ainda não existir (admin, ativa, sem período de teste).
   `INSERT INTO "users" ("email","name","password_hash","role","subscription_status","trial_ends_at","referral_code")

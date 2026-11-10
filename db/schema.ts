@@ -711,3 +711,9 @@ export const waitlist = pgTable("waitlist", {
   notifiedAt: timestamp("notified_at"), // marcado pelo admin quando avisou a pessoa
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Horas (UTC, "AAAA-MM-DDTHH") em que o banco foi usado — base da estimativa de créditos do painel.
+export const dbHours = pgTable("db_hours", {
+  hour: text("hour").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

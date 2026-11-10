@@ -300,16 +300,32 @@ function ensureSchema(): Promise<void> {
   return schemaReady;
 }
 
+// Marca a hora (UTC) em que o banco foi usado, para a aba "Créditos" do painel estimar
+// as horas de banco acordado. No máximo 1 gravação por hora por servidor, sem esperar a resposta.
+let markedHour = '';
+function markDbHour() {
+  const h = new Date().toISOString().slice(0, 13);
+  if (h === markedHour) return;
+  markedHour = h;
+  db.execute(sql`INSERT INTO "db_hours" ("hour") VALUES (${h}) ON CONFLICT ("hour") DO NOTHING`).catch(() => {
+    markedHour = '';
+  });
+}
+
 export async function checkDb(): Promise<boolean> {
   // "banco indisponível" só vale por 20 segundos: uma falha passageira na partida do servidor
   // não pode mandar a instância inteira para a memória (onde os dados se perdem).
-  if (dbAvailable === true) return true;
+  if (dbAvailable === true) {
+    markDbHour();
+    return true;
+  }
   if (dbAvailable === false && Date.now() - dbCheckedAt < 20_000) return false;
   try {
     await db.select({ count: sql`1` }).from(schema.users).limit(1);
     await ensureSchema();
     dbAvailable = true;
     dbCheckedAt = Date.now();
+    markDbHour();
     return true;
   } catch (err) {
     dbAvailable = false;
