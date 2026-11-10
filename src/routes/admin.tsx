@@ -343,6 +343,9 @@ function Overview({ data }: { data: any }) {
 
 function StatusBadge({ u }: { u: any }) {
   const key = u.subscriptionStatus === 'suspended' ? 'suspended' : u.access?.effectiveStatus || u.subscriptionStatus;
+  if (u.access?.lifetime && key !== 'suspended') {
+    return <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300">Fundador · vitalício</span>;
+  }
   return <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${STATUS_TONE[key] || 'bg-slate-500/20 text-slate-300'}`}>{STATUS_LABEL[key] || key}</span>;
 }
 

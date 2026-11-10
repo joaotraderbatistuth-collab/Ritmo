@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { SalesPage } from '../components/SalesPage.js';
+import { FoundersPage } from '../components/FoundersPage.js';
 
-// A página inicial é a mesma página de vendas completa (também em /vendas).
+// Página inicial da fase de validação: cadastro dos 50 Fundadores (acesso vitalício).
+// A página de vendas completa continua em /vendas.
 export const Route = createFileRoute('/')({
-  component: SalesPage,
+  component: FoundersPage,
 });

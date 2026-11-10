@@ -7,7 +7,7 @@ import { parseWhatsAppMessage } from '../src/lib/whatsapp-parser.js';
 import { calculateAffiliateCommission, formatBRL } from '../src/lib/affiliate-engine.js';
 import { convertTransactionsToCSV, formatTransactionForSheet } from '../src/lib/sheets-sync.js';
 import { FinanceTransactionItem } from '../src/lib/types.js';
-import { computeAccess, nextRenewalDate } from '../src/lib/access.js';
+import { computeAccess, nextRenewalDate, isFounderSignup, FOUNDER_SPOTS } from '../src/lib/access.js';
 import { computeChain, weekStartKey, targetPerWeek } from '../src/lib/chain.js';
 import { DEFAULT_VISIBLE, normalizeVisible, moveCard, moveBefore, hideCard, showCard, hiddenCards, CARD_IDS } from '../src/lib/home-layout.js';
 import { calculateCommissionChain, COMMISSION_TOTAL_PERCENT, COMMISSION_DIRECT_PERCENT, COMMISSION_NETWORK_PERCENT, MAX_COMMISSION_LEVELS, levelPercent } from '../src/lib/commission-plan.js';
@@ -197,6 +197,11 @@ export function runTests() {
   const now = new Date('2026-10-10T12:00:00Z');
 
   assert(computeAccess({ subscriptionStatus: 'trial', trialEndsAt: '2026-10-15T12:00:00Z' }, now).hasAccess === true, 'trial válido tem acesso');
+  // Fundadores (50 primeiros): acesso vitalício, mesmo com o teste vencido; suspenso continua bloqueado
+  assert(computeAccess({ subscriptionStatus: 'trial', trialEndsAt: '2026-10-09T12:00:00Z', founder: true }, now).hasAccess === true, 'fundador com teste vencido tem acesso');
+  assert(computeAccess({ subscriptionStatus: 'trial', founder: true }, now).lifetime === true, 'fundador é vitalício');
+  assert(computeAccess({ subscriptionStatus: 'suspended', founder: true }, now).hasAccess === false, 'fundador suspenso não tem acesso');
+  assert(FOUNDER_SPOTS === 50 && isFounderSignup(0) && isFounderSignup(49) && !isFounderSignup(50), 'só os 50 primeiros viram fundadores');
   assert(computeAccess({ subscriptionStatus: 'trial', trialEndsAt: '2026-10-09T12:00:00Z' }, now).hasAccess === false, 'trial vencido bloqueia');
   assert(computeAccess({ subscriptionStatus: 'trial', trialEndsAt: '2026-10-09T12:00:00Z' }, now).effectiveStatus === 'expired', 'trial vencido vira expired');
   assert(computeAccess({ subscriptionStatus: 'active', subscriptionRenewalDate: '2026-11-01' }, now).hasAccess === true, 'assinante em dia tem acesso');

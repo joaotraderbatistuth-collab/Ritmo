@@ -26,6 +26,7 @@ async function sessionInfo(userId: number) {
           subscriptionStatus: user.subscriptionStatus,
           trialEndsAt: user.trialEndsAt,
           subscriptionRenewalDate: user.subscriptionRenewalDate,
+          founder: (user as any).founder,
         }).hasAccess
       : false,
     at: Date.now(),

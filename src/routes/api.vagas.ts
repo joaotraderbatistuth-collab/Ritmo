@@ -1,11 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { requireAdminPermission } from '../lib/admin-auth.js';
 import { isMasterAdmin } from '../lib/admin-permissions.js';
+import { FOUNDER_SPOTS } from '../lib/access.js';
 import { logAdminAction } from '../lib/server-db.js';
 import { SIGNUP_CLOSED_MESSAGE, SIGNUP_CLOSED_TITLE } from '../lib/signup-limit.js';
 import { joinWaitlist, listWaitlist, removeWaitlist, setMaxAccounts, setWaitlistNotified, signupStatus } from '../lib/waitlist-db.js';
 
-// GET  /api/vagas                    → público: cadastros abertos? (não revela números)
+// GET  /api/vagas                    → público: cadastros abertos? (só mostra as vagas de Fundador quando faltam 20 ou menos)
 // GET  /api/vagas?admin=1            → painel (Ver usuários): limite, contas usadas e lista de espera
 // POST /api/vagas { action: 'join', name, email, source }  → público: entra na lista de espera
 // POST /api/vagas { action: 'set_limit', limit }           → só o master (0 = sem limite)
@@ -27,8 +28,16 @@ export const Route = createFileRoute('/api/vagas')({
           );
         }
         const status = await signupStatus();
+        // Vagas de Fundador: o número só aparece quando faltam 20 ou menos (antes disso, só "aberto").
+        const founderLeft = Math.max(0, FOUNDER_SPOTS - status.used);
         return Response.json(
-          { open: status.open, title: SIGNUP_CLOSED_TITLE, message: SIGNUP_CLOSED_MESSAGE },
+          {
+            open: status.open,
+            title: SIGNUP_CLOSED_TITLE,
+            message: SIGNUP_CLOSED_MESSAGE,
+            founderOpen: status.open && founderLeft > 0,
+            founderLeft: status.open && founderLeft <= 20 ? founderLeft : null,
+          },
           { headers: { 'Cache-Control': 'no-store' } }
         );
       },

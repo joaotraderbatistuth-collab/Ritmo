@@ -433,6 +433,15 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
     "created_at" timestamp DEFAULT now() NOT NULL
   )`,
 
+  // ---- Fundadores: os 50 primeiros usuários comuns têm acesso vitalício (coluna + marcação única das contas que já existem)
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "founder" boolean NOT NULL DEFAULT false`,
+  `UPDATE "users" SET "founder" = true, "updated_at" = now()
+   WHERE "id" IN (SELECT "id" FROM "users" WHERE "role" <> 'admin' ORDER BY "created_at", "id" LIMIT 50)
+     AND NOT EXISTS (SELECT 1 FROM "admin_audit_log" WHERE "action" = 'founders_v1')`,
+  `INSERT INTO "admin_audit_log" ("admin_email","action","details")
+   SELECT 'sistema','founders_v1','Contas já existentes marcadas como Fundadoras (acesso vitalício)'
+   WHERE NOT EXISTS (SELECT 1 FROM "admin_audit_log" WHERE "action" = 'founders_v1')`,
+
   // ---- horas em que o banco foi usado (aba "Créditos" do painel; 1 linha por hora UTC, ex.: 2026-11-10T14)
   `CREATE TABLE IF NOT EXISTS "db_hours" (
     "hour" text PRIMARY KEY,

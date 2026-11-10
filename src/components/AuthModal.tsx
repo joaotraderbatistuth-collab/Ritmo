@@ -34,6 +34,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Fase de lançamento: quando as vagas acabam, o cadastro vira a lista de espera.
   const [closed, setClosed] = useState<{ title: string; message: string } | null>(null);
   const [waitDone, setWaitDone] = useState<string | null>(null);
+  // Fase de Fundadores: os primeiros cadastros ganham acesso vitalício (o servidor é quem decide).
+  const [founderOpen, setFounderOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -42,6 +44,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       .then((r) => r.json())
       .then((d) => {
         if (alive && d && d.open === false) setClosed({ title: d.title, message: d.message });
+        if (alive && d && d.founderOpen === true) setFounderOpen(true);
       })
       .catch(() => null);
     return () => {
@@ -156,7 +159,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     tab === 'login'
       ? 'Entrar no Ritmo'
       : tab === 'register'
-      ? 'Começar meus 7 dias grátis'
+      ? founderOpen
+        ? 'Garantir minha vaga de Fundador'
+        : 'Começar meus 7 dias grátis'
       : resetStep === 'request'
       ? 'Enviar código por e-mail'
       : 'Salvar nova senha';
@@ -339,7 +344,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">
                   Política de Privacidade
                 </a>
-                , incluindo o teste grátis de 7 dias e a assinatura de R$ 39,90/mês depois dele. Autorizo o uso dos dados de bem-estar que eu registrar (hábitos, treinos, diário) só para o app funcionar para mim. Declaro ter 18 anos ou mais.
+                {founderOpen
+                  ? ', incluindo o acesso vitalício de Fundador (sem mensalidade) se a minha conta estiver entre as primeiras vagas; caso contrário, o teste grátis de 7 dias e a assinatura de R$ 39,90/mês depois dele.'
+                  : ', incluindo o teste grátis de 7 dias e a assinatura de R$ 39,90/mês depois dele.'} Autorizo o uso dos dados de bem-estar que eu registrar (hábitos, treinos, diário) só para o app funcionar para mim. Declaro ter 18 anos ou mais.
               </span>
             </label>
           )}

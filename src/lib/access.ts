@@ -7,12 +7,24 @@ export interface AccessInput {
   subscriptionStatus?: string | null;
   trialEndsAt?: string | Date | null;
   subscriptionRenewalDate?: string | null; // YYYY-MM-DD
+  founder?: boolean | null; // Fundador (um dos 50 primeiros): acesso vitalício sem pagar
 }
 
 export interface AccessResult {
   hasAccess: boolean;
   effectiveStatus: 'trial' | 'active' | 'canceled' | 'expired' | 'suspended';
   daysLeft: number; // dias restantes do teste ou do período pago
+  lifetime?: boolean; // acesso vitalício de Fundador (não é assinante pagante)
+}
+
+/** Quantas contas ganham o acesso vitalício de Fundador. */
+export const FOUNDER_SPOTS = 50;
+/** Dias exibidos para o Fundador (grande o bastante para nunca disparar aviso de renovação). */
+export const LIFETIME_DAYS = 36500;
+
+/** O próximo cadastro de usuário comum vira Fundador? `regularAccounts` = contas comuns já criadas. */
+export function isFounderSignup(regularAccounts: number): boolean {
+  return regularAccounts < FOUNDER_SPOTS;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -26,6 +38,7 @@ export function computeAccess(user: AccessInput, now: Date = new Date()): Access
 
   if (user.role === 'admin') return { hasAccess: true, effectiveStatus: status === 'trial' ? 'active' : (status as any), daysLeft: 0 };
   if (status === 'suspended') return { hasAccess: false, effectiveStatus: 'suspended', daysLeft: 0 };
+  if (user.founder) return { hasAccess: true, effectiveStatus: 'active', daysLeft: LIFETIME_DAYS, lifetime: true };
 
   if (status === 'active' || status === 'canceled') {
     const renewal = user.subscriptionRenewalDate;

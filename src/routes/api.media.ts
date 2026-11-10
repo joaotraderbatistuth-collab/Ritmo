@@ -26,7 +26,7 @@ export const Route = createFileRoute('/api/media')({
         // foto do Feed/perfil: só com teste ou assinatura em dia (o dono da foto sempre vê a própria)
         if (row.purpose !== 'receipt' && row.ownerUserId !== payload.userId) {
           const viewer = await findUserById(payload.userId);
-          const ok = viewer && computeAccess({ role: viewer.role, subscriptionStatus: viewer.subscriptionStatus, trialEndsAt: viewer.trialEndsAt, subscriptionRenewalDate: viewer.subscriptionRenewalDate } as any).hasAccess;
+          const ok = viewer && computeAccess({ role: viewer.role, subscriptionStatus: viewer.subscriptionStatus, trialEndsAt: viewer.trialEndsAt, subscriptionRenewalDate: viewer.subscriptionRenewalDate, founder: (viewer as any).founder } as any).hasAccess;
           if (!ok) return new Response('Renove seu acesso para ver este arquivo.', { status: 402 });
         }
 

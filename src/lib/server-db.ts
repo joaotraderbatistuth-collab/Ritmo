@@ -386,6 +386,7 @@ export async function createUserRecord(data: {
   themePreference?: 'dark' | 'light';
   referralCode: string;
   referredBy?: string | null;
+  founder?: boolean;
 }) {
   const trialDays = 7;
   const trialEndsAtDate = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
@@ -408,6 +409,7 @@ export async function createUserRecord(data: {
           themePreference: data.themePreference || 'dark',
           referralCode: data.referralCode,
           referredBy: data.referredBy || null,
+          founder: Boolean(data.founder),
         })
         .returning();
       return newUser;
@@ -432,6 +434,7 @@ export async function createUserRecord(data: {
     themePreference: data.themePreference || 'dark',
     referralCode: data.referralCode,
     referredBy: data.referredBy || null,
+    founder: Boolean(data.founder),
     whatsappPhone: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -2503,14 +2506,14 @@ function buildAdminDashboard(raw: AdminRaw, masterConfigured?: string | null) {
 
   const withAccess = allUsers.map((u) => ({
     u,
-    access: computeAccess({ role: u.role, subscriptionStatus: u.subscriptionStatus, trialEndsAt: u.trialEndsAt, subscriptionRenewalDate: u.subscriptionRenewalDate }),
+    access: computeAccess({ role: u.role, subscriptionStatus: u.subscriptionStatus, trialEndsAt: u.trialEndsAt, subscriptionRenewalDate: u.subscriptionRenewalDate, founder: (u as any).founder }),
   }));
   const customers = withAccess.filter((x) => x.u.role !== 'admin');
   const createdMs = (u: any) => new Date(u.createdAt).getTime();
 
   const realPaid = allPayments.filter((p) => p.status === 'paid' && !p.isSimulated);
   const payersEver = new Set(realPaid.map((p) => p.userId));
-  const paidSubscribers = customers.filter((x) => x.access.hasAccess && x.access.effectiveStatus === 'active').length;
+  const paidSubscribers = customers.filter((x) => x.access.hasAccess && x.access.effectiveStatus === 'active' && !x.access.lifetime).length;
   const trialUsers = customers.filter((x) => x.access.hasAccess && x.access.effectiveStatus === 'trial').length;
   const expiredUsers = customers.filter((x) => x.access.effectiveStatus === 'expired').length;
   const suspendedUsers = customers.filter((x) => x.u.subscriptionStatus === 'suspended').length;
@@ -3763,7 +3766,7 @@ export async function getUsersNeedingReminder(now: Date = new Date()) {
   for (const u of data.users) {
     if (u.role === 'admin') continue;
     const access = computeAccess(
-      { role: u.role, subscriptionStatus: u.subscriptionStatus, trialEndsAt: u.trialEndsAt, subscriptionRenewalDate: u.subscriptionRenewalDate },
+      { role: u.role, subscriptionStatus: u.subscriptionStatus, trialEndsAt: u.trialEndsAt, subscriptionRenewalDate: u.subscriptionRenewalDate, founder: (u as any).founder },
       now
     );
     if (!access.hasAccess) continue;

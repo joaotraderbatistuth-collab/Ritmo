@@ -19,7 +19,7 @@ import { createToken, extractTokenFromRequest, hashPassword, verifyPassword, ver
 import { verifyActiveToken } from '../lib/session.js';
 import { grantConsent } from '../lib/consents-db.js';
 import { sendPasswordResetEmail } from '../lib/email.js';
-import { computeAccess } from '../lib/access.js';
+import { computeAccess, isFounderSignup } from '../lib/access.js';
 import { isMasterEmail } from '../lib/admin-permissions.js';
 
 // Promove a administrador: o e-mail MASTER (padrão batistuth@live.com, ou MASTER_ADMIN_EMAIL na Netlify)
@@ -142,8 +142,11 @@ export const Route = createFileRoute('/api/auth')({
               isMasterEmail(lowerEmail, process.env.MASTER_ADMIN_EMAIL) ||
               adminList.includes(lowerEmail) ||
               (await listAdminInvites()).some((i) => i.email.toLowerCase() === lowerEmail);
+            let founder = false;
             if (!isAdminEmail) {
               const status = await signupStatus();
+              // Fase de Fundadores: os 50 primeiros usuários comuns ganham acesso vitalício.
+              founder = isFounderSignup(status.used);
               if (!status.open) {
                 return Response.json(
                   { error: SIGNUP_CLOSED_MESSAGE, code: 'signup_closed', title: SIGNUP_CLOSED_TITLE },
@@ -161,6 +164,7 @@ export const Route = createFileRoute('/api/auth')({
               passwordHash: pHash,
               referralCode: myRefCode,
               referredBy: referralCode || null,
+              founder,
             });
             const newUser = await promoteIfAdminEmail(createdUser);
             // origem do cadastro (para o painel de números)
