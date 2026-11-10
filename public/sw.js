@@ -2,7 +2,7 @@
 // Importante: nunca armazena em cache chamadas de API (/api/*), que carregam
 // dados privados e autenticados do usuário — essas sempre vão direto à rede.
 
-const CACHE_VERSION = 'ritmo-v11'; // troque a cada atualização grande: limpa o cache antigo de quem já tem o app instalado
+const CACHE_VERSION = 'ritmo-v12'; // troque a cada atualização grande: limpa o cache antigo de quem já tem o app instalado
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 const PRECACHE_URLS = [
