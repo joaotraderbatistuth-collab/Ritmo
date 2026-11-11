@@ -120,8 +120,10 @@ const SplitsTable: React.FC<{ splits: Split[]; sport: SportId }> = ({ splits, sp
 
 const LiveView: React.FC<{ onFinished: (t: FinishedTrack) => void }> = ({ onFinished }) => {
   const s = useRecorder();
-  useTick(s.status === 'recording');
+  useTick(s.status !== 'idle');
   const stats = useMemo(() => trackStats(s.segments), [s.segments]);
+  const age = rec.fixAgeS(s);
+  const lost = s.status === 'recording' && !s.gpsError && age !== null && age >= 10;
   const movingS = Math.round(rec.activeMsNow(s) / 1000);
   const sp = SPORTS[s.sport];
   const lastSeg = s.segments[s.segments.length - 1] || [];
@@ -131,7 +133,7 @@ const LiveView: React.FC<{ onFinished: (t: FinishedTrack) => void }> = ({ onFini
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-24">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-emerald-400 font-bold">
           <Icon className="w-5 h-5" /> {sp.label}
@@ -141,15 +143,20 @@ const LiveView: React.FC<{ onFinished: (t: FinishedTrack) => void }> = ({ onFini
             <span className="ml-1 text-xs text-amber-300">{s.autoPaused ? 'Pausa automática' : 'Pausado'}</span>
           )}
         </div>
-        <GpsBadge acc={s.fix?.acc ?? null} error={s.gpsError} />
+        <GpsBadge acc={s.fix?.acc ?? null} error={s.gpsError} lostS={lost ? age : null} />
       </div>
 
+      {s.notice && (
+        <p className="text-xs text-sky-200 bg-sky-950/30 border border-sky-800/50 rounded-lg p-2.5 flex items-start gap-2">
+          <span className="flex-1">{s.notice}</span>
+          <button type="button" onClick={rec.clearNotice} aria-label="Fechar aviso" className="shrink-0 text-sky-300 hover:text-white"><X className="w-4 h-4" /></button>
+        </p>
+      )}
+      {lost && <p className="text-xs text-rose-200 bg-rose-950/30 border border-rose-800/50 rounded-lg p-2.5">Sem sinal de GPS há {age} s. O cronômetro continua; quando o sinal voltar, a rota segue de onde você estiver. Se puder, vá para um lugar mais aberto.</p>}
       {s.autoPaused && (
         <p className="text-xs text-amber-200 bg-amber-950/30 border border-amber-800/50 rounded-lg p-2.5 flex items-center gap-2"><PauseCircle className="w-4 h-4 shrink-0" /> Você parou, então pausei o cronômetro. Ele volta sozinho quando você voltar a se mexer.</p>
       )}
             {s.recovered && <p className="text-xs text-amber-300 bg-amber-950/30 border border-amber-800/50 rounded-lg p-2.5">Recuperamos o treino que estava em andamento. Toque em Retomar para continuar.</p>}
-
-      <RouteMap segments={s.segments} current={s.fix} live className="h-[42vh] min-h-[260px]" />
 
       <div className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5 space-y-5">
         <Stat label="Tempo" value={formatDuration(movingS)} big />
@@ -160,6 +167,9 @@ const LiveView: React.FC<{ onFinished: (t: FinishedTrack) => void }> = ({ onFini
         </div>
         {stats.elevationGainM !== null && <p className="text-center text-xs text-[#8b949e]">Subida acumulada: <strong className="text-[#f0f6fc]">{stats.elevationGainM} m</strong></p>}
       </div>
+
+      {/* números primeiro (dá para ver correndo), mapa depois */}
+      <RouteMap segments={s.segments} current={s.fix} live className="h-[34vh] min-h-[220px]" />
 
       <div className="flex items-center justify-center gap-4">
         {s.status === 'recording' ? (
@@ -202,6 +212,10 @@ const LiveView: React.FC<{ onFinished: (t: FinishedTrack) => void }> = ({ onFini
         </div>
       )}
       <AutoPauseToggle on={s.autoPauseOn} />
+      <label className="flex items-center justify-center gap-2 text-xs text-[#8b949e] cursor-pointer select-none">
+        <input type="checkbox" checked={s.kmCueOn} onChange={(e) => rec.setKmCue(e.target.checked)} className="accent-emerald-500" />
+        Avisar por voz e vibração a cada km
+      </label>
       <p className="text-center text-[11px] text-[#6e7681]">Mantenha o Ritmo aberto e a tela ligada: no celular, o navegador pausa o GPS quando a tela apaga ou você troca de app.</p>
     </div>
   );
@@ -214,8 +228,9 @@ const AutoPauseToggle: React.FC<{ on: boolean }> = ({ on }) => (
   </label>
 );
 
-const GpsBadge: React.FC<{ acc: number | null; error: string | null }> = ({ acc, error }) => {
+const GpsBadge: React.FC<{ acc: number | null; error: string | null; lostS?: number | null }> = ({ acc, error, lostS }) => {
   if (error) return <span className="text-xs text-rose-300 text-right max-w-[60%]">{error}</span>;
+  if (lostS != null) return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-300 whitespace-nowrap"><Satellite className="w-3.5 h-3.5 animate-pulse" /> Sem sinal</span>;
   if (acc == null) return <span className="inline-flex items-center gap-1.5 text-xs text-[#8b949e] whitespace-nowrap"><Satellite className="w-3.5 h-3.5 animate-pulse" /> Procurando GPS...</span>;
   const good = acc <= 15;
   const ok = acc <= GPS_LIMITS.maxAccuracyM;

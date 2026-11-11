@@ -35,6 +35,10 @@ export const RouteMap: React.FC<{
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [attempt, setAttempt] = useState(0);
   const [darken, setDarken] = useState(false);
+  // no modo ao vivo o mapa segue a pessoa, até ela arrastar o mapa com o dedo
+  const [follow, setFollow] = useState(true);
+  const followRef = useRef(true);
+  followRef.current = follow;
 
   useEffect(() => {
     let disposed = false;
@@ -78,11 +82,13 @@ export const RouteMap: React.FC<{
           L,
           map,
           lines: L.layerGroup().addTo(map),
+          drawn: [] as { ref: LatLng[]; outline: any; line: any }[],
           marks: L.layerGroup().addTo(map),
           me: null as any,
           meAcc: null as any,
         };
         // o tamanho do mapa pode mudar depois de montar (aba abrindo, celular girando)
+        map.on('dragstart', () => setFollow(false));
         ro = new ResizeObserver(() => map.invalidateSize());
         ro.observe(el.current);
         setTimeout(() => !disposed && map.invalidateSize(), 250);
@@ -108,17 +114,34 @@ export const RouteMap: React.FC<{
     if (!a) return;
     const { segments, current, live } = props.current;
     const { L, map } = a;
-    a.lines.clearLayers();
     a.marks.clearLayers();
     const all: [number, number][] = [];
-    for (const seg of segments) {
-      if (seg.length < 1) continue;
+    // só mexe nos trechos que mudaram (antes a rota inteira era apagada e redesenhada a cada segundo)
+    const segs = segments.filter((seg) => seg.length >= 1);
+    while (a.drawn.length > segs.length) {
+      const d = a.drawn.pop();
+      d.outline.remove();
+      d.line.remove();
+    }
+    segs.forEach((seg, i) => {
+      const cur = a.drawn[i];
+      if (cur && cur.ref === seg) {
+        for (const p of seg) all.push([p.lat, p.lng]);
+        return;
+      }
       const ll = seg.map((p) => [p.lat, p.lng] as [number, number]);
       all.push(...ll);
-      // contorno + linha (fica legível em cima do mapa)
-      L.polyline(ll, { color: '#052e1f', weight: 9, opacity: 0.6, lineCap: 'round', lineJoin: 'round' }).addTo(a.lines);
-      L.polyline(ll, { color: '#10b981', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(a.lines);
-    }
+      if (cur) {
+        cur.outline.setLatLngs(ll);
+        cur.line.setLatLngs(ll);
+        cur.ref = seg;
+      } else {
+        // contorno + linha (fica legível em cima do mapa)
+        const outline = L.polyline(ll, { color: '#052e1f', weight: 9, opacity: 0.6, lineCap: 'round', lineJoin: 'round' }).addTo(a.lines);
+        const line = L.polyline(ll, { color: '#10b981', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(a.lines);
+        a.drawn[i] = { ref: seg, outline, line };
+      }
+    });
     if (all.length) {
       L.circleMarker(all[0], { radius: 7, color: '#0d1117', weight: 3, fillColor: '#10b981', fillOpacity: 1 }).bindTooltip('Início').addTo(a.marks);
       if (!live && all.length > 1) L.circleMarker(all[all.length - 1], { radius: 7, color: '#0d1117', weight: 3, fillColor: '#f43f5e', fillOpacity: 1 }).bindTooltip('Fim').addTo(a.marks);
@@ -141,7 +164,7 @@ export const RouteMap: React.FC<{
 
     if (live) {
       const target = current ? [current.lat, current.lng] : all[all.length - 1];
-      if (target) map.setView(target, Math.max(map.getZoom(), 16), { animate: true });
+      if (target && followRef.current) map.setView(target, Math.max(map.getZoom(), 16), { animate: true });
     } else if (all.length > 1 && !fitted.current) {
       map.fitBounds(L.latLngBounds(all), { padding: [28, 28] });
       fitted.current = true;
@@ -151,7 +174,8 @@ export const RouteMap: React.FC<{
     }
   };
 
-  useEffect(draw);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(draw, [segments, current, live, status, follow]);
 
   const waitingGps = live && !current && segments.every((s) => s.length === 0);
   return (
@@ -163,6 +187,9 @@ export const RouteMap: React.FC<{
           Não foi possível abrir o mapa.
           <span className="text-emerald-400 font-semibold underline">Tentar de novo</span>
         </button>
+      )}
+      {status === 'ready' && live && !follow && (
+        <button type="button" onClick={() => setFollow(true)} className="absolute left-3 bottom-3 z-[500] px-3 py-1.5 rounded-full bg-[#0d1117]/90 border border-emerald-500/50 text-xs font-semibold text-emerald-300">Centralizar em mim</button>
       )}
       {status === 'ready' && waitingGps && (
         <div className="absolute left-1/2 -translate-x-1/2 top-3 z-[500] px-3 py-1.5 rounded-full bg-[#0d1117]/90 border border-[#30363d] text-xs text-[#c9d1d9] pointer-events-none whitespace-nowrap">Procurando sua localização...</div>

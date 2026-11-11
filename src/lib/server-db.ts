@@ -726,7 +726,30 @@ export async function createTask(userId: number, data: Partial<TaskItem>): Promi
   return newTask;
 }
 
-export async function updateTask(taskId: number, userId: number, updates: Partial<TaskItem>): Promise<TaskItem | null> {
+/** Só estes campos de uma tarefa podem ser editados (o resto, como o dono, o id e as datas internas, nunca vem do pedido). */
+function cleanTaskUpdates(raw: Partial<TaskItem>): Partial<TaskItem> {
+  const r = (raw || {}) as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  const str = (k: string, max: number) => { if (typeof r[k] === 'string') out[k] = (r[k] as string).slice(0, max); };
+  if (typeof r.title === 'string' && r.title.trim()) out.title = r.title.trim().slice(0, 200);
+  str('description', 2000);
+  str('category', 40);
+  str('priority', 20);
+  str('startTime', 5);
+  str('recurrenceRule', 500);
+  str('timeBlock', 20);
+  str('notes', 2000);
+  if (typeof r.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) out.date = r.date;
+  if (typeof r.completed === 'boolean') out.completed = r.completed;
+  if (typeof r.isRecurring === 'boolean') out.isRecurring = r.isRecurring;
+  if (r.estimatedMinutes !== undefined && Number.isFinite(Number(r.estimatedMinutes))) out.estimatedMinutes = Math.max(1, Math.min(1440, Math.round(Number(r.estimatedMinutes))));
+  if (r.cycleId === null || (r.cycleId !== undefined && Number.isInteger(Number(r.cycleId)))) out.cycleId = r.cycleId === null ? null : Number(r.cycleId);
+  return out as Partial<TaskItem>;
+}
+
+export async function updateTask(taskId: number, userId: number, rawUpdates: Partial<TaskItem>): Promise<TaskItem | null> {
+  const updates = cleanTaskUpdates(rawUpdates);
+  if (!Object.keys(updates).length) return getTaskById(userId, taskId);
   const isDb = await checkDb();
   if (isDb) {
     try {

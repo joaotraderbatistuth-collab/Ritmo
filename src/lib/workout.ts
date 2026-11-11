@@ -89,6 +89,41 @@ export function classifyPoint(prev: GpsPoint | null, next: GpsPoint, sport: Spor
   return 'add';
 }
 
+/* ---------------- Suavização do GPS ---------------- */
+
+/** Quanto a pessoa pode mudar de posição por segundo (m/s) em cada modalidade: quanto maior, menos o filtro "segura" o ponto. */
+export const SMOOTH_SPEED: Record<SportId, number> = { caminhada: 2, corrida: 4, trilha: 2.5, bike: 12 };
+
+export interface SmoothState {
+  lat: number;
+  lng: number;
+  /** Incerteza da posição filtrada (m²). */
+  variance: number;
+  t: number;
+}
+
+/**
+ * Filtro de Kalman simples pesado pela precisão de cada leitura: leitura boa puxa bastante,
+ * leitura ruim puxa pouco. Tira o zigue-zague do GPS do celular (que inflava a distância e
+ * deixava a linha tremida) sem apagar as curvas. Depois de um buraco de sinal, recomeça do zero.
+ */
+export function smoothFix(prev: SmoothState | null, p: GpsPoint, sport: SportId): SmoothState {
+  const acc = Math.max(3, p.acc != null && Number.isFinite(p.acc) ? p.acc : 15);
+  const dt = prev ? (p.t - prev.t) / 1000 : -1;
+  if (!prev || dt < 0 || dt > 20) return { lat: p.lat, lng: p.lng, variance: acc * acc, t: p.t };
+  const q = SMOOTH_SPEED[sport];
+  const variance = prev.variance + dt * q * q;
+  const k = variance / (variance + acc * acc);
+  return { lat: prev.lat + k * (p.lat - prev.lat), lng: prev.lng + k * (p.lng - prev.lng), variance: (1 - k) * variance, t: p.t };
+}
+
+/** Hora da leitura: usa a do GPS, a não ser que venha absurda (alguns aparelhos mandam relógio errado). */
+export function fixTime(timestamp: number | null | undefined, now: number): number {
+  if (timestamp == null) return now;
+  const t = Number(timestamp);
+  return Number.isFinite(t) && Math.abs(t - now) <= 120_000 ? t : now;
+}
+
 /* ---------------- Estatísticas ---------------- */
 
 export interface Split {
@@ -418,23 +453,37 @@ export const AUTO_PAUSE: Record<SportId, { windowS: number; stillM: number; resu
   trilha: { windowS: 20, stillM: 8, resumeM: 12 },
 };
 
-type Fix = { lat: number; lng: number; t: number; acc?: number | null };
+type Fix = { lat: number; lng: number; t: number; acc?: number | null; spd?: number | null };
+
+/** Abaixo desta velocidade (m/s, medida pelo próprio GPS) a pessoa está parada. */
+export const STOP_SPEED: Record<SportId, number> = { caminhada: 0.45, corrida: 0.7, trilha: 0.35, bike: 1.1 };
 
 /**
  * Está parado? Olha as leituras boas dos últimos segundos. Só decide com GPS chegando
  * (sem leitura recente, não pausa: pode ser só o sinal que caiu).
+ * Quando o aparelho informa a velocidade (quase todo celular informa), ela manda: a posição
+ * sozinha engana, porque GPS fraco "gruda" no mesmo ponto por vários segundos e depois pula.
  * Devolve desde quando está parado (para não contar esse tempo).
  */
 export function detectStop(fixes: Fix[], sport: SportId, now: number): { stopped: boolean; since: number } {
   const cfg = AUTO_PAUSE[sport];
+  const no = { stopped: false, since: now };
   const from = now - cfg.windowS * 1000;
   const win = fixes.filter((f) => f.t >= from && f.t <= now && (f.acc == null || f.acc <= GPS_LIMITS.maxAccuracyM));
-  if (win.length < 3) return { stopped: false, since: now };
-  if (win[win.length - 1].t - win[0].t < cfg.windowS * 800) return { stopped: false, since: now };
-  if (now - win[win.length - 1].t > 6000) return { stopped: false, since: now };
+  if (win.length < 3) return no;
+  if (win[win.length - 1].t - win[0].t < cfg.windowS * 800) return no;
+  if (now - win[win.length - 1].t > 6000) return no;
   const last = win[win.length - 1];
   const far = Math.max(...win.map((f) => haversine(f, last)));
-  return far < cfg.stillM ? { stopped: true, since: win[0].t } : { stopped: false, since: now };
+  const speeds = win.map((f) => f.spd).filter((v): v is number => v != null && Number.isFinite(v) && v >= 0);
+  if (speeds.length >= Math.ceil(win.length * 0.6)) {
+    if (speeds.some((v) => v >= STOP_SPEED[sport])) return no;
+    return far < cfg.stillM * 2.5 ? { stopped: true, since: win[0].t } : no;
+  }
+  // sem velocidade: posição "congelada" com sinal fraco é o aparelho repetindo a última leitura, não a pessoa parada
+  const worstAcc = Math.max(...win.map((f) => f.acc ?? 0));
+  if (far === 0 && worstAcc > 30) return no;
+  return far < cfg.stillM ? { stopped: true, since: win[0].t } : no;
 }
 
 /** Voltou a se mover depois da pausa automática? */
@@ -506,4 +555,27 @@ export function recordValueLabel(r: Pick<RecordEntry, 'kind' | 'value'>): string
   if (r.kind === 'tempo') return formatDuration(r.value);
   if (r.kind === 'veloc') return `${String(r.value).replace('.', ',')} km/h`;
   return `${formatPace(r.value)} /km`;
+}
+
+/* ---------------- Aviso a cada km ---------------- */
+
+const spoken = (totalS: number): string => {
+  const s = Math.max(0, Math.round(totalS));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  const parts: string[] = [];
+  if (m) parts.push(`${m} ${m === 1 ? 'minuto' : 'minutos'}`);
+  if (sec || !m) parts.push(`${sec} ${sec === 1 ? 'segundo' : 'segundos'}`);
+  return parts.join(' e ');
+};
+
+/** Frase falada quando fecha um km: "3 quilômetros. Último quilômetro em 5 minutos e 40 segundos." */
+export function kmCueText(sport: SportId, km: number, lastKmS: number | null, totalM: number, totalS: number): string {
+  const head = `${km} ${km === 1 ? 'quilômetro' : 'quilômetros'}.`;
+  if (!SPORTS[sport].usesPace) {
+    const kmh = speedKmh(totalM, totalS);
+    return kmh > 0 ? `${head} Média de ${kmh.toFixed(1).replace('.', ',')} quilômetros por hora.` : head;
+  }
+  if (lastKmS && lastKmS > 0) return `${head} Último quilômetro em ${spoken(lastKmS)}.`;
+  return totalS > 0 ? `${head} Tempo total: ${spoken(totalS)}.` : head;
 }

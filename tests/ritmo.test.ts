@@ -20,7 +20,8 @@ import { splitTeamPayment, validateTeamInput, teamCodeFrom, isValidTeamCode, mem
 import { normalizeText, displayName, initials, sanitizeAchievement, achievementHeadline, parsePayload, rateLimited, timeAgo, FEED_LIMITS } from '../src/lib/feed-rules.js';
 import { computeShareable } from '../src/lib/achievements.js';
 import { findRepeat, firstOccurrence, nextOccurrence, repeatLabel, isValidRepeat } from '../src/lib/recurrence.js';
-import { detectStop, detectResume, personalRecords, newRecords, recordValueLabel } from '../src/lib/workout.js';
+import { detectStop, detectResume, personalRecords, newRecords, recordValueLabel, smoothFix, fixTime, kmCueText } from '../src/lib/workout.js';
+import type { GpsPoint, SmoothState } from '../src/lib/workout.js';
 import { pickMissions, missionProgress, chestReward, computeStreak, nextMilestone, weekSummary, nextTier, rankInGroup, mondayOf, MISSION_POOL } from '../src/lib/missions.js';
 import { computeNotices } from '../src/lib/notices.js';
 import { generateRoadmap, roadmapProgress, stepStatus } from '../src/lib/roadmap.js';
@@ -756,6 +757,47 @@ export function runTests() {
   assert(!detectStop(parado.slice(0, 2), 'corrida', 1_011_000).stopped, 'poucas leituras: não decide');
   assert(!detectStop(parado, 'corrida', 1_030_000).stopped, 'sem GPS recente: não pausa');
   assert(detectResume({ ...gpsBase, t: 0 }, { lat: gpsBase.lat + 0.0002, lng: gpsBase.lng, t: 0, acc: 8 }, 'corrida') && !detectResume({ ...gpsBase, t: 0 }, { lat: gpsBase.lat + 0.00003, lng: gpsBase.lng, t: 0, acc: 8 }, 'corrida'), 'volta sozinho ao andar');
+  // velocidade do aparelho manda na pausa automática (GPS fraco "gruda" no mesmo ponto e enganava)
+  const grudado = [0, 3, 6, 9, 11].map((sec) => ({ ...gpsBase, t: 1_000_000 + sec * 1000, acc: 40, spd: 2.8 }));
+  assert(!detectStop(grudado, 'corrida', 1_011_000).stopped, 'posição grudada mas com velocidade: não pausa');
+  assert(detectStop(grudado.map((f) => ({ ...f, spd: 0.1, acc: 8 })), 'corrida', 1_011_000).stopped, 'velocidade zero e mesmo lugar: pausa');
+  assert(!detectStop(grudado.map((f) => ({ ...f, spd: null })), 'corrida', 1_011_000).stopped, 'posição congelada com sinal fraco e sem velocidade: não decide');
+  // filtro do GPS: percurso reto de 1 km com ruído; a distância não pode inflar
+  {
+    let sd = 7;
+    const rnd = () => (sd = (sd * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const noise = () => (rnd() + rnd() + rnd() - 1.5) * 12; // ± uns 6 m
+    const M1 = 1 / 111320;
+    const measure = (useFilter: boolean) => {
+      let st: SmoothState | null = null;
+      const seg: GpsPoint[] = [];
+      for (let i = 1; i <= 334; i++) {
+        let p: GpsPoint = { lat: -22.5 + (i * 3 + noise()) * M1, lng: -44.5 + noise() * M1, t: i * 1000, acc: 12 };
+        if (useFilter) {
+          st = smoothFix(st, p, 'corrida');
+          p = { ...p, lat: st.lat, lng: st.lng };
+        }
+        const prev = seg.length ? seg[seg.length - 1] : null;
+        if (classifyPoint(prev, p, 'corrida') === 'add') seg.push(p);
+      }
+      return trackStats([seg]).distanceM;
+    };
+    const cru = measure(false);
+    const filtrado = measure(true);
+    assert(filtrado > 950 && filtrado < 1100, `filtro mantém ~1 km (deu ${filtrado})`);
+    assert(cru - 1000 > (filtrado - 1000) * 2, `sem filtro o zigue-zague inflava bem mais (${cru} x ${filtrado})`);
+    const first = smoothFix(null, { lat: 1, lng: 2, t: 0, acc: 10 }, 'corrida');
+    assert(first.lat === 1 && first.lng === 2, 'primeira leitura entra como veio');
+    const gap = smoothFix(first, { lat: 1.01, lng: 2, t: 60_000, acc: 10 }, 'corrida');
+    assert(gap.lat === 1.01, 'depois de um buraco de sinal o filtro recomeça (não arrasta o ponto antigo)');
+    const weak = smoothFix(first, { lat: 1.001, lng: 2, t: 1000, acc: 60 }, 'corrida');
+    const strong = smoothFix(first, { lat: 1.001, lng: 2, t: 1000, acc: 5 }, 'corrida');
+    assert(strong.lat - 1 > (weak.lat - 1) * 3, 'leitura boa puxa mais que leitura ruim');
+  }
+  assert(fixTime(1000, 1500) === 1000 && fixTime(1, 10_000_000) === 10_000_000 && fixTime(null, 77) === 77, 'hora do GPS absurda usa o relógio do aparelho');
+  assert(kmCueText('corrida', 1, 340, 1000, 340) === '1 quilômetro. Último quilômetro em 5 minutos e 40 segundos.', 'aviso do 1º km');
+  assert(kmCueText('corrida', 3, null, 3000, 1200) === '3 quilômetros. Tempo total: 20 minutos.', 'aviso sem o tempo do último km');
+  assert(kmCueText('bike', 5, 100, 5000, 900) === '5 quilômetros. Média de 20,0 quilômetros por hora.', 'aviso no pedal fala a velocidade');
   const ws1 = [
     { id: 1, sport: 'corrida' as const, distanceM: 5000, movingS: 1800, startedAt: '2026-10-01', splits: [{ km: 1, seconds: 350, meters: 1000 }] },
     { id: 2, sport: 'corrida' as const, distanceM: 3000, movingS: 900, startedAt: '2026-10-05', splits: [{ km: 1, seconds: 290, meters: 1000 }] },

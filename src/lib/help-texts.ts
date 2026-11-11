@@ -300,6 +300,8 @@ export const HELP: Record<string, HelpText> = {
       'Dia de treino vale +20. Do 2º ao 5º dia de treino na semana tem bônus de constância (+5 a +20).',
       'O que conta é treinar em dias diferentes, não a distância.',
       'O app mantém a tela ligada. Com a tela apagada, o celular pode pausar o GPS.',
+      'A cada km o app vibra e fala o tempo do último km (dá para desligar na tela do treino).',
+      'Parou no semáforo? O cronômetro pausa sozinho e volta quando você anda, sem perder metros.',
       'Ao compartilhar, o começo e o fim do trajeto (200 m) ficam escondidos por segurança.',
     ],
     todo: ['Escolha a modalidade e toque em Começar.'],
