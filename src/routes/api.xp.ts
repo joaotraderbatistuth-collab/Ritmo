@@ -6,6 +6,7 @@ import { CommunityError } from '../lib/community-db.js';
 import { mediaOwnedBy, parseMediaUrl, mediaUrl } from '../lib/media.js';
 import { updateUserRecord } from '../lib/server-db.js';
 import { getUserXp } from '../lib/xp-server.js';
+import { socialUnread } from '../lib/social-db.js';
 import { buildGame, friendsWeek, openChest, openWeekChest, saveWeekXp, syncSeason } from '../lib/game-server.js';
 
 // GET  /api/xp                          → pontos, nível, progresso e foto de perfil
@@ -41,6 +42,7 @@ export const Route = createFileRoute('/api/xp')({
             season: await syncSeason(payload.userId, xp),
             friends: await friendsWeek(payload.userId, xp, game.week.xp),
             leagueOptOut: xp.leagueOptOut,
+            socialUnread: await socialUnread(payload.userId),
           });
         } catch (e) {
           console.error('[xp]', e);

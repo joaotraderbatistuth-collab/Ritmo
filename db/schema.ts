@@ -32,6 +32,7 @@ export const users = pgTable("users", {
   weekKey: text("week_key"), // segunda-feira da semana dos pontos abaixo (ranking entre amigos)
   weekXp: integer("week_xp").notNull().default(0),
   storyAuto: boolean("story_auto").notNull().default(false), // publica sozinho nos stories as conquistas e o "ao vivo"
+  socialSeenAt: timestamp("social_seen_at"), // última vez que abriu a Atividade do Feed (curtidas, comentários, seguidores)
   founder: boolean("founder").notNull().default(false), // Fundador: um dos 50 primeiros, acesso vitalício sem pagar
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

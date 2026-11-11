@@ -15,6 +15,8 @@ import { TabSettings } from '../components/TabSettings.js';
 import { TabBoards } from '../components/TabBoards.js';
 import { TabRoadmap } from '../components/TabRoadmap.js';
 import { WelcomeTour } from '../components/WelcomeTour.js';
+import { setSocialUnread, useSocialUnread } from '../lib/social-client.js';
+import { badgeLabel } from '../lib/social.js';
 import { SetupGuide } from '../components/SetupGuide.js';
 import { TabFeed } from '../components/TabFeed.js';
 import { SHARE_EVENT, OPEN_PROFILE_EVENT } from '../lib/share-feed.js';
@@ -170,6 +172,11 @@ function RitmoApp() {
     [habitLogs, tasks, sessions, journalEntries, transactions, activeTab]
   );
   const xp = useXp(user?.id ?? null, xpSignature);
+  // novidades sociais (curtidas, comentários, seguidores): chegam com os pontos e zeram ao abrir a Atividade
+  const socialUnread = useSocialUnread();
+  useEffect(() => {
+    if (xp.data) setSocialUnread(xp.data.socialUnread || 0);
+  }, [xp.data?.socialUnread]);
   const fx = useFxPrefs();
   const userInitials = initialsOf(user?.name);
 
@@ -707,7 +714,16 @@ function RitmoApp() {
   // Navigation items definition
   const NAV_ITEMS: NavItem[] = [
     { id: 'hoje', label: 'Hoje', icon: <Flame className="w-5 h-5" /> },
-    { id: 'feed', label: 'Feed', icon: <UsersIcon className="w-5 h-5" /> },
+    {
+      id: 'feed',
+      label: 'Feed',
+      icon: (
+        <span className="relative inline-flex mr-1.5">
+          <UsersIcon className="w-5 h-5" />
+          {socialUnread > 0 && <span aria-label={`${socialUnread} novidades no Feed`} className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center">{badgeLabel(socialUnread)}</span>}
+        </span>
+      ),
+    },
     { id: 'treino', label: 'Treino', icon: <Activity className="w-5 h-5" /> },
     { id: 'progresso', label: 'Progresso', icon: <TrendingUp className="w-5 h-5" /> },
     { id: 'habitos', label: 'Hábitos & Saúde', short: 'Hábitos', hint: 'Água, alimentação, sono, leitura', icon: <Sparkles className="w-5 h-5" /> },

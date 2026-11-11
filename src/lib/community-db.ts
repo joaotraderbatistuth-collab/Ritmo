@@ -17,6 +17,7 @@ import {
 import { FEED_LIMITS, displayName, initials, normalizeText, parsePayload, sanitizeAchievement } from './feed-rules.js';
 import { mediaOwnedBy } from './media.js';
 import { isBundledImage, parseMediaUrl } from './media-url.js';
+import { notifySocial } from './social-db.js';
 import { levelDef, MAX_LEVEL } from './levels.js';
 
 export class CommunityError extends Error {
@@ -681,9 +682,12 @@ export async function deletePost(userId: number, postId: number) {
 
 export async function toggleLike(userId: number, postId: number) {
   await need();
-  await loadVisiblePost(userId, postId);
+  const liked = await loadVisiblePost(userId, postId);
   const removed = await db.delete(schema.feedLikes).where(and(eq(schema.feedLikes.postId, postId), eq(schema.feedLikes.userId, userId))).returning();
-  if (removed.length === 0) await db.insert(schema.feedLikes).values({ postId, userId }).onConflictDoNothing();
+  if (removed.length === 0) {
+    const ins = await db.insert(schema.feedLikes).values({ postId, userId }).onConflictDoNothing().returning();
+    if (ins.length) notifySocial('like', userId, liked.post.userId, postId);
+  }
   const [r] = await db.select({ n: count }).from(schema.feedLikes).where(eq(schema.feedLikes.postId, postId));
   return { liked: removed.length === 0, likes: r?.n || 0 };
 }
@@ -691,7 +695,7 @@ export async function toggleLike(userId: number, postId: number) {
 export async function addComment(userId: number, postId: number, rawBody: unknown, rawImage?: unknown) {
   await need();
   await assertCanWrite(userId);
-  await loadVisiblePost(userId, postId);
+  const target = await loadVisiblePost(userId, postId);
   const body = normalizeText(rawBody, FEED_LIMITS.commentMax);
   const imageUrl = await cleanImage(userId, rawImage);
   if (!body && !imageUrl) throw new CommunityError(400, 'Escreva o comentário ou coloque uma foto.');
@@ -699,6 +703,7 @@ export async function addComment(userId: number, postId: number, rawBody: unknow
     throw new CommunityError(429, 'Muitos comentários seguidos. Tente de novo daqui a pouco.');
   }
   const [c] = await db.insert(schema.feedComments).values({ postId, userId, body, imageUrl }).returning();
+  notifySocial('comment', userId, target.post.userId, postId, body);
   return c;
 }
 

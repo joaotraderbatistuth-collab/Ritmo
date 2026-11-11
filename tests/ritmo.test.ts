@@ -20,6 +20,7 @@ import { splitTeamPayment, validateTeamInput, teamCodeFrom, isValidTeamCode, mem
 import { normalizeText, displayName, initials, sanitizeAchievement, achievementHeadline, parsePayload, rateLimited, timeAgo, FEED_LIMITS } from '../src/lib/feed-rules.js';
 import { computeShareable } from '../src/lib/achievements.js';
 import { findRepeat, firstOccurrence, nextOccurrence, repeatLabel, isValidRepeat } from '../src/lib/recurrence.js';
+import { mergeActivity, activityText, socialPush, badgeLabel, rankSuggestions, snippet } from '../src/lib/social.js';
 import { detectStop, detectResume, personalRecords, newRecords, recordValueLabel, smoothFix, fixTime, kmCueText } from '../src/lib/workout.js';
 import type { GpsPoint, SmoothState } from '../src/lib/workout.js';
 import { pickMissions, missionProgress, chestReward, computeStreak, nextMilestone, weekSummary, nextTier, rankInGroup, mondayOf, MISSION_POOL } from '../src/lib/missions.js';
@@ -1238,5 +1239,33 @@ export function runTests() {
   }
   console.log('✓ Créditos ok');
 
+  console.log('Testando a parte social (atividade e quem seguir)...');
+  {
+    const ev = [
+      { kind: 'like' as const, at: '2026-11-10T10:00:00Z', actorId: 2, postId: 1 },
+      { kind: 'comment' as const, at: '2026-11-11T09:00:00Z', actorId: 3, postId: 1, text: 'Boa!' },
+      { kind: 'follow' as const, at: '2026-11-09T08:00:00Z', actorId: 4 },
+      { kind: 'clap' as const, at: 'data quebrada', actorId: 5 },
+    ];
+    const m = mergeActivity(ev, '2026-11-10T00:00:00Z');
+    assert(m.items.length === 3 && m.items[0].kind === 'comment' && m.items[2].kind === 'follow', 'atividade do mais novo para o mais antigo, sem datas quebradas');
+    assert(m.unread === 2 && m.items[0].fresh && m.items[1].fresh && !m.items[2].fresh, 'só conta como novo o que veio depois da última olhada');
+    assert(mergeActivity(ev, null).unread === 3 && mergeActivity(ev, '2026-12-01T00:00:00Z').unread === 0, 'nunca olhou: tudo novo; já olhou: nada novo');
+    assert(mergeActivity(ev, null, 1).items.length === 1 && mergeActivity(ev, null, 1).unread === 3, 'o limite corta a lista mas não a contagem');
+    assert(activityText('like') === 'curtiu sua publicação' && activityText('follow') === 'começou a seguir você' && activityText('clap') === 'aplaudiu seu story' && activityText('comment', 'Boa!') === 'comentou: “Boa!”', 'textos da atividade');
+    assert(socialPush('comment', 'Ana S.', 'x'.repeat(300)).body.length <= 110 && socialPush('like', 'Ana S.').body.includes('Ana S.'), 'aviso no celular curto e com o nome');
+    assert(badgeLabel(0) === '' && badgeLabel(7) === '7' && badgeLabel(250) === '99+', 'selo de novidades');
+    assert(snippet('  a   b \n c ') === 'a b c' && snippet('x'.repeat(100), 10).length === 10, 'trecho limpo e curto');
+    const base = { weekXp: 0, xpTotal: 0, recentPosts: 0, followsMe: false, hasPhoto: false };
+    const r = rankSuggestions([
+      { ...base, id: 1, xpTotal: 9000 },
+      { ...base, id: 2, followsMe: true },
+      { ...base, id: 3, recentPosts: 3, weekXp: 120 },
+      { ...base, id: 4 },
+    ]);
+    assert(r.map((x) => x.id).join(',') === '2,3,1', 'quem segue você vem primeiro, depois quem publica e está ativo; conta parada não é sugerida');
+    assert(rankSuggestions(Array.from({ length: 20 }, (_, i) => ({ ...base, id: i + 1, weekXp: 10 }))).length === 6, 'no máximo 6 sugestões');
+  }
+  console.log('✓ Parte social ok');
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

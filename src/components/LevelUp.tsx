@@ -12,6 +12,8 @@ import { Burst, GoalRing, RewardSettings, getFxPrefs, playGain, useFxPrefs } fro
 import { cheerFor, goalProgress, nearNextLevel, nextCombo } from '../lib/rewards.js';
 
 export interface XpData extends GameData {
+  /** Curtidas, comentários, seguidores e aplausos novos (selo no Feed). */
+  socialUnread?: number;
   xp: number;
   todayXp: number;
   activeDays: number;

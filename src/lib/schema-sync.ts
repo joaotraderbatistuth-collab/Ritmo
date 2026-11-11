@@ -384,6 +384,7 @@ export const SCHEMA_SYNC_STATEMENTS: string[] = [
   `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "week_key" text`,
   `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "week_xp" integer NOT NULL DEFAULT 0`,
   `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "story_auto" boolean NOT NULL DEFAULT false`,
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "social_seen_at" timestamp`,
   `CREATE TABLE IF NOT EXISTS "week_chests" (
     "id" serial PRIMARY KEY NOT NULL,
     "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,

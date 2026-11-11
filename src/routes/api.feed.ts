@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { requireMember, communityError } from '../lib/community-auth.js';
+import { markSocialSeen, socialActivity, suggestFollows } from '../lib/social-db.js';
+import { dayIn } from '../lib/xp-server.js';
 import { addComment, createPost, deleteComment, deletePost, listComments, listPosts, reportContent, toggleFollow, toggleLike, CommunityError } from '../lib/community-db.js';
 
 export const Route = createFileRoute('/api/feed')({
@@ -9,6 +11,13 @@ export const Route = createFileRoute('/api/feed')({
         try {
           const user = await requireMember(request);
           const q = new URL(request.url).searchParams;
+          // Atividade: quem curtiu, comentou, aplaudiu ou começou a seguir (abrir a lista zera o selo)
+          if (q.get('activity') === '1') {
+            const data = await socialActivity(user.id);
+            await markSocialSeen(user.id);
+            return Response.json(data);
+          }
+          if (q.get('suggest') === '1') return Response.json({ people: await suggestFollows(user.id, dayIn((user as any).timezone)) });
           const commentsOf = q.get('comments');
           if (commentsOf) return Response.json({ comments: await listComments(user.id, Number(commentsOf)) });
           const teamId = q.get('teamId') ? Number(q.get('teamId')) : null;

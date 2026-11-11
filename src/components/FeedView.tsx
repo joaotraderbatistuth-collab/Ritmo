@@ -10,6 +10,7 @@ import { LevelAvatar } from './LevelAvatar.js';
 import { frameForLevel, levelInfo } from '../lib/levels.js';
 import { openProfile } from '../lib/share-feed.js';
 import { callApi } from '../lib/client-api.js';
+import { ActivityButton, FollowSuggestions } from './SocialActivity.js';
 import { uploadFile } from '../lib/upload.js';
 import { Achievement, FEED_LIMITS, REPORT_REASONS, achievementHeadline, timeAgo } from '../lib/feed-rules.js';
 
@@ -409,12 +410,16 @@ export const FeedView: React.FC<{ teamId: number | null; canPost: boolean; achie
       {notice && <div role="status" className={`text-sm rounded-lg p-3 border ${notice.ok ? 'text-emerald-300 bg-emerald-950/40 border-emerald-800/60' : 'text-rose-300 bg-rose-950/40 border-rose-800/60'}`}>{notice.text}</div>}
       {error && <div role="alert" className="text-sm text-rose-300 bg-rose-950/40 border border-rose-800/60 rounded-lg p-3">{error}</div>}
       {!teamId && (
-        <div className="flex gap-1 p-1 rounded-xl bg-[#161b22] border border-[#30363d] w-fit" role="tablist" aria-label="Filtrar o Feed">
-          {[{ v: false, label: 'Todos' }, { v: true, label: 'Seguindo' }].map((o) => (
-            <button key={o.label} type="button" role="tab" aria-selected={onlyFollowing === o.v} onClick={() => chooseFollowing(o.v)} className={`px-4 py-1.5 rounded-lg text-sm font-semibold ${onlyFollowing === o.v ? 'bg-emerald-600 text-white' : 'text-[#8b949e] hover:text-white'}`}>{o.label}</button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex gap-1 p-1 rounded-xl bg-[#161b22] border border-[#30363d] w-fit" role="tablist" aria-label="Filtrar o Feed">
+            {[{ v: false, label: 'Todos' }, { v: true, label: 'Seguindo' }].map((o) => (
+              <button key={o.label} type="button" role="tab" aria-selected={onlyFollowing === o.v} onClick={() => chooseFollowing(o.v)} className={`px-4 py-1.5 rounded-lg text-sm font-semibold ${onlyFollowing === o.v ? 'bg-emerald-600 text-white' : 'text-[#8b949e] hover:text-white'}`}>{o.label}</button>
+            ))}
+          </div>
+          <ActivityButton />
         </div>
       )}
+      {!teamId && <FollowSuggestions onFollowed={() => onlyFollowing && load()} />}
       {!loading && !error && posts.length === 0 && (
         <div className="rounded-2xl border border-dashed border-[#30363d] p-8 text-center text-sm text-[#8b949e]">
           {onlyFollowing && !teamId ? 'Você ainda não segue ninguém (ou quem você segue não publicou). Toque na foto de alguém no Feed e depois em Seguir.' : emptyText}

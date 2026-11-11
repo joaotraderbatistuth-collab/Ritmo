@@ -312,6 +312,8 @@ export const HELP: Record<string, HelpText> = {
     what: 'A rede social do Ritmo: conquistas, fotos e apoio entre as pessoas, além dos Ritus (comunidades com conteúdo).',
     how: [
       'Nada é publicado sozinho no Feed: você revisa e toca em Publicar.',
+      'Em Atividade você vê quem curtiu, comentou, aplaudiu seu story ou começou a seguir você. O número vermelho no Feed mostra as novidades.',
+      'Em Quem seguir aparecem pessoas ativas que você ainda não segue.',
       'Curtir, comentar, seguir e publicar valem pontos (com limite por dia).',
       'Toque na foto de alguém para ver o perfil: nível, conquistas, temporada e Ritus.',
       'Ritus grátis qualquer um lê e comenta. Ritus pagos: o criador fica com 60% e a plataforma com 40%.',
