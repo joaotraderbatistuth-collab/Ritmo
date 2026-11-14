@@ -196,7 +196,7 @@ function AdminPage() {
         {tab === 'usuarios' && <UsersTab users={data.users || []} act={act} canManage={can('users_manage')} isMaster={Boolean(data.adminUser?.isMaster)} me={data.adminUser?.id} />}
         {tab === 'vagas' && <WaitlistTab canManage={can('users_manage')} />}
         {tab === 'creditos' && data.adminUser?.isMaster && <CreditsTab />}
-        {tab === 'admins' && <AdminsTab admins={data.admins || []} invites={data.adminInvites || []} act={act} me={data.adminUser?.id} isMaster={Boolean(data.adminUser?.isMaster)} myPerms={perms} />}
+        {tab === 'admins' && <AdminsTab officialIds={data.officialIds || []} admins={data.admins || []} invites={data.adminInvites || []} act={act} me={data.adminUser?.id} isMaster={Boolean(data.adminUser?.isMaster)} myPerms={perms} />}
         {tab === 'vendas' && <SalesTab finance={data.finance} teamsFinance={data.teamsFinance} payments={data.payments || []} act={act} canRefund={can('refunds')} />}
         {tab === 'cupons' && <CouponsTab coupons={data.coupons || []} act={act} />}
         {tab === 'afiliados' && <AffiliatesTab affiliates={data.affiliates || []} />}
@@ -549,7 +549,7 @@ function PermissionPicker({ value, onChange, allowed }: { value: string[]; onCha
   );
 }
 
-function AdminsTab({ admins, invites, act, me, isMaster, myPerms }: { admins: any[]; invites: any[]; act: Act; me: number; isMaster: boolean; myPerms: string[] }) {
+function AdminsTab({ admins, invites, act, me, isMaster, myPerms, officialIds }: { admins: any[]; invites: any[]; act: Act; me: number; isMaster: boolean; myPerms: string[]; officialIds: number[] }) {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const allowed = isMaster ? undefined : myPerms.filter((p) => p !== 'admins_manage');
   const [perms, setPerms] = useState<string[]>(['overview', 'users_view'].filter((p) => !allowed || allowed.includes(p)));
@@ -626,6 +626,19 @@ function AdminsTab({ admins, invites, act, me, isMaster, myPerms }: { admins: an
                   </div>
                 )}
               </div>
+              <label className={`mt-3 flex items-start gap-3 rounded-xl border p-3 ${officialIds.includes(a.id) ? 'border-sky-500/60 bg-sky-500/5' : 'border-[#30363d]'} ${isMaster ? 'cursor-pointer' : 'opacity-70'}`}>
+                <input
+                  type="checkbox"
+                  className="mt-1 accent-sky-500"
+                  checked={officialIds.includes(a.id)}
+                  disabled={!isMaster}
+                  onChange={(e) => act({ action: 'set_official', targetUserId: a.id, on: e.target.checked })}
+                />
+                <span>
+                  <span className="block text-sm font-semibold">Conta oficial (fundador)</span>
+                  <span className="block text-[11px] text-slate-400">Todo mundo segue esta conta (quem já tem conta e quem entrar) e recebe aviso no celular de cada publicação dela no Feed.</span>
+                </span>
+              </label>
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {a.isMaster ? (
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">Todas as permissões + gerenciar administradores</span>

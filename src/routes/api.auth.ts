@@ -174,6 +174,8 @@ export const Route = createFileRoute('/api/auth')({
             // registra o aceite (versão e data) dos Termos, da Política e do uso dos dados de bem-estar
             await grantConsent(newUser.id, 'termos').catch(() => null);
             await grantConsent(newUser.id, 'saude').catch(() => null);
+            // já começa seguindo as contas oficiais (fundadores)
+            await import('../lib/official-db.js').then((m) => m.followOfficials(newUser.id)).catch(() => null);
 
             if (referralCode) {
               await recordAffiliateClick(referralCode);

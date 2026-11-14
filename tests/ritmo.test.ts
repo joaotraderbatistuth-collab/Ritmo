@@ -20,6 +20,7 @@ import { splitTeamPayment, validateTeamInput, teamCodeFrom, isValidTeamCode, mem
 import { normalizeText, displayName, initials, sanitizeAchievement, achievementHeadline, parsePayload, rateLimited, timeAgo, FEED_LIMITS } from '../src/lib/feed-rules.js';
 import { computeShareable } from '../src/lib/achievements.js';
 import { findRepeat, firstOccurrence, nextOccurrence, repeatLabel, isValidRepeat } from '../src/lib/recurrence.js';
+import { parseOfficialIds, toggleOfficial, officialPostPush, OFFICIAL_MAX } from '../src/lib/official.js';
 import { mergeActivity, activityText, socialPush, badgeLabel, rankSuggestions, snippet } from '../src/lib/social.js';
 import { detectStop, detectResume, personalRecords, newRecords, recordValueLabel, smoothFix, fixTime, kmCueText } from '../src/lib/workout.js';
 import type { GpsPoint, SmoothState } from '../src/lib/workout.js';
@@ -1267,5 +1268,20 @@ export function runTests() {
     assert(rankSuggestions(Array.from({ length: 20 }, (_, i) => ({ ...base, id: i + 1, weekXp: 10 }))).length === 6, 'no máximo 6 sugestões');
   }
   console.log('✓ Parte social ok');
+  console.log('Testando as contas oficiais (fundadores)...');
+  {
+    assert(parseOfficialIds(null) === null && parseOfficialIds('quebrado') === null && parseOfficialIds('{}') === null, 'sem lista válida usa o padrão (master)');
+    assert(parseOfficialIds('[1,"7",7,-2,0,1.5]')!.join(',') === '1,7', 'lista limpa, sem repetir e só ids válidos');
+    assert(parseOfficialIds('[]')!.length === 0, 'lista vazia é respeitada');
+    assert(toggleOfficial([1], 7, true).join(',') === '1,7' && toggleOfficial([1, 7], 7, true).join(',') === '1,7' && toggleOfficial([1, 7], 1, false).join(',') === '7', 'marcar e desmarcar conta oficial');
+    let threw = false;
+    try { toggleOfficial(Array.from({ length: OFFICIAL_MAX }, (_, i) => i + 1), 99, true); } catch { threw = true; }
+    assert(threw, 'respeita o máximo de contas oficiais');
+    const p1 = officialPostPush('João Alves', 'Bom dia, time do Ritmo!', 'text');
+    assert(p1.title === 'João publicou no Ritmo' && p1.body === 'Bom dia, time do Ritmo!', 'aviso com o primeiro nome e o texto');
+    assert(officialPostPush('Maurício', 'x'.repeat(300), 'text').body.length <= 120, 'texto longo é cortado');
+    assert(officialPostPush('Maurício', '', 'photo').body.includes('foto') && officialPostPush('', null, 'achievement').title === 'Ritmo publicou no Ritmo', 'post sem texto ainda avisa');
+  }
+  console.log('✓ Contas oficiais ok');
   console.log('🎉 Todos os testes unitários do Ritmo foram concluídos com êxito!');
 }

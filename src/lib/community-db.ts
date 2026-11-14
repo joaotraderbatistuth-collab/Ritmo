@@ -513,6 +513,10 @@ export async function createPost(userId: number, input: { body?: unknown; teamId
     .insert(schema.feedPosts)
     .values({ userId, teamId, kind: achievement ? 'achievement' : imageUrl ? 'photo' : 'text', body, payload: achievement ? JSON.stringify(achievement) : null, imageUrl })
     .returning();
+  // conta oficial (fundadores) publicou no Feed geral: avisa no celular todos os seguidores
+  await import('./official-db.js')
+    .then((m) => m.notifyOfficialPost({ id: post.id, userId, teamId, body, kind: post.kind }))
+    .catch((e) => console.error('[oficiais] aviso de publicação', e));
   return post;
 }
 

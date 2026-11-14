@@ -116,6 +116,7 @@ export const ACTION_PERMISSION: Record<string, AdminPermission> = {
   attach_withdrawal_receipt: 'withdrawals',
   set_admin_permissions: 'admins_manage',
   remove_admin: 'admins_manage',
+  set_official: 'admins_manage',
 };
 
 /** Exportação → permissão exigida. */

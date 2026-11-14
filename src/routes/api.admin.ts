@@ -146,6 +146,9 @@ export const Route = createFileRoute('/api/admin')({
           ...filterDashboardByPermissions(data, permissions),
           ...(can(permissions, 'finance') ? { teamsFinance: await getTeamsFinance() } : {}),
           ...(can(permissions, 'admins_create') || can(permissions, 'admins_manage') ? { adminInvites: await listAdminInvites() } : {}),
+          ...(can(permissions, 'admins_create') || can(permissions, 'admins_manage')
+            ? { officialIds: await import('../lib/official-db.js').then((m) => m.getOfficialIds()).catch(() => []) }
+            : {}),
         });
       },
 
@@ -357,6 +360,18 @@ export const Route = createFileRoute('/api/admin')({
             invalidateSessionCache(Number(body.targetUserId));
             await logAdminAction(user, 'remover_admin', { type: 'usuario', id: body.targetUserId });
             return Response.json({ success: true, message: 'Perfil de administrador removido.' });
+          }
+
+          if (action === 'set_official') {
+            if (!isMaster) return fail('Só o administrador master escolhe as contas oficiais.', 403);
+            const { setOfficial } = await import('../lib/official-db.js');
+            const on = Boolean(body.on);
+            await setOfficial(Number(body.targetUserId), on);
+            await logAdminAction(user, on ? 'marcar_conta_oficial' : 'desmarcar_conta_oficial', { type: 'usuario', id: body.targetUserId });
+            return Response.json({
+              success: true,
+              message: on ? 'Conta oficial: todo mundo passa a seguir e recebe aviso das publicações.' : 'Conta deixou de ser oficial (quem já segue continua seguindo).',
+            });
           }
 
           return fail('Ação administrativa não reconhecida.', 400);
